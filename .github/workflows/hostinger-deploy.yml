@@ -1,0 +1,45 @@
+name: Despliegue Frontend a Hostinger
+
+on:
+  push:
+    branches:
+      - main  # Se ejecutará automáticamente cuando subas cambios a la rama main
+    paths:
+      # Solo se ejecuta si hay cambios en los archivos del frontend
+      - 'templates/index.html'
+      - 'templates/login.html'
+      - 'static/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Preparar carpeta de despliegue (frontend_dist)
+        run: |
+          mkdir -p frontend_dist/static
+          cp templates/index.html frontend_dist/
+          cp templates/login.html frontend_dist/
+          cp -r static/* frontend_dist/static/
+          
+          # Crear archivo .htaccess para enrutamiento SPA
+          cat << 'EOF' > frontend_dist/.htaccess
+          RewriteEngine On
+          RewriteRule ^login$ login.html [L]
+          RewriteCond %{REQUEST_FILENAME} -f [OR]
+          RewriteCond %{REQUEST_FILENAME} -d
+          RewriteRule ^ - [L]
+          RewriteRule ^ index.html [L]
+          EOF
+
+      - name: Subir a Hostinger via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./frontend_dist/
+          # Directorio destino en Hostinger (usualmente public_html o una subcarpeta)
+          server-dir: /public_html/

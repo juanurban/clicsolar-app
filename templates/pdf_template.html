@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Propuesta Comercial SunQuote</title>
+    <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config={theme:{extend:{colors:{primary:"#ffc800",dark:"#131313",gray:"#353535",light:"#e4e2e1"}},fontFamily:{sans:['Inter','sans-serif'],heading:['Montserrat','sans-serif']}}};
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script>
+    if (window.Chart) {
+        Chart.defaults.devicePixelRatio = 3;
+    }
+    </script>
+    
+    <style>
+        @page { size: A4; margin: 0; }
+        body { background: #fff; color: #131313; font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Montserrat', sans-serif; }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
+            page-break-after: always;
+        }
+
+        .header-stripe {
+            height: 8mm;
+            background: #ffc800;
+            width: 100%;
+        }
+
+        .content { padding: 10mm 16mm; }
+
+        @media print {
+            body { background: none; }
+            .page { margin: 0; box-shadow: none; border: none; width: 210mm; min-height: 297mm; height: auto; overflow: visible; }
+            .no-print { display: none !important; }
+            .print-break { page-break-before: always; }
+            .prevent-break { page-break-inside: avoid; break-inside: avoid; }
+        }
+
+        table.sq-pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        table.sq-pdf-table th { background: #131313; color: #ffc800; padding: 4px 6px; text-align: center; font-size: 10px; text-transform: uppercase; }
+        table.sq-pdf-table td { border-bottom: 1px solid #ccc; padding: 4px 6px; font-size: 10px; }
+        table.sq-pdf-table tr:last-child td { border-bottom: 2px solid #131313; }
+
+        .kpi-box { background: #f8f8f8; border-left: 3px solid #ffc800; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<div class="fixed top-4 right-4 no-print flex gap-2">
+    <button onclick="window.print()" class="bg-primary text-dark font-bold px-6 py-2 rounded shadow-lg hover:brightness-110 flex items-center gap-2">
+        <span class="material-symbols-outlined">print</span> Imprimir
+    </button>
+    <button onclick="descargarPDF()" class="bg-dark text-white font-bold px-6 py-2 rounded shadow-lg hover:brightness-125 flex items-center gap-2">
+        <span class="material-symbols-outlined">download</span> Descargar PDF
+    </button>
+</div>
+
+<!-- PAGE 1: PORTADA Y RESUMEN TÉCNICO -->
+<div class="page" id="page-1">
+    <div class="header-stripe"></div>
+    <div class="content">
+        
+        <!-- Header -->
+            <div class="flex justify-between items-start border-b border-dark pb-4 mb-5">
+                <div class="flex items-center gap-3">
+                    <img src="/static/img/logo.svg" alt="Logo" class="h-12 w-auto header-logo">
+                    <div>
+                        <h1 class="text-2xl font-heading text-dark" id="emp-nombre">SunQuote Energy</h1>
+                        <p class="text-xs text-gray" id="emp-dir"></p>
+                        <p class="text-[10px] text-gray" id="emp-tel"></p>
+                        <p class="text-[10px] text-gray" id="emp-email"></p>
+                        <p class="text-xs text-gray" id="emp-web">www.sunquote.co</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <h2 class="text-lg font-bold text-gray">PROPUESTA COMERCIAL</h2>
+                    <p class="text-base font-bold text-primary" id="prop-codigo">PROP-0000</p>
+                    <p class="text-xs" id="prop-fecha">Fecha: -</p>
+                    <p class="text-xs" id="prop-vencimiento">Vence: -</p>
+                </div>
+            </div>
+
+        <!-- Cliente Info -->
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="text-sm border-b border-gray pb-1 mb-2 text-primary uppercase font-bold">Datos del Cliente</h3>
+                    <p class="font-bold text-base" id="cl-nombre">-</p>
+                    <p class="text-xs mt-0.5" id="cl-id">NIT/CC: -</p>
+                    <p class="text-xs" id="cl-dir">-</p>
+                    <p class="text-xs" id="cl-ciudad">-</p>
+                </div>
+                <div>
+                    <h3 class="text-sm border-b border-gray pb-1 mb-2 text-primary uppercase font-bold">Perfil Energético</h3>
+                    <div class="grid grid-cols-2 gap-y-1 text-xs">
+                        <span class="text-gray">Tarifa:</span> <span class="font-bold" id="cl-tarifa">-</span>
+                        <span class="text-gray">Operador:</span> <span class="font-bold" id="cl-op">-</span>
+                        <span class="text-gray">Consumo Prom.:</span> <span class="font-bold" id="cl-consumo">-</span>
+                        <span class="text-gray">Valor Energía:</span> <span class="font-bold" id="cl-costo">-</span>
+                    </div>
+                </div>
+            </div>
+
+        <!-- Solución Propuesta -->
+        <h3 class="text-lg border-b border-dark pb-1 mb-4 text-dark uppercase font-bold">Solución Fotovoltaica Propuesta</h3>
+
+        <!-- Diseño del sistema -->
+        <div id="diseno-img-container" class="mb-4 text-center" style="display:none;">
+            <img id="diseno-img" class="max-w-full max-h-52 mx-auto rounded-lg border border-gray/20">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[9px] uppercase text-gray mb-0.5">Potencia Instalada</div>
+                <div class="text-lg font-bold text-dark"><span id="sys-kwp">-</span> <span class="text-[10px]">kWp</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[9px] uppercase text-gray mb-0.5">Generación Mensual</div>
+                <div class="text-lg font-bold text-dark"><span id="sys-prod">-</span> <span class="text-[10px]">kWh</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[9px] uppercase text-gray mb-0.5">Cantidad Paneles</div>
+                <div class="text-lg font-bold text-dark"><span id="sys-pan">-</span> <span class="text-[10px]">Und</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[9px] uppercase text-gray mb-0.5">Área Requerida</div>
+                <div class="text-lg font-bold text-dark"><span id="sys-area">-</span> <span class="text-[10px]">m²</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[9px] uppercase text-gray mb-0.5">Producción Diaria</div>
+                <div class="text-lg font-bold text-dark"><span id="sys-prod-dia">-</span> <span class="text-[10px]">kWh/día</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[9px] uppercase text-gray mb-0.5">Peso del Sistema</div>
+                <div class="text-lg font-bold text-dark"><span id="sys-peso">-</span> <span class="text-[10px]">kg</span></div>
+            </div>
+        </div>
+
+        <div class="w-full h-32 mb-5 relative">
+            <canvas id="prod-chart"></canvas>
+        </div>
+
+        <!-- Equipos Principales -->
+        <div id="eq-container" class="grid grid-cols-2 gap-4 mb-6">
+            <div class="border border-gray/20 rounded p-3">
+                <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
+                    <span class="material-symbols-outlined text-dark text-sm">solar_power</span> Panel Solar
+                </div>
+                <div class="font-bold text-sm" id="eq-pan-marca">-</div>
+                <div class="text-[10px] text-gray uppercase" id="eq-pan-mod">-</div>
+            </div>
+            <div class="border border-gray/20 rounded p-3">
+                <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
+                    <span class="material-symbols-outlined text-dark text-sm">electric_meter</span> Inversor
+                </div>
+                <div class="font-bold text-sm" id="eq-inv-marca">-</div>
+                <div class="text-[10px] text-gray uppercase" id="eq-inv-mod">-</div>
+            </div>
+            <div class="border border-gray/20 rounded p-3" id="eq-bateria-box" style="display:none;">
+                <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
+                    <span class="material-symbols-outlined text-dark text-sm">battery_charging_full</span> Batería
+                </div>
+                <div class="font-bold text-sm" id="eq-bat-marca">-</div>
+                <div class="text-[10px] text-gray uppercase" id="eq-bat-mod">-</div>
+            </div>
+        </div>
+
+        <!-- Footer Página 1 -->
+        <div class="absolute bottom-8 left-16 right-16 text-[10px] text-gray border-t border-gray/30 pt-2 flex justify-between">
+            <span id="f-emp-nombre">SunQuote</span>
+            <span id="f-emp-web" class="flex-1 text-center"></span>
+            <span id="f-pagina">Página 1 de 3</span>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 2: INVERSIÓN Y FINANCIERO -->
+<div class="page print-break" id="page-2">
+    <div class="header-stripe"></div>
+    <div class="content">
+        
+        <!-- Desglose Inversión -->
+        <h3 class="text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold">Resumen de Inversión</h3>
+        <table class="sq-pdf-table" id="items-table">
+            <thead>
+                <tr id="items-header">
+                    <th style="width:18%">Ítem</th>
+                    <th style="width:52%">Descripción</th>
+                    <th class="text-center" style="width:10%">Cant.</th>
+                </tr>
+            </thead>
+            <tbody id="items-tbody">
+            </tbody>
+        </table>
+        
+        <div class="flex justify-between border-b border-gray/20 py-1 text-xs">
+            <span class="font-bold">SUBTOTAL</span>
+            <span id="tot-subtotal" class="font-bold">-</span>
+        </div>
+        <div class="flex justify-between border-b border-gray/20 py-1 text-xs">
+            <span class="font-bold">IVA (19%)</span>
+            <span id="tot-iva" class="font-bold">-</span>
+        </div>
+        <div class="flex justify-between py-2 mt-1 bg-dark text-primary px-4 rounded font-bold text-sm">
+            <span>INVERSIÓN TOTAL</span>
+            <span id="tot-inv">-</span>
+        </div>
+        <p class="text-[8px] text-gray mt-1 text-right mb-4">* Inversión total incluye IVA según aplique.</p>
+
+        <!-- Análisis Financiero -->
+        <h3 class="text-sm border-b border-dark pb-1 mb-2 text-dark uppercase font-bold">Análisis Financiero y Retorno</h3>
+        
+        <div class="flex flex-col gap-2 mb-2 prevent-break">
+            <div class="border border-gray/20 p-2 rounded">
+                <h4 class="font-bold text-center bg-gray text-white py-0.5 mb-1 text-xs">RETORNO DE INVERSIÓN</h4>
+                <div class="relative" style="height:140px;">
+                    <canvas id="payback-chart"></canvas>
+                </div>
+                <div class="flex justify-around mt-1 text-[10px] text-gray border-t border-gray/20 pt-1">
+                    <span>Inversión: <span id="pc-inv" class="font-bold text-dark">-</span></span>
+                    <span>Retorno: <span id="pc-roi" class="font-bold text-dark">-</span></span>
+                    <span>Ahorro Anual: <span id="pc-aho" class="font-bold text-green-600">-</span></span>
+                </div>
+            </div>
+            
+            <div class="border border-primary p-2 rounded relative overflow-hidden bg-primary/5" id="ley1715-card">
+                <div class="absolute -right-2 -top-2 w-6 h-6 bg-primary transform rotate-45"></div>
+                <h4 class="font-bold text-center bg-primary text-dark py-0.5 mb-1 text-xs">CON LEY 1715 — DEDUCCIÓN DEL 50% DE LA INVERSIÓN</h4>
+                <div class="relative" style="height:140px;">
+                    <canvas id="ley1715-chart"></canvas>
+                </div>
+                <div class="flex justify-around mt-1 text-[10px] text-gray border-t border-primary/20 pt-1">
+                    <span>Inversión: <span id="f2-inv1" class="font-bold text-dark">-</span></span>
+                    <span class="text-primary font-bold">Deducción 50%: <span id="f2-ded" class="font-bold">-</span></span>
+                    <span>Inversión Neta: <span id="f2-inv2" class="font-bold text-dark">-</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="border border-gray/20 p-2 rounded prevent-break">
+            <div class="flex justify-between items-center mb-1">
+                <h4 class="font-bold uppercase text-xs text-dark">Desglose Ahorro vs Costos (25 Años)</h4>
+                <div class="text-right">
+                    <div class="text-[7px] uppercase text-gray">Ahorro Neto Acumulado</div>
+                    <div class="text-sm font-bold text-green-700" id="f-ahorro-25">-</div>
+                </div>
+            </div>
+            <div class="relative" style="height:120px;">
+                <canvas id="desglose-chart"></canvas>
+            </div>
+            <div class="flex justify-center gap-4 mt-1 text-[8px] text-gray border-t border-gray/20 pt-1">
+                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#4caf50;"></span> Ahorro Energía</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#f44336;"></span> Costos AOM</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-2" style="background:#ffc800;"></span> Ahorro Acumulado</span>
+            </div>
+        </div>
+
+        <!-- Footer Página 2 -->
+        <div class="absolute bottom-6 left-16 right-16 text-[9px] text-gray border-t border-gray/30 pt-1 flex justify-between">
+            <span id="f-emp-nombre2">SunQuote</span>
+            <span id="f-emp-web2" class="flex-1 text-center"></span>
+            <span>Página 2 de 3</span>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 3: CRONOGRAMA Y ASESOR -->
+<div class="page print-break" id="page-3">
+    <div class="header-stripe"></div>
+    <div class="content flex flex-col justify-between" style="min-height: 270mm;">
+        <div>
+            <!-- Cronograma -->
+            <h3 class="text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold prevent-break">Cronograma de Ejecución y Pagos</h3>
+            <div id="crono-gantt-container" class="prevent-break mb-6"></div>
+
+            <div class="mt-6 mb-4 prevent-break">
+                <h3 class="text-xs border-b border-gray pb-1 mb-2 text-dark uppercase font-bold">Asesor Comercial</h3>
+                <p class="font-bold text-xs" id="asesor-nombre">-</p>
+                <p class="text-[10px] text-gray" id="asesor-tel"></p>
+                <p class="text-[10px] text-gray" id="asesor-email"></p>
+            </div>
+        </div>
+
+        <!-- Footer Página 3 -->
+        <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
+            <span id="f-emp-nombre3">SunQuote</span>
+            <span id="f-emp-web3" class="flex-1 text-center"></span>
+            <span>Página 3 de 3</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    const cotizacionId = {{ cotizacion_id }};
+    
+    // Helpers
+    function formatCurrency(v) { return '$' + Number(v||0).toLocaleString('es-CO', {maximumFractionDigits:0}); }
+    function formatNumber(v) { return Number(v||0).toLocaleString('es-CO', {maximumFractionDigits:1}); }
+    function formatDate(d) { return new Date(d).toLocaleDateString('es-CO', {year:'numeric',month:'long',day:'numeric'}); }
+    function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(+y, +m-1, +d); }
+    
+    async function init() {
+        try {
+            const res = await fetch(`/api/cotizaciones/${cotizacionId}`);
+            const data = await res.json();
+            
+            // Header & Empresa
+            const logoUrl = data.empresa?.empresa_logo || '/static/img/logo.svg';
+            document.querySelector('.header-logo').src = logoUrl;
+            document.getElementById('emp-nombre').innerText = data.empresa?.empresa_nombre || 'SunQuote';
+            document.getElementById('emp-dir').innerText = data.empresa?.empresa_direccion || '';
+            document.getElementById('emp-tel').innerText = data.empresa?.empresa_telefono || '';
+            document.getElementById('emp-email').innerText = data.empresa?.empresa_correo || '';
+            document.getElementById('emp-web').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('prop-codigo').innerText = data.codigo;
+            document.getElementById('prop-fecha').innerText = `Fecha: ${formatDate(data.fecha)}`;
+            // Expiration date: 15 days from proposal date
+            const fechaVence = new Date(data.fecha);
+            fechaVence.setDate(fechaVence.getDate() + 15);
+            document.getElementById('prop-vencimiento').innerText = `Vence: ${formatDate(fechaVence)}`;
+            document.getElementById('f-emp-nombre').innerText = data.empresa?.empresa_nombre || 'SunQuote';
+            document.getElementById('f-emp-nombre2').innerText = data.empresa?.empresa_nombre || 'SunQuote';
+            document.getElementById('f-emp-nombre3').innerText = data.empresa?.empresa_nombre || 'SunQuote';
+            document.getElementById('f-emp-web').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('f-emp-web2').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('f-emp-web3').innerText = data.empresa?.empresa_web || '';
+            
+            // Cliente
+            document.getElementById('cl-nombre').innerText = data.cliente_nombre;
+            document.getElementById('cl-id').innerText = `NIT/CC: ${data.cliente_cedula || '-'}`;
+            document.getElementById('cl-dir').innerText = `Dir: ${data.cliente_direccion || '-'}`;
+            document.getElementById('cl-ciudad').innerText = `Ciudad: ${data.cliente_ciudad || '-'}`;
+            document.getElementById('cl-tarifa').innerText = data.cliente_tarifa;
+            document.getElementById('cl-op').innerText = data.cliente_operador || '-';
+            document.getElementById('cl-consumo').innerText = `${formatNumber(data.cliente_consumo)} kWh/m`;
+            document.getElementById('cl-costo').innerText = formatCurrency(data.cliente_costo_kwh);
+            
+            // Sistema
+            document.getElementById('sys-kwp').innerText = data.potencia_kwp;
+            document.getElementById('sys-prod').innerText = formatNumber(data.produccion_mensual_kwh);
+            document.getElementById('sys-pan').innerText = data.num_paneles;
+            document.getElementById('sys-area').innerText = data.area_requerida_m2;
+            document.getElementById('sys-prod-dia').innerText = formatNumber(data.produccion_diaria_kwh);
+            const pesoPaneles = (data.panel?.peso_kg || 0) * data.num_paneles;
+            document.getElementById('sys-peso').innerText = formatNumber(pesoPaneles * 1.1);
+
+            // Design image
+            const disenoUrl = data.bateria_id
+                ? (data.empresa?.diseno_on_grid_bat || '')
+                : (data.empresa?.diseno_on_grid || '');
+            if (disenoUrl) {
+                const dc = document.getElementById('diseno-img-container');
+                dc.style.display = 'block';
+                document.getElementById('diseno-img').src = disenoUrl;
+            }
+            
+            if(data.panel) {
+                document.getElementById('eq-pan-marca').innerText = data.panel.marca?.toUpperCase() || '-';
+                document.getElementById('eq-pan-mod').innerText = `${data.panel.modelo?.toUpperCase() || '-'} (${data.panel.potencia_wp}Wp)`;
+            }
+            if(data.inversor) {
+                document.getElementById('eq-inv-marca').innerText = data.inversor.marca?.toUpperCase() || '-';
+                document.getElementById('eq-inv-mod').innerText = `${data.inversor.modelo?.toUpperCase() || '-'} (${data.inversor.potencia_kw}kW)`;
+            }
+            if(data.bateria_id && data.bateria) {
+                document.getElementById('eq-bateria-box').style.display = 'block';
+                document.getElementById('eq-bat-marca').innerText = data.bateria.marca?.toUpperCase() || '-';
+                document.getElementById('eq-bat-mod').innerText = `${data.bateria.modelo?.toUpperCase() || '-'} (${data.bateria.capacidad_kwh || data.bateria.potencia_kw}${data.bateria.capacidad_kwh ? 'kWh' : 'kW'})`;
+                const eqGrid = document.getElementById('eq-container');
+                eqGrid.classList.remove('grid-cols-2');
+                eqGrid.classList.add('grid-cols-3');
+            }
+
+            // Inversión
+            const itemsData = data.items_json;
+            let items = [];
+            let mostrarPrecios = true;
+            let incluirLey1715 = true;
+            if (Array.isArray(itemsData)) {
+                items = itemsData;
+            } else if (itemsData && typeof itemsData === 'object') {
+                items = itemsData.items || [];
+                mostrarPrecios = itemsData.mostrar_precios !== false;
+                if (itemsData.incluir_ley1715 !== undefined) {
+                    incluirLey1715 = itemsData.incluir_ley1715;
+                }
+            }
+
+            // Hide/show precio column
+            const headerRow = document.getElementById('items-header');
+            if (mostrarPrecios) {
+                headerRow.innerHTML += '<th class="text-center">Subtotal</th>';
+            }
+
+            const tb = document.getElementById('items-tbody');
+            let itemsHtml = '';
+            const margen = data.margen_comercial_pct || 15;
+            let subtotalIvaItems = 0;
+            items.forEach(item => {
+                const precioVenta = Math.round(item.precio_unitario * (1 + margen / 100));
+                itemsHtml += '<tr>';
+                itemsHtml += `<td class="uppercase font-bold">${item.categoria}</td>`;
+                itemsHtml += `<td class="uppercase">${item.nombre}</td>`;
+                itemsHtml += `<td class="text-center">${item.cantidad}</td>`;
+                if (mostrarPrecios) {
+                    itemsHtml += `<td class="text-right">${formatCurrency(precioVenta)}</td>`;
+                }
+                itemsHtml += '</tr>';
+                if (item.iva !== false) {
+                    subtotalIvaItems += item.subtotal;
+                }
+            });
+            tb.innerHTML = itemsHtml;
+
+            const subtotal = data.subtotal || 0;
+            const montoMargen = Math.round(subtotal * (margen / 100));
+            const subtotalConMargen = subtotal + montoMargen;
+            const montoIva = Math.round(subtotalIvaItems * (1 + margen / 100) * 0.19);
+            const totalConIva = subtotalConMargen + montoIva;
+
+            document.getElementById('tot-subtotal').innerText = formatCurrency(subtotalConMargen);
+            document.getElementById('tot-iva').innerText = formatCurrency(montoIva);
+            document.getElementById('tot-inv').innerText = formatCurrency(totalConIva);
+
+            // Financiero - Payback charts
+            const p25 = data.proyeccion_25_json || [];
+            if (p25.length > 0) {
+                // Scenario 1: Without incentives
+                renderPaybackChart('payback-chart', data.total_inversion, p25, data.roi_sin_incentivos_meses / 12, {
+                    acumuladoField: 'ahorro_acumulado_s1'
+                });
+                // Scenario 2: With Law 1715 incentives (conditional)
+                if (incluirLey1715) {
+                    const deduccion = data.total_inversion * (data.deduccion_renta_pct / 100);
+                    const inversionNeta = data.total_inversion - Math.round(deduccion * 0.33);
+                    renderPaybackChart('ley1715-chart', inversionNeta, p25, data.roi_con_incentivos_meses / 12, {
+                        acumuladoField: 'ahorro_acumulado_s2',
+                        barColor: 'rgba(255, 200, 0, 0.25)',
+                        barBorderColor: '#d4a800',
+                        lineColor: '#fbbf24',
+                        lineFillColor: 'rgba(251, 191, 36, 0.1)',
+                        invLineColor: '#f97316',
+                        roiMarkerColor: '#fbbf24',
+                        roiTextColor: '#92400e'
+                    });
+                } else {
+                    document.getElementById('ley1715-card').style.display = 'none';
+                }
+            }
+            document.getElementById('pc-inv').innerText = formatCurrency(data.total_inversion);
+            document.getElementById('pc-roi').innerText = (data.roi_sin_incentivos_meses / 12).toFixed(1) + ' años';
+            document.getElementById('pc-aho').innerText = formatCurrency(data.ahorro_anual) + '/año';
+
+            // 25-Year desglose chart
+            if (p25.length > 0) {
+                renderProyeccionChartPDF(p25, incluirLey1715 ? 'ahorro_acumulado_s2' : 'ahorro_acumulado_s1');
+            }
+
+            // Beneficio Ley 1715: hasta 50% deducción de renta (solo si aplica)
+            if (incluirLey1715) {
+                const deduccion = data.total_inversion * (data.deduccion_renta_pct / 100);
+                const inversionNeta = data.total_inversion - Math.round(deduccion * 0.33);
+                document.getElementById('f2-inv1').innerText = formatCurrency(data.total_inversion);
+                document.getElementById('f2-ded').innerText = formatCurrency(deduccion);
+                document.getElementById('f2-inv2').innerText = formatCurrency(inversionNeta);
+            }
+
+            // 25 Years
+            if(p25 && p25.length > 0) {
+                const ult = p25[p25.length - 1];
+                const campoAhorro25 = incluirLey1715 ? 'ahorro_acumulado_s2' : 'ahorro_acumulado_s1';
+                document.getElementById('f-ahorro-25').innerText = formatCurrency(ult[campoAhorro25]);
+            }
+
+            // Cronograma Gantt
+            const cronoContainer = document.getElementById('crono-gantt-container');
+            const crono = data.cronograma_json;
+            if (crono && crono.length > 0) {
+                if (crono[0].fecha_inicio) {
+                    const dates = crono.map(c => parseDate(c.fecha_inicio));
+                    const minStart = new Date(Math.min(...dates));
+                    const maxEnd = new Date(Math.max(...crono.map(c => parseDate(c.fecha_fin))));
+
+                    function countWeekdays(d1, d2) {
+                        let c = 0;
+                        const d = new Date(Math.min(d1, d2));
+                        const e = new Date(Math.max(d1, d2));
+                        while (d <= e) { const dw = d.getDay(); if (dw !== 0 && dw !== 6) c++; d.setDate(d.getDate() + 1); }
+                        return c;
+                    }
+                    function weekdayOffset(from, target) {
+                        let c = 0;
+                        const d = new Date(from);
+                        while (d < target) { const dw = d.getDay(); if (dw !== 0 && dw !== 6) c++; d.setDate(d.getDate() + 1); }
+                        return c;
+                    }
+
+                    // Generate weekday dates array
+                    const wdDates = [];
+                    const d = new Date(minStart);
+                    while (d <= maxEnd) {
+                        const dw = d.getDay();
+                        if (dw !== 0 && dw !== 6) wdDates.push(new Date(d));
+                        d.setDate(d.getDate() + 1);
+                    }
+                    const totalBDays = wdDates.length;
+
+                    // Group into calendar weeks (Mon-Sun)
+                    const calWeeks = [];
+                    let curWeek = [];
+                    wdDates.forEach((dt, i) => {
+                        if (curWeek.length > 0 && dt.getDay() === 1) {
+                            calWeeks.push(curWeek);
+                            curWeek = [];
+                        }
+                        curWeek.push(dt);
+                    });
+                    if (curWeek.length > 0) calWeeks.push(curWeek);
+                    const totalCWeeks = calWeeks.length;
+
+                    const ganttBarRow = (startBDay, durBDays) => {
+                        const leftPct = (startBDay / totalBDays) * 100;
+                        const widthPct = (durBDays / totalBDays) * 100;
+                        let cells = '';
+                        for (let d = 0; d < totalBDays; d++) {
+                            const isWeekStart = d === 0 || wdDates[d].getDay() === 1;
+                            cells += `<div style="flex:1;height:100%;overflow:visible;${isWeekStart?'border-left:2px solid #e0e0e0;':'border-left:1px solid #f0f0f0;'}${d%2===0?'background:#fafafa;':''}"></div>`;
+                        }
+                        return cells + `<div style="position:absolute;top:2px;left:${leftPct}%;width:${widthPct}%;height:16px;background:#ffc800;border-radius:3px;min-width:6px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:#333;">${Math.round(durBDays)}d</div>`;
+                    };
+
+                    const ganttHeaderRow = () => {
+                        let html = '<div style="display:flex;border-bottom:1px solid #999;font-size:7px;color:#666;height:12px;line-height:12px;">';
+                        wdDates.forEach((dt, i) => {
+                            const isWeekStart = dt.getDay() === 1 || i === 0;
+                            const dayNum = dt.getDate();
+                            html += `<div style="flex:1;text-align:center;${isWeekStart?'border-left:2px solid #999;':'border-left:1px solid #ddd;'}">`;
+                            html += `${totalBDays<=20||i===0||dt.getDay()===1||dt.getDay()===5?dayNum:''}</div>`;
+                        });
+                        html += '</div>';
+                        return html;
+                    };
+
+                    const ganttWeekRow = () => {
+                        let html = '<div style="display:flex;font-size:8px;color:#666;height:12px;line-height:12px;border-bottom:2px solid #666;">';
+                        calWeeks.forEach((weekDays, w) => {
+                            const bDays = weekDays.length;
+                            html += `<div style="flex:${bDays};text-align:center;font-weight:bold;border-left:2px solid #999;">S${w+1}</div>`;
+                        });
+                        html += '</div>';
+                        return html;
+                    };
+
+                    let ganttHtml = '<div style="display:flex;width:100%;overflow:visible;">';
+                    // Left column: Actividad
+                    ganttHtml += '<div style="width:40%;padding-right:8px;overflow:visible;">';
+                    ganttHtml += '<div style="font-size:7px;font-weight:bold;color:#666;height:22px;line-height:22px;text-transform:uppercase;">Actividad</div>';
+                    crono.forEach((c, i) => {
+                        const bg = i % 2 === 0 ? '' : 'background:#f8f8f8;';
+                        ganttHtml += `<div style="height:20px;display:flex;align-items:center;font-size:9px;font-weight:bold;padding-left:4px;${bg}">${c.actividad}</div>`;
+                    });
+                    ganttHtml += '</div>';
+                    // Right column: Timeline (weekdays only)
+                    ganttHtml += '<div style="width:60%;overflow:visible;">';
+                    ganttHtml += ganttHeaderRow();
+                    ganttHtml += ganttWeekRow();
+                    crono.forEach((c, i) => {
+                        const start = parseDate(c.fecha_inicio);
+                        const end = parseDate(c.fecha_fin);
+                        const startBDay = weekdayOffset(minStart, start);
+                        const durBDays = Math.max(countWeekdays(start, end), 1);
+                        ganttHtml += `<div style="display:flex;height:20px;position:relative;overflow:visible;${i%2===0?'':'background:#f8f8f8;'}">`;
+                        ganttHtml += ganttBarRow(startBDay, durBDays);
+                        ganttHtml += '</div>';
+                    });
+                    ganttHtml += '</div></div>';
+                    cronoContainer.innerHTML = ganttHtml;
+                } else {
+                    // Old format (semana) — simple table
+                    let oldHtml = `<table class="sq-pdf-table"><thead><tr><th style="width:10%">Sem.</th><th style="width:90%">Actividad</th></tr></thead><tbody>`;
+                    crono.forEach(c => {
+                        oldHtml += `<tr><td class="font-bold">S${c.semana}</td><td>${c.actividad}</td></tr>`;
+                    });
+                    oldHtml += '</tbody></table>';
+                    cronoContainer.innerHTML = oldHtml;
+                }
+            } else {
+                cronoContainer.innerHTML = '<p class="text-gray text-sm py-4">Cronograma no disponible</p>';
+            }
+
+            // Asesor
+            document.getElementById('asesor-nombre').innerText = data.asesor?.asesor_nombre || '-';
+            document.getElementById('asesor-tel').innerText = data.asesor?.asesor_telefono ? `Tel: ${data.asesor.asesor_telefono}` : '';
+            document.getElementById('asesor-email').innerText = data.asesor?.asesor_correo ? `Email: ${data.asesor.asesor_correo}` : '';
+
+            // Render Chart
+            renderProdCurve(data.potencia_kwp, data.cliente_hsp);
+
+            // Print automatically after 1s if ?print=1
+            if (window.location.search.includes('print=1')) {
+                setTimeout(() => window.print(), 1000);
+            }
+
+        } catch (e) {
+            console.error("Error cargando PDF", e);
+            document.body.innerHTML = `<div class="p-8 text-red-500">Error cargando cotización: ${e.message}</div>`;
+        }
+    }
+
+    function renderPaybackChart(canvasId, totalInv, proyeccion, roiAnos, opts = {}) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const {
+            acumuladoField = 'ahorro_acumulado_s1',
+            barColor = 'rgba(255, 200, 0, 0.5)',
+            barBorderColor = '#ffc800',
+            lineColor = '#22c55e',
+            lineFillColor = 'rgba(34, 197, 94, 0.08)',
+            invLineColor = '#ef4444',
+            roiMarkerColor = '#4ade80',
+            roiTextColor = '#166534'
+        } = opts;
+
+        const years = proyeccion.map(p => p.anio);
+        const flujoNeto = proyeccion.map(p => p.flujo_neto);
+        const acumulado = proyeccion.map(p => p[acumuladoField]);
+
+        // Custom plugin to draw investment target line and ROI marker
+        const pluginId = 'targetLine_' + canvasId.replace('-', '_');
+        const targetLinePlugin = {
+            id: pluginId,
+            afterDraw: function(chart) {
+                const yScale = chart.scales.y;
+                const xScale = chart.scales.x;
+                const yPixel = yScale.getPixelForValue(totalInv);
+
+                if (yPixel < yScale.top || yPixel > yScale.bottom) return;
+
+                const ctx2 = chart.ctx;
+                // Investment line
+                ctx2.save();
+                ctx2.setLineDash([5, 4]);
+                ctx2.strokeStyle = invLineColor;
+                ctx2.lineWidth = 1.5;
+                ctx2.beginPath();
+                ctx2.moveTo(xScale.left, yPixel);
+                ctx2.lineTo(xScale.right, yPixel);
+                ctx2.stroke();
+                ctx2.restore();
+
+                // Label
+                ctx2.save();
+                ctx2.fillStyle = invLineColor;
+                ctx2.font = 'bold 7px Inter, sans-serif';
+                ctx2.textAlign = 'right';
+                ctx2.fillText('Inversión: ' + formatCurrency(totalInv), xScale.right - 4, yPixel - 3);
+                ctx2.restore();
+
+                // ROI marker
+                const roiAnio = Math.round(roiAnos);
+                if (roiAnio >= 1 && roiAnio <= 25) {
+                    const roiX = xScale.getPixelForValue(roiAnio);
+                    const roiDataPoint = proyeccion[roiAnio - 1];
+                    if (roiDataPoint) {
+                        const roiY = yScale.getPixelForValue(roiDataPoint[acumuladoField]);
+                        ctx2.save();
+                        ctx2.beginPath();
+                        ctx2.arc(roiX, roiY, 6, 0, 2 * Math.PI);
+                        ctx2.fillStyle = roiMarkerColor;
+                        ctx2.strokeStyle = '#fff';
+                        ctx2.lineWidth = 2;
+                        ctx2.fill();
+                        ctx2.stroke();
+                        ctx2.restore();
+
+                        ctx2.save();
+                        ctx2.fillStyle = roiTextColor;
+                        ctx2.font = 'bold 7px Inter, sans-serif';
+                        ctx2.textAlign = 'center';
+                        ctx2.fillText('✓ ROI ' + roiAnos.toFixed(1) + ' años', roiX, roiY - 10);
+                        ctx2.restore();
+                    }
+                }
+            }
+        };
+
+        new Chart(ctx, {
+            plugins: [targetLinePlugin],
+            type: 'bar',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Flujo Neto Anual',
+                        data: flujoNeto,
+                        backgroundColor: barColor,
+                        borderColor: barBorderColor,
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        order: 2
+                    },
+                    {
+                        label: 'Ahorro Acumulado',
+                        type: 'line',
+                        data: acumulado,
+                        borderColor: lineColor,
+                        backgroundColor: lineFillColor,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 1.5,
+                        pointBackgroundColor: lineColor,
+                        pointHoverRadius: 4,
+                        borderWidth: 2,
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            padding: 8,
+                            font: { size: 8, family: 'Inter, sans-serif' },
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatCurrency(context.parsed.y);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        display: true,
+                        beginAtZero: true,
+                        grid: { color: '#f0f0f0' },
+                        title: { display: false },
+                        ticks: {
+                            font: { size: 8, family: 'Inter, sans-serif' },
+                            callback: function(v) { return '$' + Math.round(v/1000) + 'k'; }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: 7, family: 'Inter, sans-serif' },
+                            maxTicksLimit: 13,
+                            maxRotation: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderProdCurve(kwp, hsp) {
+        const ctx = document.getElementById('prod-chart');
+        
+        // Simular curva campana (Gaussiana simple para generación solar de 6am a 6pm)
+        const hours = ['6AM','7AM','8AM','9AM','10AM','11AM','12PM','1PM','2PM','3PM','4PM','5PM','6PM'];
+        const factors = [0, 0.1, 0.3, 0.6, 0.85, 1, 1, 0.85, 0.6, 0.3, 0.1, 0, 0];
+        
+        // Normalizar curva para que el area aproxime HSP * kWp
+        const sumFactors = factors.reduce((a,b)=>a+b, 0);
+        const data = factors.map(f => (f / sumFactors) * hsp * kwp);
+
+        Chart.register({
+            id: 'hourlyLabels',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                ctx.fillStyle = '#131313';
+                ctx.font = 'bold 8px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                meta.data.forEach(function(elem, i) {
+                    const val = chart.data.datasets[0].data[i];
+                    if (val > 0) {
+                        ctx.fillText(val.toFixed(1), elem.x, elem.y - 10);
+                    }
+                });
+            }
+        });
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    label: 'Potencia Generada Estimada (kW)',
+                    data: data,
+                    borderColor: '#ffc800',
+                    backgroundColor: 'rgba(255, 200, 0, 0.2)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#ffc800',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 0.5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) { return context.parsed.y.toFixed(1) + ' kW'; }
+                        }
+                    }
+                },
+                scales: {
+                    y: { display: true, beginAtZero: true, grid: { color: '#eee' }, title: { display: true, text: 'kW Generados' }, ticks: { callback: function(v) { return v.toFixed(1); } } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    function renderProyeccionChartPDF(proyeccion, acumuladoField) {
+        const ctx = document.getElementById('desglose-chart');
+        if (!ctx) return;
+
+        const labels = proyeccion.map(p => p.anio);
+        const valorEnergia = proyeccion.map(p => p.valor_energia);
+        const aom = proyeccion.map(p => -p.aom);
+        const acumulado = proyeccion.map(p => p[acumuladoField] || 0);
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Valor Energía',
+                        data: valorEnergia,
+                        backgroundColor: 'rgba(76, 175, 80, 0.5)',
+                        borderColor: '#4caf50',
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        order: 2
+                    },
+                    {
+                        label: 'Costo AOM',
+                        data: aom,
+                        backgroundColor: 'rgba(244, 67, 54, 0.4)',
+                        borderColor: '#f44336',
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        order: 2
+                    },
+                    {
+                        label: 'Ahorro Acumulado',
+                        type: 'line',
+                        data: acumulado,
+                        borderColor: '#ffc800',
+                        backgroundColor: 'rgba(255, 200, 0, 0.08)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'y1',
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.parsed.y;
+                                const label = context.dataset.label;
+                                if (label === 'Costo AOM') {
+                                    return label + ': -' + formatCurrency(Math.abs(val));
+                                }
+                                return label + ': ' + formatCurrency(val);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        position: 'left',
+                        beginAtZero: true,
+                        grid: { color: '#f0f0f0', drawBorder: false },
+                        border: { display: false },
+                        ticks: {
+                            maxTicksLimit: 5,
+                            font: { size: 8, family: 'Inter, sans-serif' },
+                            callback: function(v) {
+                                if (Math.abs(v) >= 1000000) {
+                                    return '$' + (v / 1000000).toFixed(1) + 'M';
+                                }
+                                return '$' + Math.round(v / 1000) + 'k';
+                            }
+                        }
+                    },
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: { display: false },
+                        border: { display: false },
+                        ticks: {
+                            maxTicksLimit: 4,
+                            font: { size: 8, family: 'Inter, sans-serif' },
+                            callback: function(v) {
+                                if (Math.abs(v) >= 1000000) {
+                                    return '$' + (v / 1000000).toFixed(1) + 'M';
+                                }
+                                return '$' + Math.round(v / 1000) + 'k';
+                            }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { maxTicksLimit: 10, font: { size: 7, family: 'Inter, sans-serif' }, maxRotation: 0 }
+                    }
+                }
+            }
+        });
+    }
+
+    async function descargarPDF() {
+        const btn = event.target.closest('button');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando...';
+        try {
+            const res = await fetch(`/api/cotizaciones/${cotizacionId}/pdf-download`);
+            if (!res.ok) throw new Error('Error al generar PDF');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `propuesta_${cotizacionId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('Error generando PDF: ' + e.message);
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined">download</span> Descargar PDF';
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
