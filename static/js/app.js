@@ -273,7 +273,8 @@ async function updateBranding() {
         const res = await API.get('/configuracion');
         App.config = res;
         const logoUrl = res.empresa_logo?.valor || '/static/img/logo.svg';
-        const nombre = res.empresa_nombre?.valor || 'SunQuote';
+        const nombreLargo = res.empresa_nombre?.valor || 'SunQuote';
+        const nombreCorto = res.empresa_nombre_corto?.valor || nombreLargo;
         const version = 'v2.4';
 
         const logoImg = document.getElementById('app-logo-img');
@@ -283,9 +284,9 @@ async function updateBranding() {
         const favicon = document.querySelector('link[rel="icon"]');
 
         if (logoImg) logoImg.src = logoUrl;
-        if (brandName) brandName.textContent = nombre;
-        if (footerBrand) footerBrand.textContent = `${nombre} ${version}`;
-        if (title) title.textContent = `${nombre} — Cotizador Solar FV`;
+        if (brandName) brandName.textContent = nombreCorto;
+        if (footerBrand) footerBrand.textContent = `${nombreLargo} ${version}`;
+        if (title) title.textContent = `${nombreLargo} — Cotizador Solar FV`;
         if (favicon && logoUrl !== '/static/img/logo.svg') {
             favicon.href = logoUrl;
         }
