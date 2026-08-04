@@ -227,9 +227,7 @@ def seed_data():
         ("estructura", "Genérico", "Cable Solar 6mm²", "Cable solar fotovoltaico PV1-F 6mm², resistente UV - por metro", 0, 0, 0, "Cable DC", 4500, 7000, "m", 0.08, 0, 1),
         ("estructura", "Genérico", "Cable Solar 10mm²", "Cable solar fotovoltaico PV1-F 10mm² - por metro", 0, 0, 0, "Cable DC", 7500, 11000, "m", 0.12, 0, 1),
         ("estructura", "Genérico", "Protecciones DC", "Caja de protecciones DC: fusibles, seccionadores, DPS - por string", 0, 0, 0, "Protección", 280000, 420000, "und", 3.0, 0, 1),
-        ("estructura", "Genérico", "Protecciones AC", "Tablero de protecciones AC: breakers, DPS, SPD - por inversor", 0, 0, 0, "Protección", 350000, 525000, "und", 5.0, 0, 1),
-        ("estructura", "Genérico", "Medidor Bidireccional", "Medidor de energía bidireccional para inyección a red", 0, 0, 0, "Medición", 450000, 675000, "und", 2.0, 0, 1),
-        ("estructura", "Genérico", "Conectores MC4", "Par de conectores MC4 macho/hembra para panel solar", 0, 0, 0, "Conector", 8000, 12000, "par", 0.05, 0, 1),
+        ("estructura", "Genérico", "Accesorios de Instalación", "Kits de fijación, terminales, abrazaderas, tornillería y tubería conduit", 0, 0, 0, "Accesorios", 200000, 300000, "global", 0, 0, 1),
     ]
 
     # ── Seed: Servicios ──
@@ -241,6 +239,7 @@ def seed_data():
         ("servicio", "SunQuote", "Certificación RETIE", "Certificación RETIE por organismo acreditado", 0, 0, 0, "Certificación", 1200000, 1800000, "global", 0, 0, 1),
         ("servicio", "SunQuote", "Trámites Operador Red", "Trámites de conexión ante operador de red (autogenerador)", 0, 0, 0, "Trámite", 500000, 800000, "global", 0, 0, 1),
         ("servicio", "SunQuote", "Trámites Incentivos", "Trámites de incentivos tributarios Ley 1715 ante UPME/ANLA", 0, 0, 0, "Trámite", 1000000, 1500000, "global", 0, 0, 1),
+        ("servicio", "SunQuote", "Transporte y Logística", "Flete y transporte de equipos y materiales a sitio de proyecto", 0, 0, 0, "Logística", 350000, 500000, "global", 0, 0, 1),
         ("servicio", "SunQuote", "Capacitación", "Capacitación en operación y mantenimiento del sistema", 0, 0, 0, "Servicio", 300000, 500000, "global", 0, 0, 1),
     ]
 

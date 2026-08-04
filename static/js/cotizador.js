@@ -542,59 +542,96 @@ function rebuildBOM() {
     const conf = stateCotizador.config;
     let autoItems = [];
 
-    // Panel: carry IVA from inventory
-    const panelIva = !!d.panel.iva;
-    autoItems.push({
-        id: 'auto-panel',
-        equipo_id: d.panel.id,
-        categoria: 'panel',
-        nombre: `${d.panel.marca} ${d.panel.modelo}`,
-        cantidad: d.num_paneles,
-        precio_unitario: d.panel.costo,
-        iva: panelIva,
-        subtotal: d.num_paneles * d.panel.costo,
-        isAuto: true
-    });
-
-    if (d.inversor_sugerido) {
-        const invIva = !!d.inversor_sugerido.iva;
+    // Helper para añadir item auto
+    const addAuto = (id, equipo, cant, catName, defaultNombre) => {
+        if (!equipo && !defaultNombre) return;
+        const eqId = equipo ? equipo.id : 0;
+        const nombre = equipo ? `${equipo.marca ? equipo.marca + ' ' : ''}${equipo.modelo}`.trim() : defaultNombre;
+        const costo = equipo ? equipo.costo : 0;
+        const iva = equipo ? !!equipo.iva : true;
         autoItems.push({
-            id: 'auto-inversor',
-            equipo_id: d.inversor_sugerido.id,
-            categoria: 'inversor',
-            nombre: `${d.inversor_sugerido.marca} ${d.inversor_sugerido.modelo}`,
-            cantidad: 1,
-            precio_unitario: d.inversor_sugerido.costo,
-            iva: invIva,
-            subtotal: d.inversor_sugerido.costo,
+            id,
+            equipo_id: eqId,
+            categoria: catName,
+            nombre,
+            cantidad: cant,
+            precio_unitario: costo,
+            iva,
+            subtotal: cant * costo,
             isAuto: true
         });
+    };
+
+    // 1. INVERSOR
+    if (d.inversor_sugerido) {
+        addAuto('auto-inversor', d.inversor_sugerido, 1, 'inversor');
     }
 
-    const est = stateCotizador.materiales.find(e => e.modelo.includes('Aluminio'));
+    // 2. PANEL SOLAR
+    if (d.panel) {
+        addAuto('auto-panel', d.panel, d.num_paneles, 'panel');
+    }
+
+    // 3. BATERIA (si hay baterías en inventario)
+    const bat = stateCotizador.baterias && stateCotizador.baterias.length > 0 ? stateCotizador.baterias[0] : null;
+    if (bat) {
+        addAuto('auto-bateria', bat, 1, 'bateria');
+    }
+
+    // 4. ESTRUCTURA
+    const est = stateCotizador.materiales.find(e => e.modelo.includes('Aluminio') || e.categoria === 'estructura');
     if (est) {
-        const estIva = !!est.iva;
-        autoItems.push({ id: 'auto-est', equipo_id: est.id, categoria: 'estructura', nombre: est.modelo, cantidad: d.num_paneles, precio_unitario: est.costo, iva: estIva, subtotal: d.num_paneles * est.costo, isAuto: true });
+        addAuto('auto-est', est, d.num_paneles, 'estructura');
     }
 
-    const cab = stateCotizador.materiales.find(e => e.modelo.includes('Cable'));
-    if (cab) {
-        const cabIva = !!cab.iva;
-        autoItems.push({ id: 'auto-cab', equipo_id: cab.id, categoria: 'estructura', nombre: cab.modelo, cantidad: 50, precio_unitario: cab.costo, iva: cabIva, subtotal: 50 * cab.costo, isAuto: true });
+    // 5. CERTIFICACION RETIE
+    const retie = stateCotizador.servicios.find(s => s.modelo.includes('RETIE'));
+    if (retie) {
+        addAuto('auto-retie', retie, 1, 'servicio');
     }
 
+    // 6. TRAMITE INCENTIVOS
+    const inc = stateCotizador.servicios.find(s => s.modelo.includes('Incentivos') || s.modelo.includes('1715'));
+    if (inc) {
+        addAuto('auto-inc', inc, 1, 'servicio');
+    }
+
+    // 7. MEDIDOR BIDIRECCIONAL
+    const med = stateCotizador.materiales.find(e => e.modelo.includes('Medidor'));
+    if (med) {
+        addAuto('auto-med', med, 1, 'estructura');
+    }
+
+    // 8. TRAMITES OPERADOR DE RED
+    const opRed = stateCotizador.servicios.find(s => s.modelo.includes('Operador Red') || s.modelo.includes('Trámites Operador'));
+    if (opRed) {
+        addAuto('auto-opred', opRed, 1, 'servicio');
+    }
+
+    // 9. ACCESORIOS DE INSTALACION
+    const acc = stateCotizador.materiales.find(e => e.modelo.includes('Accesorios') || e.modelo.includes('Protecciones AC'));
+    if (acc) {
+        addAuto('auto-acc', acc, 1, 'estructura');
+    }
+
+    // 10. TRANSPORTE
+    const trans = stateCotizador.servicios.find(s => s.modelo.includes('Transporte') || s.modelo.includes('Logística'));
+    if (trans) {
+        addAuto('auto-trans', trans, 1, 'servicio');
+    }
+
+    // 11. INSTALACION
     let mo = stateCotizador.servicios.find(s => s.modelo.includes('Residencial'));
     if (d.potencia_kwp > 10) mo = stateCotizador.servicios.find(s => s.modelo.includes('Comercial'));
     if (d.potencia_kwp > 50) mo = stateCotizador.servicios.find(s => s.modelo.includes('Industrial'));
     if (mo) {
-        const moIva = !!mo.iva;
-        autoItems.push({ id: 'auto-mo', equipo_id: mo.id, categoria: 'servicio', nombre: mo.modelo, cantidad: 1, precio_unitario: mo.costo, iva: moIva, subtotal: mo.costo, isAuto: true });
+        addAuto('auto-mo', mo, 1, 'servicio');
     }
 
+    // 12. DISEÑOS
     const dis = stateCotizador.servicios.find(s => s.modelo.includes('Diseño'));
     if (dis) {
-        const disIva = !!dis.iva;
-        autoItems.push({ id: 'auto-dis', equipo_id: dis.id, categoria: 'servicio', nombre: dis.modelo, cantidad: 1, precio_unitario: dis.costo, iva: disIva, subtotal: dis.costo, isAuto: true });
+        addAuto('auto-dis', dis, 1, 'servicio');
     }
 
     if (!stateCotizador.items) stateCotizador.items = [];
