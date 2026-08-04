@@ -302,9 +302,11 @@ async function renderStep2(container) {
 
     const rawHist = (c && c.historial_consumo) ? c.historial_consumo : [];
     const validHist = (Array.isArray(rawHist) ? rawHist : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
-    const ultConsumo = validHist.length > 0 ? validHist[validHist.length - 1] : null;
-    const maxConsumo = validHist.length > 0 ? Math.max(...validHist) : null;
-    const minConsumo = validHist.length > 0 ? Math.min(...validHist) : null;
+    const baseCons = d.consumo_mensual_kwh || (c ? c.consumo_mensual_kwh : 0) || 0;
+
+    const ultConsumo = validHist.length > 0 ? validHist[validHist.length - 1] : baseCons;
+    const maxConsumo = validHist.length > 0 ? Math.max(...validHist) : baseCons;
+    const minConsumo = validHist.length > 0 ? Math.min(...validHist) : baseCons;
 
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-10">
@@ -354,7 +356,7 @@ async function renderStep2(container) {
                     <span class="material-symbols-outlined text-primary text-[28px]">history</span>
                     <div>
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Último Consumo</div>
-                        <div class="font-label-bold text-on-surface text-xl">${ultConsumo !== null ? formatNumber(ultConsumo) + ' kWh' : '-'}</div>
+                        <div class="font-label-bold text-on-surface text-xl">${formatNumber(ultConsumo)} kWh</div>
                     </div>
                 </div>
                 <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>
@@ -362,7 +364,7 @@ async function renderStep2(container) {
                     <span class="material-symbols-outlined text-primary text-[28px]">trending_up</span>
                     <div>
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Consumo Más Alto</div>
-                        <div class="font-label-bold text-on-surface text-xl">${maxConsumo !== null ? formatNumber(maxConsumo) + ' kWh' : '-'}</div>
+                        <div class="font-label-bold text-on-surface text-xl">${formatNumber(maxConsumo)} kWh</div>
                     </div>
                 </div>
                 <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>
@@ -370,7 +372,7 @@ async function renderStep2(container) {
                     <span class="material-symbols-outlined text-primary text-[28px]">trending_down</span>
                     <div>
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Consumo Menor</div>
-                        <div class="font-label-bold text-on-surface text-xl">${minConsumo !== null ? formatNumber(minConsumo) + ' kWh' : '-'}</div>
+                        <div class="font-label-bold text-on-surface text-xl">${formatNumber(minConsumo)} kWh</div>
                     </div>
                 </div>
                 <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>

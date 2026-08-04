@@ -359,20 +359,15 @@
                 try { rawHist = JSON.parse(rawHist); } catch { rawHist = []; }
             }
             const validHist = (Array.isArray(rawHist) ? rawHist : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
+            const baseCons = data.cliente_consumo || 0;
 
-            if (validHist.length > 0) {
-                const ultVal = validHist[validHist.length - 1];
-                const maxVal = Math.max(...validHist);
-                const minVal = Math.min(...validHist);
+            const ultVal = validHist.length > 0 ? validHist[validHist.length - 1] : baseCons;
+            const maxVal = validHist.length > 0 ? Math.max(...validHist) : baseCons;
+            const minVal = validHist.length > 0 ? Math.min(...validHist) : baseCons;
 
-                document.getElementById('cl-ult-consumo').innerText = `${formatNumber(ultVal)} kWh/m`;
-                document.getElementById('cl-max-consumo').innerText = `${formatNumber(maxVal)} kWh/m`;
-                document.getElementById('cl-min-consumo').innerText = `${formatNumber(minVal)} kWh/m`;
-            } else {
-                document.getElementById('cl-ult-consumo').innerText = '-';
-                document.getElementById('cl-max-consumo').innerText = '-';
-                document.getElementById('cl-min-consumo').innerText = '-';
-            }
+            document.getElementById('cl-ult-consumo').innerText = `${formatNumber(ultVal)} kWh/m`;
+            document.getElementById('cl-max-consumo').innerText = `${formatNumber(maxVal)} kWh/m`;
+            document.getElementById('cl-min-consumo').innerText = `${formatNumber(minVal)} kWh/m`;
             
             // Sistema
             document.getElementById('sys-kwp').innerText = data.potencia_kwp;
@@ -607,10 +602,10 @@
                     };
 
                     const ganttWeekRow = () => {
-                        let html = '<div style="display:flex;font-size:8px;color:#666;height:12px;line-height:12px;border-bottom:2px solid #666;">';
+                        let html = '<div style="display:flex;font-size:7px;color:#666;height:12px;line-height:12px;border-bottom:2px solid #666;">';
                         calWeeks.forEach((weekDays, w) => {
                             const bDays = weekDays.length;
-                            html += `<div style="flex:${bDays};text-align:center;font-weight:bold;border-left:2px solid #999;">S${w+1}</div>`;
+                            html += `<div style="flex:${bDays};text-align:center;font-weight:bold;border-left:2px solid #999;">SEMANA ${w+1}</div>`;
                         });
                         html += '</div>';
                         return html;
@@ -642,9 +637,9 @@
                     cronoContainer.innerHTML = ganttHtml;
                 } else {
                     // Old format (semana) — simple table
-                    let oldHtml = `<table class="sq-pdf-table"><thead><tr><th style="width:10%">Sem.</th><th style="width:90%">Actividad</th></tr></thead><tbody>`;
+                    let oldHtml = `<table class="sq-pdf-table"><thead><tr><th style="width:15%">Semana</th><th style="width:85%">Actividad</th></tr></thead><tbody>`;
                     crono.forEach(c => {
-                        oldHtml += `<tr><td class="font-bold">S${c.semana}</td><td>${c.actividad}</td></tr>`;
+                        oldHtml += `<tr><td class="font-bold">SEMANA ${c.semana}</td><td>${c.actividad}</td></tr>`;
                     });
                     oldHtml += '</tbody></table>';
                     cronoContainer.innerHTML = oldHtml;
@@ -688,7 +683,8 @@
         } = opts;
 
         const years = proyeccion.map(p => p.anio);
-        const flujoNeto = proyeccion.map(p => p.flujo_neto);
+        const valorAuto = proyeccion.map(p => p.valor_autoconsumo || p.valor_energia || p.flujo_neto);
+        const valorExc = proyeccion.map(p => p.valor_excedentes || 0);
         const acumulado = proyeccion.map(p => p[acumuladoField]);
 
         // Custom plugin to draw investment target line and ROI marker
@@ -757,16 +753,27 @@
                 labels: years,
                 datasets: [
                     {
-                        label: 'Flujo Neto Anual',
-                        data: flujoNeto,
-                        backgroundColor: barColor,
-                        borderColor: barBorderColor,
+                        label: 'Ahorro Autoconsumo',
+                        data: valorAuto,
+                        backgroundColor: 'rgba(76, 175, 80, 0.65)',
+                        borderColor: '#4caf50',
                         borderWidth: 1,
                         borderRadius: 2,
+                        stack: 'flujo',
                         order: 2
                     },
                     {
-                        label: 'Ahorro Acumulado',
+                        label: 'Venta Excedentes (30%)',
+                        data: valorExc,
+                        backgroundColor: 'rgba(2, 132, 199, 0.65)',
+                        borderColor: '#0284c7',
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        stack: 'flujo',
+                        order: 2
+                    },
+                    {
+                        label: 'Acumulado Total',
                         type: 'line',
                         data: acumulado,
                         borderColor: lineColor,
