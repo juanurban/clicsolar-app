@@ -49,6 +49,10 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'templates/login.html'));
 });
 
+app.get('/pdf/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates/pdf_template.html'));
+});
+
 // Fallback for SPA routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'templates/index.html'));

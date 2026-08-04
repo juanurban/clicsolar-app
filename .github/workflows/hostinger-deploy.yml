@@ -40,6 +40,10 @@ jobs:
           cp schema.sql deploy_dist/
           cp seed.sql deploy_dist/
 
+          # ── Forzar reinicio de Node.js en Hostinger (Passenger) ──
+          mkdir -p deploy_dist/tmp
+          date > deploy_dist/tmp/restart.txt
+
           # ── Crear .htaccess para enrutamiento ──
           cat << 'EOF' > deploy_dist/.htaccess
           RewriteEngine On
