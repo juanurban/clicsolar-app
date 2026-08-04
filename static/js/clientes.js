@@ -310,12 +310,17 @@ async function saveCliente(e, id) {
     data.historial_consumo = historial;
 
     try {
+        let res;
         if (id) {
-            await API.put(`/clientes/${id}`, data);
+            res = await API.put(`/clientes/${id}`, data);
             showToast('Cliente actualizado', 'success');
         } else {
-            await API.post('/clientes', data);
+            res = await API.post('/clientes', data);
             showToast('Cliente creado', 'success');
+        }
+        const targetId = id || (res ? res.id : null);
+        if (typeof stateCotizador !== 'undefined' && stateCotizador.clienteSelected && stateCotizador.clienteSelected.id === targetId) {
+            selectCliente(targetId);
         }
         closeModal();
         fetchClientes();

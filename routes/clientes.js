@@ -28,8 +28,16 @@ router.get('/', async (req, res) => {
 
     // Parse historial_consumo JSON
     rows.forEach(c => {
-      if (c.historial_consumo && typeof c.historial_consumo === 'string') {
-        try { c.historial_consumo = JSON.parse(c.historial_consumo); } catch { c.historial_consumo = []; }
+      if (c.historial_consumo) {
+        let h = c.historial_consumo;
+        while (typeof h === 'string') {
+          try {
+            const p = JSON.parse(h);
+            if (p === h) break;
+            h = p;
+          } catch { break; }
+        }
+        c.historial_consumo = Array.isArray(h) ? h : [];
       }
     });
 
@@ -69,10 +77,20 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const d = req.body;
-    const historial = JSON.stringify(d.historial_consumo || []);
+    let hArr = d.historial_consumo;
+    while (typeof hArr === 'string') {
+      try {
+        const p = JSON.parse(hArr);
+        if (p === hArr) break;
+        hArr = p;
+      } catch { break; }
+    }
+    if (!Array.isArray(hArr)) hArr = [];
+    const historial = JSON.stringify(hArr);
+
     let consumo = d.consumo_mensual_kwh || 0;
-    if (d.historial_consumo && d.historial_consumo.length > 0 && consumo === 0) {
-      consumo = d.historial_consumo.reduce((a, b) => a + b, 0) / d.historial_consumo.length;
+    if (hArr.length > 0) {
+      consumo = Math.round((hArr.reduce((a, b) => a + Number(b), 0) / hArr.length) * 10) / 10;
     }
 
     const [result] = await pool.execute(
@@ -97,10 +115,20 @@ router.put('/:id', async (req, res) => {
     if (existing.length === 0) return res.status(404).json({ detail: 'Cliente no encontrado' });
 
     const d = req.body;
-    const historial = JSON.stringify(d.historial_consumo || []);
+    let hArr = d.historial_consumo;
+    while (typeof hArr === 'string') {
+      try {
+        const p = JSON.parse(hArr);
+        if (p === hArr) break;
+        hArr = p;
+      } catch { break; }
+    }
+    if (!Array.isArray(hArr)) hArr = [];
+    const historial = JSON.stringify(hArr);
+
     let consumo = d.consumo_mensual_kwh || 0;
-    if (d.historial_consumo && d.historial_consumo.length > 0 && consumo === 0) {
-      consumo = d.historial_consumo.reduce((a, b) => a + b, 0) / d.historial_consumo.length;
+    if (hArr.length > 0) {
+      consumo = Math.round((hArr.reduce((a, b) => a + Number(b), 0) / hArr.length) * 10) / 10;
     }
 
     await pool.execute(
