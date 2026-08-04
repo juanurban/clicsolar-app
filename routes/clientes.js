@@ -47,8 +47,16 @@ router.get('/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ detail: 'Cliente no encontrado' });
 
     const cliente = rows[0];
-    if (cliente.historial_consumo && typeof cliente.historial_consumo === 'string') {
-      try { cliente.historial_consumo = JSON.parse(cliente.historial_consumo); } catch { cliente.historial_consumo = []; }
+    if (cliente.historial_consumo) {
+      let h = cliente.historial_consumo;
+      while (typeof h === 'string') {
+        try {
+          const p = JSON.parse(h);
+          if (p === h) break;
+          h = p;
+        } catch { break; }
+      }
+      cliente.historial_consumo = Array.isArray(h) ? h : [];
     }
     res.json(cliente);
   } catch (error) {

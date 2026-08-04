@@ -366,10 +366,15 @@ def obtener_cotizacion(cotizacion_id: int):
     cot = dict_from_row(row)
 
     if cot.get("cliente_historial"):
-        try:
-            cot["cliente_historial"] = json.loads(cot["cliente_historial"])
-        except (json.JSONDecodeError, TypeError):
-            cot["cliente_historial"] = []
+        h = cot["cliente_historial"]
+        while isinstance(h, str):
+            try:
+                p = json.loads(h)
+                if p == h: break
+                h = p
+            except Exception:
+                break
+        cot["cliente_historial"] = h if isinstance(h, list) else []
 
     # Load panel info
     if cot.get("panel_id"):

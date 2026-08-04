@@ -300,8 +300,19 @@ async function renderStep2(container) {
         invOptions += `<option value="${i.id}" ${sel}>${i.marca} ${i.potencia_kw}kW - ${i.tipo}</option>`;
     });
 
-    const rawHist = (c && c.historial_consumo) ? c.historial_consumo : [];
-    const validHist = (Array.isArray(rawHist) ? rawHist : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
+    let h = c ? (c.historial_consumo || c.cliente_historial) : [];
+    while (typeof h === 'string') {
+        try {
+            const p = JSON.parse(h);
+            if (p === h) break;
+            h = p;
+        } catch {
+            if (typeof h === 'string' && h.includes(',')) {
+                h = h.split(',').map(v => v.trim());
+            } else { break; }
+        }
+    }
+    const validHist = (Array.isArray(h) ? h : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
     const baseCons = d.consumo_mensual_kwh || (c ? c.consumo_mensual_kwh : 0) || 0;
 
     const ultConsumo = validHist.length > 0 ? validHist[validHist.length - 1] : baseCons;

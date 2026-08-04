@@ -354,11 +354,19 @@
             document.getElementById('cl-consumo').innerText = `${formatNumber(data.cliente_consumo)} kWh/m`;
             document.getElementById('cl-costo').innerText = formatCurrency(data.cliente_costo_kwh);
             
-            let rawHist = data.cliente_historial;
-            if (typeof rawHist === 'string') {
-                try { rawHist = JSON.parse(rawHist); } catch { rawHist = []; }
+            let h = data.cliente_historial;
+            while (typeof h === 'string') {
+                try {
+                    const p = JSON.parse(h);
+                    if (p === h) break;
+                    h = p;
+                } catch {
+                    if (typeof h === 'string' && h.includes(',')) {
+                        h = h.split(',').map(v => v.trim());
+                    } else { break; }
+                }
             }
-            const validHist = (Array.isArray(rawHist) ? rawHist : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
+            const validHist = (Array.isArray(h) ? h : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
             const baseCons = data.cliente_consumo || 0;
 
             const ultVal = validHist.length > 0 ? validHist[validHist.length - 1] : baseCons;

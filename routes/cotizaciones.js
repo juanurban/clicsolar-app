@@ -244,8 +244,16 @@ router.get('/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ detail: 'Cotización no encontrada' });
     const cot = rows[0];
 
-    if (cot.cliente_historial && typeof cot.cliente_historial === 'string') {
-      try { cot.cliente_historial = JSON.parse(cot.cliente_historial); } catch { cot.cliente_historial = []; }
+    if (cot.cliente_historial) {
+      let h = cot.cliente_historial;
+      while (typeof h === 'string') {
+        try {
+          const p = JSON.parse(h);
+          if (p === h) break;
+          h = p;
+        } catch { break; }
+      }
+      cot.cliente_historial = Array.isArray(h) ? h : [];
     }
 
     // Load related equipment

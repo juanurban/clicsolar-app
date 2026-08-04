@@ -81,10 +81,15 @@ def obtener_cliente(cliente_id: int):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     cliente = dict_from_row(row)
     if cliente.get("historial_consumo"):
-        try:
-            cliente["historial_consumo"] = json.loads(cliente["historial_consumo"])
-        except (json.JSONDecodeError, TypeError):
-            cliente["historial_consumo"] = []
+        h = cliente["historial_consumo"]
+        while isinstance(h, str):
+            try:
+                p = json.loads(h)
+                if p == h: break
+                h = p
+            except Exception:
+                break
+        cliente["historial_consumo"] = h if isinstance(h, list) else []
     return cliente
 
 
