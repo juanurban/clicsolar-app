@@ -300,7 +300,6 @@ async function renderStep2(container) {
         invOptions += `<option value="${i.id}" ${sel}>${i.marca} ${i.potencia_kw}kW - ${i.tipo}</option>`;
     });
 
-    const c = stateCotizador.clienteSelected;
     const cHist = (c && c.historial_consumo && Array.isArray(c.historial_consumo) && c.historial_consumo.length > 0) ? c.historial_consumo : [];
     const ultConsumo = cHist.length > 0 ? cHist[cHist.length - 1] : (d.consumo_mensual_kwh || 0);
     const maxConsumo = cHist.length > 0 ? Math.max(...cHist) : (d.consumo_mensual_kwh || 0);
