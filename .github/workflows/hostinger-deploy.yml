@@ -1,14 +1,9 @@
-name: Despliegue Frontend a Hostinger
+name: Despliegue a Hostinger (Node.js + Frontend)
 
 on:
   push:
     branches:
-      - main  # Se ejecutará automáticamente cuando subas cambios a la rama main
-    paths:
-      # Solo se ejecuta si hay cambios en los archivos del frontend
-      - 'templates/index.html'
-      - 'templates/login.html'
-      - 'static/**'
+      - main
 
 jobs:
   deploy:
@@ -17,15 +12,36 @@ jobs:
       - name: Descargar código fuente
         uses: actions/checkout@v4
 
-      - name: Preparar carpeta de despliegue (frontend_dist)
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Preparar carpeta de despliegue
         run: |
-          mkdir -p frontend_dist/static
-          cp templates/index.html frontend_dist/
-          cp templates/login.html frontend_dist/
-          cp -r static/* frontend_dist/static/
-          
-          # Crear archivo .htaccess para enrutamiento SPA
-          cat << 'EOF' > frontend_dist/.htaccess
+          mkdir -p deploy_dist
+
+          # ── Archivos del Backend (Node.js) ──
+          cp server.js deploy_dist/
+          cp db.js deploy_dist/
+          cp package.json deploy_dist/
+          cp package-lock.json deploy_dist/
+          cp -r routes deploy_dist/
+
+          # ── Archivos del Frontend ──
+          cp -r templates deploy_dist/
+          cp -r static deploy_dist/
+
+          # ── Archivos de configuración ──
+          cp .env.example deploy_dist/
+          cp schema.sql deploy_dist/
+          cp seed.sql deploy_dist/
+
+          # ── Crear .htaccess para enrutamiento ──
+          cat << 'EOF' > deploy_dist/.htaccess
           RewriteEngine On
           RewriteRule ^login$ login.html [L]
           RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -40,6 +56,13 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./frontend_dist/
-          # Directorio destino en Hostinger (usualmente public_html o una subcarpeta)
+          local-dir: ./deploy_dist/
           server-dir: /public_html/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.env
+            **/__pycache__/**
+            **/*.pyc
+            **/*.db
