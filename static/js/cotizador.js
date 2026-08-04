@@ -1350,6 +1350,8 @@ async function guardarCotizacion(estado, openPdf = false) {
         estado: estado,
         panel_id: d.panel.id,
         inversor_id: d.inversor_sugerido ? d.inversor_sugerido.id : null,
+        bateria_id: (stateCotizador.items.find(i => i.categoria === 'bateria') || {}).equipo_id || null,
+        num_baterias: (stateCotizador.items.find(i => i.categoria === 'bateria') || {}).cantidad || 0,
         potencia_kwp: d.potencia_kwp,
         num_paneles: d.num_paneles,
         produccion_diaria_kwh: d.produccion_diaria_kwh,

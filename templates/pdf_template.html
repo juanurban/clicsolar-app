@@ -356,8 +356,26 @@
             const pesoPaneles = (data.panel?.peso_kg || 0) * data.num_paneles;
             document.getElementById('sys-peso').innerText = formatNumber(pesoPaneles * 1.1);
 
-            // Design image — check both bateria_id AND num_baterias
-            const tieneBaterias = (data.bateria_id && data.num_baterias > 0);
+            // Inversión / Items
+            const itemsData = data.items_json;
+            let items = [];
+            let mostrarPrecios = true;
+            let incluirLey1715 = true;
+            if (Array.isArray(itemsData)) {
+                items = itemsData;
+            } else if (itemsData && typeof itemsData === 'object') {
+                items = itemsData.items || [];
+                mostrarPrecios = itemsData.mostrar_precios !== false;
+                if (itemsData.incluir_ley1715 !== undefined) {
+                    incluirLey1715 = itemsData.incluir_ley1715;
+                }
+            }
+
+            // Detectar si la cotización incluye batería (vía bateria_id o en los items)
+            const batItem = items.find(i => i.categoria === 'bateria');
+            const tieneBaterias = !!(data.bateria_id || data.num_baterias > 0 || batItem);
+
+            // Design image
             const disenoUrl = tieneBaterias
                 ? (data.empresa?.diseno_on_grid_bat || '')
                 : (data.empresa?.diseno_on_grid || '');
@@ -375,29 +393,23 @@
                 document.getElementById('eq-inv-marca').innerText = data.inversor.marca?.toUpperCase() || '-';
                 document.getElementById('eq-inv-mod').innerText = `${data.inversor.modelo?.toUpperCase() || '-'} (${data.inversor.potencia_kw}kW)`;
             }
-            if((data.bateria_id || data.num_baterias > 0) && data.bateria) {
+
+            // Tarjeta de Batería
+            if(tieneBaterias) {
                 document.getElementById('eq-bateria-box').style.display = 'block';
-                document.getElementById('eq-bat-marca').innerText = data.bateria.marca?.toUpperCase() || '-';
-                const cantBat = data.num_baterias > 1 ? ` x${data.num_baterias}` : '';
-                document.getElementById('eq-bat-mod').innerText = `${data.bateria.modelo?.toUpperCase() || '-'} (${data.bateria.capacidad_kwh || data.bateria.potencia_kw}${data.bateria.capacidad_kwh ? 'kWh' : 'kW'})${cantBat}`;
+                const batMarca = data.bateria?.marca || (batItem ? (batItem.nombre ? batItem.nombre.split(' ')[0] : 'Batería') : 'Batería');
+                const batMod = data.bateria?.modelo 
+                    ? `${data.bateria.modelo} (${data.bateria.capacidad_kwh || data.bateria.potencia_kw}${data.bateria.capacidad_kwh ? 'kWh' : 'kW'})`
+                    : (batItem ? batItem.nombre : 'Litio / Backup');
+                const numBat = data.num_baterias || (batItem ? batItem.cantidad : 1);
+                const cantBatText = numBat > 1 ? ` x${numBat}` : '';
+
+                document.getElementById('eq-bat-marca').innerText = batMarca.toUpperCase();
+                document.getElementById('eq-bat-mod').innerText = `${batMod.toUpperCase()}${cantBatText}`;
+
                 const eqGrid = document.getElementById('eq-container');
                 eqGrid.classList.remove('grid-cols-2');
                 eqGrid.classList.add('grid-cols-3');
-            }
-
-            // Inversión
-            const itemsData = data.items_json;
-            let items = [];
-            let mostrarPrecios = true;
-            let incluirLey1715 = true;
-            if (Array.isArray(itemsData)) {
-                items = itemsData;
-            } else if (itemsData && typeof itemsData === 'object') {
-                items = itemsData.items || [];
-                mostrarPrecios = itemsData.mostrar_precios !== false;
-                if (itemsData.incluir_ley1715 !== undefined) {
-                    incluirLey1715 = itemsData.incluir_ley1715;
-                }
             }
 
             // Hide/show precio column
