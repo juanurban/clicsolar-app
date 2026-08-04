@@ -278,7 +278,7 @@ def seed_data():
         ("inflacion_tarifa", "10", "number", "Incremento anual esperado de tarifa eléctrica en porcentaje"),
         ("aom_porcentaje", "1.5", "number", "Porcentaje de la inversión para AOM anual"),
         ("aom_incremento", "5", "number", "Incremento anual del costo AOM en porcentaje"),
-        ("margen_comercial", "15", "number", "Margen comercial por defecto en porcentaje"),
+        ("margen_comercial", "30", "number", "Margen comercial por defecto en porcentaje"),
         ("deduccion_renta", "50", "number", "Porcentaje deducción renta Ley 1715"),
         ("tasa_impositiva", "33", "number", "Tasa impositiva para cálculo beneficio fiscal"),
         ('empresa_nombre', 'Mi Empresa Solar S.A.', 'texto', 'Razón Social de la empresa'),

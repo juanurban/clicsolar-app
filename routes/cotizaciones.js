@@ -283,7 +283,7 @@ router.post('/', async (req, res) => {
       [codigo, d.cliente_id, d.potencia_kwp || 0, d.num_paneles || 0, d.panel_id,
        d.inversor_id, d.bateria_id || null, d.num_baterias || 0, d.produccion_diaria_kwh || 0,
        d.produccion_mensual_kwh || 0, d.area_requerida_m2 || 0, d.peso_total_kg || 0,
-       d.items_json || '[]', d.subtotal || 0, d.margen_comercial_pct || 15, d.total_inversion || 0,
+       d.items_json || '[]', d.subtotal || 0, d.margen_comercial_pct || 30, d.total_inversion || 0,
        d.ahorro_mensual || 0, d.ahorro_anual || 0, d.roi_sin_incentivos_meses || 0,
        d.roi_con_incentivos_meses || 0, d.deduccion_renta_pct || 50, d.degradacion_anual_pct || 0.74,
        d.inflacion_tarifa_pct || 10, d.aom_anual || 0, d.aom_incremento_pct || 5,

@@ -13,7 +13,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Seed Configuración
 INSERT INTO configuracion (clave, valor, tipo, descripcion) VALUES
-('margen_comercial', '15', 'number', 'Margen comercial por defecto en porcentaje'),
+('margen_comercial', '30', 'number', 'Margen comercial por defecto en porcentaje'),
 ('deduccion_renta', '50', 'number', 'Porcentaje deducción renta Ley 1715'),
 ('tasa_impositiva', '33', 'number', 'Tasa impositiva para cálculo beneficio fiscal'),
 ('empresa_nombre', 'Mi Empresa Solar S.A.', 'texto', 'Razón Social de la empresa'),

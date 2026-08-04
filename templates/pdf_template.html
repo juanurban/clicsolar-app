@@ -420,7 +420,7 @@
 
             const tb = document.getElementById('items-tbody');
             let itemsHtml = '';
-            const margen = data.margen_comercial_pct || 15;
+            const margen = data.margen_comercial_pct || 30;
             let subtotalIvaItems = 0;
             items.forEach(item => {
                 const precioVenta = Math.round(item.precio_unitario * (1 + margen / 100));

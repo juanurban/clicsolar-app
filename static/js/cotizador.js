@@ -17,7 +17,7 @@ let stateCotizador = {
     items: [], // Desglose
     removedAutoItems: [],
     cronograma: [],
-    config: { margen: 15, deduccion: 50, inflacion: 10, degradacion: 0.74, aom: 1.5, aom_inc: 5, auto: 100, exc: 0, incluir_ley1715: true }
+    config: { margen: 30, deduccion: 50, inflacion: 10, degradacion: 0.74, aom: 1.5, aom_inc: 5, auto: 100, exc: 0, incluir_ley1715: true }
 };
 
 let chartInstance = null;
@@ -572,7 +572,7 @@ function rebuildBOM() {
         addAuto('auto-panel', d.panel, d.num_paneles, 'panel');
     }
 
-    // 3. BATERIA (si hay baterías en inventario)
+    // 3. BATERIAS
     const bat = stateCotizador.baterias && stateCotizador.baterias.length > 0 ? stateCotizador.baterias[0] : null;
     if (bat) {
         addAuto('auto-bateria', bat, 1, 'bateria');
@@ -584,54 +584,54 @@ function rebuildBOM() {
         addAuto('auto-est', est, d.num_paneles, 'estructura');
     }
 
-    // 5. CERTIFICACION RETIE
-    const retie = stateCotizador.servicios.find(s => s.modelo.includes('RETIE'));
-    if (retie) {
-        addAuto('auto-retie', retie, 1, 'servicio');
-    }
-
-    // 6. TRAMITE INCENTIVOS
-    const inc = stateCotizador.servicios.find(s => s.modelo.includes('Incentivos') || s.modelo.includes('1715'));
-    if (inc) {
-        addAuto('auto-inc', inc, 1, 'servicio');
-    }
-
-    // 7. MEDIDOR BIDIRECCIONAL
+    // 5. MEDIDOR BIDIRECCIONAL
     const med = stateCotizador.materiales.find(e => e.modelo.includes('Medidor'));
     if (med) {
         addAuto('auto-med', med, 1, 'estructura');
     }
 
-    // 8. TRAMITES OPERADOR DE RED
+    // 6. ACCESORIOS DE INSTALACION
+    const acc = stateCotizador.materiales.find(e => e.modelo.includes('Accesorios')) || stateCotizador.materiales.find(e => e.modelo.includes('Protecciones'));
+    if (acc) {
+        addAuto('auto-acc', acc, 1, 'estructura');
+    }
+
+    // 7. SERVICIO DE INSTALACION
+    let mo = stateCotizador.servicios.find(s => s.modelo.includes('Instalación Residencial') || s.modelo.includes('Instalación'));
+    if (d.potencia_kwp > 10) mo = stateCotizador.servicios.find(s => s.modelo.includes('Instalación Comercial')) || mo;
+    if (d.potencia_kwp > 50) mo = stateCotizador.servicios.find(s => s.modelo.includes('Instalación Industrial')) || mo;
+    if (mo) {
+        addAuto('auto-mo', mo, 1, 'servicio');
+    }
+
+    // 8. DISEÑOS
+    const dis = stateCotizador.servicios.find(s => s.modelo.includes('Diseño'));
+    if (dis) {
+        addAuto('auto-dis', dis, 1, 'servicio');
+    }
+
+    // 9. CERTIFICACION RETIE
+    const retie = stateCotizador.servicios.find(s => s.modelo.includes('RETIE'));
+    if (retie) {
+        addAuto('auto-retie', retie, 1, 'servicio');
+    }
+
+    // 10. TRAMITES OPERADOR DE RED
     const opRed = stateCotizador.servicios.find(s => s.modelo.includes('Operador Red') || s.modelo.includes('Trámites Operador'));
     if (opRed) {
         addAuto('auto-opred', opRed, 1, 'servicio');
     }
 
-    // 9. ACCESORIOS DE INSTALACION
-    const acc = stateCotizador.materiales.find(e => e.modelo.includes('Accesorios') || e.modelo.includes('Protecciones AC'));
-    if (acc) {
-        addAuto('auto-acc', acc, 1, 'estructura');
+    // 11. TRAMITE INCENTIVOS
+    const inc = stateCotizador.servicios.find(s => s.modelo.includes('Incentivos') || s.modelo.includes('1715'));
+    if (inc) {
+        addAuto('auto-inc', inc, 1, 'servicio');
     }
 
-    // 10. TRANSPORTE
+    // 12. TRANSPORTE
     const trans = stateCotizador.servicios.find(s => s.modelo.includes('Transporte') || s.modelo.includes('Logística'));
     if (trans) {
         addAuto('auto-trans', trans, 1, 'servicio');
-    }
-
-    // 11. INSTALACION
-    let mo = stateCotizador.servicios.find(s => s.modelo.includes('Residencial'));
-    if (d.potencia_kwp > 10) mo = stateCotizador.servicios.find(s => s.modelo.includes('Comercial'));
-    if (d.potencia_kwp > 50) mo = stateCotizador.servicios.find(s => s.modelo.includes('Industrial'));
-    if (mo) {
-        addAuto('auto-mo', mo, 1, 'servicio');
-    }
-
-    // 12. DISEÑOS
-    const dis = stateCotizador.servicios.find(s => s.modelo.includes('Diseño'));
-    if (dis) {
-        addAuto('auto-dis', dis, 1, 'servicio');
     }
 
     if (!stateCotizador.items) stateCotizador.items = [];
