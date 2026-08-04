@@ -300,6 +300,11 @@ async function renderStep2(container) {
         invOptions += `<option value="${i.id}" ${sel}>${i.marca} ${i.potencia_kw}kW - ${i.tipo}</option>`;
     });
 
+    const c = stateCotizador.clienteSelected;
+    const cHist = (c && c.historial_consumo && Array.isArray(c.historial_consumo) && c.historial_consumo.length > 0) ? c.historial_consumo : [];
+    const ultConsumo = cHist.length > 0 ? cHist[cHist.length - 1] : (d.consumo_mensual_kwh || 0);
+    const maxConsumo = cHist.length > 0 ? Math.max(...cHist) : (d.consumo_mensual_kwh || 0);
+
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-10">
 
@@ -339,8 +344,24 @@ async function renderStep2(container) {
                 <div class="flex items-center gap-4">
                     <span class="material-symbols-outlined text-primary text-[28px]">bolt</span>
                     <div>
-                        <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Consumo Mensual</div>
+                        <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Consumo Promedio</div>
                         <div class="font-label-bold text-on-surface text-xl">${formatNumber(d.consumo_mensual_kwh)} kWh</div>
+                    </div>
+                </div>
+                <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-outlined text-primary text-[28px]">history</span>
+                    <div>
+                        <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Último Consumo</div>
+                        <div class="font-label-bold text-on-surface text-xl">${formatNumber(ultConsumo)} kWh</div>
+                    </div>
+                </div>
+                <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-outlined text-primary text-[28px]">trending_up</span>
+                    <div>
+                        <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Consumo Más Alto</div>
+                        <div class="font-label-bold text-on-surface text-xl">${formatNumber(maxConsumo)} kWh</div>
                     </div>
                 </div>
                 <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>

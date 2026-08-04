@@ -210,12 +210,16 @@ router.get('/:id', async (req, res) => {
       cl.correo as cliente_correo, cl.ciudad as cliente_ciudad,
       cl.operador_red as cliente_operador, cl.tipo_tarifa as cliente_tarifa,
       cl.consumo_mensual_kwh as cliente_consumo, cl.costo_kwh as cliente_costo_kwh,
-      cl.hsp as cliente_hsp
+      cl.hsp as cliente_hsp, cl.historial_consumo as cliente_historial
       FROM cotizaciones c LEFT JOIN clientes cl ON c.cliente_id = cl.id WHERE c.id = ?
     `, [req.params.id]);
 
     if (rows.length === 0) return res.status(404).json({ detail: 'Cotización no encontrada' });
     const cot = rows[0];
+
+    if (cot.cliente_historial && typeof cot.cliente_historial === 'string') {
+      try { cot.cliente_historial = JSON.parse(cot.cliente_historial); } catch { cot.cliente_historial = []; }
+    }
 
     // Load related equipment
     if (cot.panel_id) { const [p] = await pool.execute('SELECT * FROM equipos WHERE id = ?', [cot.panel_id]); cot.panel = p[0] || null; }

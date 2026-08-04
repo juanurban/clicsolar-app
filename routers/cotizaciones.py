@@ -349,7 +349,7 @@ def obtener_cotizacion(cotizacion_id: int):
         cl.correo as cliente_correo, cl.ciudad as cliente_ciudad,
         cl.operador_red as cliente_operador, cl.tipo_tarifa as cliente_tarifa,
         cl.consumo_mensual_kwh as cliente_consumo, cl.costo_kwh as cliente_costo_kwh,
-        cl.hsp as cliente_hsp
+        cl.hsp as cliente_hsp, cl.historial_consumo as cliente_historial
         FROM cotizaciones c
         LEFT JOIN clientes cl ON c.cliente_id = cl.id
         WHERE c.id = ?
@@ -360,6 +360,12 @@ def obtener_cotizacion(cotizacion_id: int):
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
 
     cot = dict_from_row(row)
+
+    if cot.get("cliente_historial"):
+        try:
+            cot["cliente_historial"] = json.loads(cot["cliente_historial"])
+        except (json.JSONDecodeError, TypeError):
+            cot["cliente_historial"] = []
 
     # Load panel info
     if cot.get("panel_id"):

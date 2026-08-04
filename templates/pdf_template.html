@@ -109,6 +109,8 @@
                         <span class="text-gray">Operador:</span> <span class="font-bold" id="cl-op">-</span>
                         <span class="text-gray">Consumo Prom.:</span> <span class="font-bold" id="cl-consumo">-</span>
                         <span class="text-gray">Valor Energía:</span> <span class="font-bold" id="cl-costo">-</span>
+                        <span class="text-gray">Último Consumo:</span> <span class="font-bold" id="cl-ult-consumo">-</span>
+                        <span class="text-gray">Consumo Máx.:</span> <span class="font-bold" id="cl-max-consumo">-</span>
                     </div>
                 </div>
             </div>
@@ -346,6 +348,16 @@
             document.getElementById('cl-op').innerText = data.cliente_operador || '-';
             document.getElementById('cl-consumo').innerText = `${formatNumber(data.cliente_consumo)} kWh/m`;
             document.getElementById('cl-costo').innerText = formatCurrency(data.cliente_costo_kwh);
+            
+            const hist = (data.cliente_historial && Array.isArray(data.cliente_historial) && data.cliente_historial.length > 0)
+                ? data.cliente_historial
+                : (data.cliente_consumo ? [data.cliente_consumo] : []);
+            
+            const ultVal = hist.length > 0 ? hist[hist.length - 1] : (data.cliente_consumo || 0);
+            const maxVal = hist.length > 0 ? Math.max(...hist) : (data.cliente_consumo || 0);
+
+            document.getElementById('cl-ult-consumo').innerText = `${formatNumber(ultVal)} kWh/m`;
+            document.getElementById('cl-max-consumo').innerText = `${formatNumber(maxVal)} kWh/m`;
             
             // Sistema
             document.getElementById('sys-kwp').innerText = data.potencia_kwp;
