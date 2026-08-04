@@ -356,8 +356,9 @@
             const pesoPaneles = (data.panel?.peso_kg || 0) * data.num_paneles;
             document.getElementById('sys-peso').innerText = formatNumber(pesoPaneles * 1.1);
 
-            // Design image
-            const disenoUrl = data.bateria_id
+            // Design image — check both bateria_id AND num_baterias
+            const tieneBaterias = (data.bateria_id && data.num_baterias > 0);
+            const disenoUrl = tieneBaterias
                 ? (data.empresa?.diseno_on_grid_bat || '')
                 : (data.empresa?.diseno_on_grid || '');
             if (disenoUrl) {
@@ -374,10 +375,11 @@
                 document.getElementById('eq-inv-marca').innerText = data.inversor.marca?.toUpperCase() || '-';
                 document.getElementById('eq-inv-mod').innerText = `${data.inversor.modelo?.toUpperCase() || '-'} (${data.inversor.potencia_kw}kW)`;
             }
-            if(data.bateria_id && data.bateria) {
+            if((data.bateria_id || data.num_baterias > 0) && data.bateria) {
                 document.getElementById('eq-bateria-box').style.display = 'block';
                 document.getElementById('eq-bat-marca').innerText = data.bateria.marca?.toUpperCase() || '-';
-                document.getElementById('eq-bat-mod').innerText = `${data.bateria.modelo?.toUpperCase() || '-'} (${data.bateria.capacidad_kwh || data.bateria.potencia_kw}${data.bateria.capacidad_kwh ? 'kWh' : 'kW'})`;
+                const cantBat = data.num_baterias > 1 ? ` x${data.num_baterias}` : '';
+                document.getElementById('eq-bat-mod').innerText = `${data.bateria.modelo?.toUpperCase() || '-'} (${data.bateria.capacidad_kwh || data.bateria.potencia_kw}${data.bateria.capacidad_kwh ? 'kWh' : 'kW'})${cantBat}`;
                 const eqGrid = document.getElementById('eq-container');
                 eqGrid.classList.remove('grid-cols-2');
                 eqGrid.classList.add('grid-cols-3');
@@ -787,24 +789,26 @@
         const sumFactors = factors.reduce((a,b)=>a+b, 0);
         const data = factors.map(f => (f / sumFactors) * hsp * kwp);
 
-        Chart.register({
+        // Local plugin for hourly labels (only for prod-chart)
+        const hourlyLabelsPlugin = {
             id: 'hourlyLabels',
             afterDraw: function(chart) {
-                const ctx = chart.ctx;
+                const ctx2 = chart.ctx;
                 const meta = chart.getDatasetMeta(0);
-                ctx.fillStyle = '#131313';
-                ctx.font = 'bold 8px Inter, sans-serif';
-                ctx.textAlign = 'center';
+                ctx2.fillStyle = '#131313';
+                ctx2.font = 'bold 8px Inter, sans-serif';
+                ctx2.textAlign = 'center';
                 meta.data.forEach(function(elem, i) {
                     const val = chart.data.datasets[0].data[i];
                     if (val > 0) {
-                        ctx.fillText(val.toFixed(1), elem.x, elem.y - 10);
+                        ctx2.fillText(val.toFixed(1), elem.x, elem.y - 10);
                     }
                 });
             }
-        });
+        };
 
         new Chart(ctx, {
+            plugins: [hourlyLabelsPlugin],
             type: 'line',
             data: {
                 labels: hours,
@@ -840,6 +844,15 @@
         });
     }
 
+    // Helper to abbreviate large numbers for chart labels
+    function abreviarNumero(v) {
+        if (v === 0) return '';
+        const abs = Math.abs(v);
+        if (abs >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+        if (abs >= 1000) return Math.round(v / 1000) + 'K';
+        return String(Math.round(v));
+    }
+
     function renderProyeccionChartPDF(proyeccion, acumuladoField) {
         const ctx = document.getElementById('desglose-chart');
         if (!ctx) return;
@@ -849,7 +862,26 @@
         const aom = proyeccion.map(p => -p.aom);
         const acumulado = proyeccion.map(p => p[acumuladoField] || 0);
 
+        // Plugin: abbreviated labels on top of bars (only every 5 years)
+        const desgloseLabelsPlugin = {
+            id: 'desgloseLabels',
+            afterDraw: function(chart) {
+                const ctx2 = chart.ctx;
+                const meta0 = chart.getDatasetMeta(0); // Valor Energía bars
+                ctx2.fillStyle = '#4caf50';
+                ctx2.font = 'bold 6px Inter, sans-serif';
+                ctx2.textAlign = 'center';
+                meta0.data.forEach(function(elem, i) {
+                    if ((i + 1) % 5 === 0 || i === 0) { // Show at years 1, 5, 10, 15, 20, 25
+                        const val = chart.data.datasets[0].data[i];
+                        if (val > 0) ctx2.fillText(abreviarNumero(val), elem.x, elem.y - 3);
+                    }
+                });
+            }
+        };
+
         new Chart(ctx, {
+            plugins: [desgloseLabelsPlugin],
             type: 'bar',
             data: {
                 labels: labels,
