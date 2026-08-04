@@ -753,6 +753,11 @@ async function calculateFinances() {
     const c = stateCotizador.clienteSelected;
     const conf = stateCotizador.config;
 
+    // Default excedentes to 30% of commercial cost if not set manually
+    if (!conf.exc || conf.exc === 0) {
+        conf.exc = Math.round((c.costo_kwh || 0) * 0.30);
+    }
+
     // Calculate Subtotal (cost of all items)
     const subtotal = stateCotizador.items.reduce((sum, item) => sum + item.subtotal, 0);
     // Margen applied to subtotal
@@ -769,6 +774,7 @@ async function calculateFinances() {
     try {
         const payload = {
             produccion_mensual_kwh: d.produccion_mensual_kwh,
+            consumo_mensual_kwh: c.consumo_mensual_kwh,
             costo_kwh: c.costo_kwh,
             total_inversion: totalConIva,
             deduccion_renta_pct: conf.deduccion,
@@ -841,6 +847,42 @@ function renderStep3(container) {
                         <input type="checkbox" ${c.incluir_ley1715 ? 'checked' : ''} onchange="updateConfig('incluir_ley1715', this.checked)" class="w-5 h-5 accent-primary rounded">
                         <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">account_balance</span> Incluir cálculo con Ley 1715 (Beneficio Fiscal)</span>
                     </label>
+                </div>
+            </div>
+
+            <!-- Simulación Venta de Excedentes a la Red -->
+            <div class="px-6 lg:px-8 pt-6">
+                <div class="bg-surface-container-high p-6 rounded-xl border border-outline-variant/20">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-primary text-[32px]">currency_exchange</span>
+                            <div>
+                                <h3 class="font-headline-md text-on-surface text-lg">Simulación: Ahorro + Venta de Excedentes</h3>
+                                <p class="text-xs text-on-surface-variant">Valor inyección a red: ~30% tarifa comercial (${formatCurrency(f.simulacion_excedentes?.precio_excedente_kwh || Math.round((stateCotizador.clienteSelected.costo_kwh||0) * 0.30))}/kWh)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-surface-container-low p-4 rounded-xl text-center border border-outline-variant/20">
+                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-medium mb-1">⚡ Autoconsumo Directo</div>
+                            <div class="font-label-bold text-on-surface text-base">${formatNumber(f.simulacion_excedentes?.kwh_autoconsumo_mes || 0)} kWh/mes</div>
+                            <div class="text-xs text-success font-semibold mt-1">+${formatCurrency(f.simulacion_excedentes?.ahorro_autoconsumo_mes || 0)}/mes</div>
+                        </div>
+                        <div class="bg-surface-container-low p-4 rounded-xl text-center border border-outline-variant/20">
+                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-medium mb-1">🔌 Excedentes Inyectados</div>
+                            <div class="font-label-bold text-primary text-base">${formatNumber(f.simulacion_excedentes?.kwh_excedentes_mes || 0)} kWh/mes</div>
+                            <div class="text-xs text-primary font-semibold mt-1">+${formatCurrency(f.simulacion_excedentes?.ingreso_excedentes_mes || 0)}/mes</div>
+                        </div>
+                        <div class="bg-surface-container-low p-4 rounded-xl text-center border border-outline-variant/20">
+                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-medium mb-1">💰 Beneficio Total Estimado</div>
+                            <div class="font-label-bold text-on-surface text-base">${formatCurrency(f.simulacion_excedentes?.beneficio_total_mes || f.escenario_1.ahorro_mensual)}/mes</div>
+                            <div class="text-xs text-on-surface-variant mt-1">${formatCurrency(f.simulacion_excedentes?.beneficio_total_anual || f.escenario_1.ahorro_anual)}/año</div>
+                        </div>
+                        <div class="bg-surface-container-low p-4 rounded-xl text-center border border-primary/30 flex flex-col justify-center items-center">
+                            <div class="text-[10px] text-primary uppercase tracking-wider font-bold mb-1">Ingreso Excedentes (25 Años)</div>
+                            <div class="font-display-lg text-primary text-lg">${formatCurrency(f.resumen_25_anos?.valor_total_excedentes || 0)}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1078,7 +1120,8 @@ function renderProyeccionChart(canvasId, acumuladoField) {
     if (!data || data.length === 0) return;
 
     const labels = data.map(d => d.anio);
-    const valorEnergia = data.map(d => d.valor_energia);
+    const valorAuto = data.map(d => d.valor_autoconsumo || d.valor_energia || 0);
+    const valorExc = data.map(d => d.valor_excedentes || 0);
     const aom = data.map(d => -d.aom);
     const acumulado = data.map(d => d[acumuladoField] || 0);
 
@@ -1088,10 +1131,19 @@ function renderProyeccionChart(canvasId, acumuladoField) {
             labels: labels,
             datasets: [
                 {
-                    label: 'Valor Energía',
-                    data: valorEnergia,
-                    backgroundColor: 'rgba(76, 175, 80, 0.5)',
+                    label: 'Ahorro Autoconsumo',
+                    data: valorAuto,
+                    backgroundColor: 'rgba(76, 175, 80, 0.6)',
                     borderColor: '#4caf50',
+                    borderWidth: 1,
+                    borderRadius: 2,
+                    order: 2
+                },
+                {
+                    label: 'Venta Excedentes (30%)',
+                    data: valorExc,
+                    backgroundColor: 'rgba(2, 132, 199, 0.6)',
+                    borderColor: '#0284c7',
                     borderWidth: 1,
                     borderRadius: 2,
                     order: 2
@@ -1106,7 +1158,7 @@ function renderProyeccionChart(canvasId, acumuladoField) {
                     order: 2
                 },
                 {
-                    label: 'Ahorro Acumulado',
+                    label: 'Retorno Acumulado',
                     data: acumulado,
                     type: 'line',
                     borderColor: '#ffc800',

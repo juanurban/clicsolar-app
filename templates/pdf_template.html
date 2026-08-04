@@ -266,10 +266,11 @@
             <div class="relative" style="height:120px;">
                 <canvas id="desglose-chart"></canvas>
             </div>
-            <div class="flex justify-center gap-4 mt-1 text-[8px] text-gray border-t border-gray/20 pt-1">
-                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#4caf50;"></span> Ahorro Energía</span>
+            <div class="flex justify-center gap-3 mt-1 text-[8px] text-gray border-t border-gray/20 pt-1">
+                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#4caf50;"></span> Ahorro Autoconsumo</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#0284c7;"></span> Venta Excedentes (30%)</span>
                 <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#f44336;"></span> Costos AOM</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-2" style="background:#ffc800;"></span> Ahorro Acumulado</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-2" style="background:#ffc800;"></span> Retorno Acumulado</span>
             </div>
         </div>
 
@@ -908,7 +909,8 @@
         if (!ctx) return;
 
         const labels = proyeccion.map(p => p.anio);
-        const valorEnergia = proyeccion.map(p => p.valor_energia);
+        const valorAuto = proyeccion.map(p => p.valor_autoconsumo || p.valor_energia || 0);
+        const valorExc = proyeccion.map(p => p.valor_excedentes || 0);
         const aom = proyeccion.map(p => -p.aom);
         const acumulado = proyeccion.map(p => p[acumuladoField] || 0);
 
@@ -917,13 +919,13 @@
             id: 'desgloseLabels',
             afterDraw: function(chart) {
                 const ctx2 = chart.ctx;
-                const meta0 = chart.getDatasetMeta(0); // Valor Energía bars
+                const meta0 = chart.getDatasetMeta(0); // Autoconsumo bars
                 ctx2.fillStyle = '#4caf50';
                 ctx2.font = 'bold 6px Inter, sans-serif';
                 ctx2.textAlign = 'center';
                 meta0.data.forEach(function(elem, i) {
                     if ((i + 1) % 5 === 0 || i === 0) { // Show at years 1, 5, 10, 15, 20, 25
-                        const val = chart.data.datasets[0].data[i];
+                        const val = chart.data.datasets[0].data[i] + (chart.data.datasets[1]?.data[i] || 0);
                         if (val > 0) ctx2.fillText(abreviarNumero(val), elem.x, elem.y - 3);
                     }
                 });
@@ -937,10 +939,19 @@
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Valor Energía',
-                        data: valorEnergia,
-                        backgroundColor: 'rgba(76, 175, 80, 0.5)',
+                        label: 'Ahorro Autoconsumo',
+                        data: valorAuto,
+                        backgroundColor: 'rgba(76, 175, 80, 0.6)',
                         borderColor: '#4caf50',
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        order: 2
+                    },
+                    {
+                        label: 'Venta Excedentes (30%)',
+                        data: valorExc,
+                        backgroundColor: 'rgba(2, 132, 199, 0.6)',
+                        borderColor: '#0284c7',
                         borderWidth: 1,
                         borderRadius: 2,
                         order: 2
@@ -955,7 +966,7 @@
                         order: 2
                     },
                     {
-                        label: 'Ahorro Acumulado',
+                        label: 'Retorno Acumulado',
                         type: 'line',
                         data: acumulado,
                         borderColor: '#ffc800',

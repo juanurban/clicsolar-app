@@ -86,18 +86,27 @@ router.post('/dimensionar', async (req, res) => {
 
 router.post('/calcular-financiero', async (req, res) => {
   try {
-    const d = req.body;
-    const produccionAnual = d.produccion_mensual_kwh * 12;
+    const produccionMensual = d.produccion_mensual_kwh || 0;
+    const consumoMensual = d.consumo_mensual_kwh || 0;
+    const costoKwh = d.costo_kwh || 0;
+    const precioExcedente = (d.precio_excedente_kwh && d.precio_excedente_kwh > 0)
+      ? d.precio_excedente_kwh
+      : Math.round(costoKwh * 0.30); // ~30% del costo comercial
 
-    // Scenario 1: Without Tax Incentives
-    let ahorroMensual = d.produccion_mensual_kwh * d.costo_kwh;
-    if (d.pct_autoconsumo < 100) {
-      const pctAuto = d.pct_autoconsumo / 100;
-      const autoMes = d.produccion_mensual_kwh * pctAuto * d.costo_kwh;
-      const excMes = d.produccion_mensual_kwh * (1 - pctAuto) * d.precio_excedente_kwh;
-      ahorroMensual = autoMes + excMes;
+    // 1. Autoconsumo vs Excedentes
+    let kwhAutoMes = Math.min(produccionMensual, consumoMensual);
+    let kwhExcMes = Math.max(0, produccionMensual - consumoMensual);
+
+    if (d.pct_autoconsumo !== undefined && d.pct_autoconsumo < 100) {
+      kwhAutoMes = produccionMensual * (d.pct_autoconsumo / 100);
+      kwhExcMes = produccionMensual * (1 - d.pct_autoconsumo / 100);
     }
+
+    const ahorroAutoMes = Math.round(kwhAutoMes * costoKwh);
+    const ingresoExcMes = Math.round(kwhExcMes * precioExcedente);
+    const ahorroMensual = ahorroAutoMes + ingresoExcMes;
     const ahorroAnual = ahorroMensual * 12;
+
     const roiSinInc = ahorroMensual > 0 ? Math.round(d.total_inversion / ahorroMensual * 10) / 10 : 999;
 
     // Scenario 2: With Tax Incentives (Law 1715)
@@ -110,28 +119,35 @@ router.post('/calcular-financiero', async (req, res) => {
     const proyeccion = [];
     let saldoS1 = d.total_inversion, saldoS2 = inversionNeta;
     let acumS1 = 0, acumS2 = beneficioFiscal;
-    let costoTotalAom = 0, valorTotalEnergia = 0;
+    let costoTotalAom = 0, valorTotalEnergia = 0, valorTotalAutoconsumo = 0, valorTotalExcedentes = 0;
     const deg = d.degradacion_anual_pct / 100;
     const inf = d.inflacion_tarifa_pct / 100;
     const aomInc = d.aom_incremento_pct / 100;
-    const pctAuto = d.pct_autoconsumo / 100;
+
+    const ratioAuto = produccionMensual > 0 ? (kwhAutoMes / produccionMensual) : 1;
+    const ratioExc = produccionMensual > 0 ? (kwhExcMes / produccionMensual) : 0;
 
     for (let anio = 1; anio <= 25; anio++) {
-      const energiaAnual = Math.round(produccionAnual * Math.pow(1 - deg, anio - 1) * 10) / 10;
-      const precioKwhAnio = Math.round(d.costo_kwh * Math.pow(1 + inf, anio - 1) * 100) / 100;
+      const energiaAnual = Math.round(produccionMensual * 12 * Math.pow(1 - deg, anio - 1) * 10) / 10;
+      const precioKwhAnio = Math.round(costoKwh * Math.pow(1 + inf, anio - 1) * 100) / 100;
+      const precioExcAnio = Math.round(precioExcedente * Math.pow(1 + inf, anio - 1) * 100) / 100;
       const aomAnio = d.aom_anual > 0 ? Math.round(d.aom_anual * Math.pow(1 + aomInc, anio - 1)) : 0;
 
-      const valorAuto = energiaAnual * pctAuto * precioKwhAnio;
-      const valorExc = pctAuto < 1 ? energiaAnual * (1 - pctAuto) * d.precio_excedente_kwh * Math.pow(1 + inf, anio - 1) : 0;
-      const valorEnergia = Math.round(valorAuto + valorExc);
+      const valorAuto = Math.round(energiaAnual * ratioAuto * precioKwhAnio);
+      const valorExc = Math.round(energiaAnual * ratioExc * precioExcAnio);
+      const valorEnergia = valorAuto + valorExc;
 
       const flujoNeto = valorEnergia - aomAnio;
       saldoS1 -= flujoNeto; saldoS2 -= flujoNeto;
       acumS1 += flujoNeto; acumS2 += flujoNeto;
-      costoTotalAom += aomAnio; valorTotalEnergia += valorEnergia;
+      costoTotalAom += aomAnio;
+      valorTotalAutoconsumo += valorAuto;
+      valorTotalExcedentes += valorExc;
+      valorTotalEnergia += valorEnergia;
 
       proyeccion.push({
-        anio, energia_kwh: energiaAnual, precio_kwh: precioKwhAnio,
+        anio, energia_kwh: energiaAnual, precio_kwh: precioKwhAnio, precio_exc: precioExcAnio,
+        valor_autoconsumo: valorAuto, valor_excedentes: valorExc,
         aom: aomAnio, valor_energia: valorEnergia, flujo_neto: Math.round(flujoNeto),
         saldo_inversion_s1: Math.round(saldoS1), saldo_inversion_s2: Math.round(saldoS2),
         ahorro_acumulado_s1: Math.round(acumS1), ahorro_acumulado_s2: Math.round(acumS2)
@@ -141,13 +157,22 @@ router.post('/calcular-financiero', async (req, res) => {
     const ahorroNeto25 = valorTotalEnergia - d.total_inversion - costoTotalAom;
 
     res.json({
+      simulacion_excedentes: {
+        precio_excedente_kwh: precioExcedente,
+        kwh_autoconsumo_mes: Math.round(kwhAutoMes),
+        kwh_excedentes_mes: Math.round(kwhExcMes),
+        ahorro_autoconsumo_mes: ahorroAutoMes,
+        ingreso_excedentes_mes: ingresoExcMes,
+        beneficio_total_mes: ahorroMensual,
+        beneficio_total_anual: ahorroAnual
+      },
       escenario_1: {
-        titulo: 'Sin Incentivos Tributarios',
+        titulo: 'Sin Incentivos Tributarios (Ahorro + Excedentes)',
         ahorro_mensual: Math.round(ahorroMensual), ahorro_anual: Math.round(ahorroAnual),
         roi_meses: roiSinInc, roi_anos: Math.round(roiSinInc / 12 * 10) / 10
       },
       escenario_2: {
-        titulo: 'Con Incentivos Tributarios (Ley 1715)',
+        titulo: 'Con Incentivos Tributarios (Ahorro + Excedentes + Ley 1715)',
         deduccion_renta: Math.round(deduccionRenta), beneficio_fiscal: Math.round(beneficioFiscal),
         inversion_neta: Math.round(inversionNeta),
         ahorro_mensual: Math.round(ahorroMensual), ahorro_anual: Math.round(ahorroAnual),
@@ -155,6 +180,8 @@ router.post('/calcular-financiero', async (req, res) => {
       },
       resumen_25_anos: {
         inversion_inicial: Math.round(d.total_inversion), costo_total_aom: Math.round(costoTotalAom),
+        valor_total_autoconsumo: Math.round(valorTotalAutoconsumo),
+        valor_total_excedentes: Math.round(valorTotalExcedentes),
         valor_total_energia: Math.round(valorTotalEnergia), ahorro_neto_25: Math.round(ahorroNeto25),
         roi_total_pct: d.total_inversion > 0 ? Math.round((valorTotalEnergia / d.total_inversion * 100 - 100) * 10) / 10 : 0
       },

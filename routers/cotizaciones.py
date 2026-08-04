@@ -191,18 +191,23 @@ def calcular_financiero(data: CalcularFinancieroRequest):
     Calculate full financial analysis with ROI and 25-year projection.
     Returns: savings, ROI with/without incentives, 25-year cash flow table.
     """
-    produccion_anual = data.produccion_mensual_kwh * 12
+    produccion_mensual = data.produccion_mensual_kwh or 0
+    consumo_mensual = getattr(data, 'consumo_mensual_kwh', 0) or 0
+    costo_kwh = data.costo_kwh or 0
+    precio_excedente = data.precio_excedente_kwh if (data.precio_excedente_kwh and data.precio_excedente_kwh > 0) else round(costo_kwh * 0.30)
 
-    # ── Scenario 1: Without Tax Incentives ──
-    ahorro_mensual = data.produccion_mensual_kwh * data.costo_kwh
-    ahorro_anual = ahorro_mensual * 12
+    # 1. Autoconsumo vs Excedentes
+    kwh_auto_mes = min(produccion_mensual, consumo_mensual) if consumo_mensual > 0 else (produccion_mensual * (data.pct_autoconsumo / 100))
+    kwh_exc_mes = max(0, produccion_mensual - consumo_mensual) if consumo_mensual > 0 else (produccion_mensual * (1 - data.pct_autoconsumo / 100))
 
     if data.pct_autoconsumo < 100:
-        pct_auto = data.pct_autoconsumo / 100
-        ahorro_mensual_auto = data.produccion_mensual_kwh * pct_auto * data.costo_kwh
-        ahorro_mensual_excedente = data.produccion_mensual_kwh * (1 - pct_auto) * data.precio_excedente_kwh
-        ahorro_mensual = ahorro_mensual_auto + ahorro_mensual_excedente
-        ahorro_anual = ahorro_mensual * 12
+        kwh_auto_mes = produccion_mensual * (data.pct_autoconsumo / 100)
+        kwh_exc_mes = produccion_mensual * (1 - data.pct_autoconsumo / 100)
+
+    ahorro_auto_mes = round(kwh_auto_mes * costo_kwh)
+    ingreso_exc_mes = round(kwh_exc_mes * precio_excedente)
+    ahorro_mensual = ahorro_auto_mes + ingreso_exc_mes
+    ahorro_anual = ahorro_mensual * 12
 
     roi_sin_incentivos_meses = round(data.total_inversion / ahorro_mensual, 1) if ahorro_mensual > 0 else 999
     roi_sin_incentivos_anos = round(roi_sin_incentivos_meses / 12, 1)
@@ -223,44 +228,43 @@ def calcular_financiero(data: CalcularFinancieroRequest):
     ahorro_acumulado_s2 = beneficio_fiscal
     costo_total_aom = 0
     valor_total_energia = 0
+    valor_total_autoconsumo = 0
+    valor_total_excedentes = 0
+
     degradacion = data.degradacion_anual_pct / 100
     inflacion = data.inflacion_tarifa_pct / 100
     aom_inc = data.aom_incremento_pct / 100
-    pct_auto = data.pct_autoconsumo / 100
+    ratio_auto = (kwh_auto_mes / produccion_mensual) if produccion_mensual > 0 else 1
+    ratio_exc = (kwh_exc_mes / produccion_mensual) if produccion_mensual > 0 else 0
 
     for anio in range(1, 26):
-        # Energy with degradation
-        energia_anual = produccion_anual * ((1 - degradacion) ** (anio - 1))
-        energia_anual = round(energia_anual, 1)
+        energia_anual = round(produccion_mensual * 12 * ((1 - degradacion) ** (anio - 1)), 1)
+        precio_kwh_anio = round(costo_kwh * ((1 + inflacion) ** (anio - 1)), 2)
+        precio_exc_anio = round(precio_excedente * ((1 + inflacion) ** (anio - 1)), 2)
+        aom_anio = round(data.aom_anual * ((1 + aom_inc) ** (anio - 1)), 0) if data.aom_anual > 0 else 0
 
-        # Price with inflation
-        precio_kwh_anio = data.costo_kwh * ((1 + inflacion) ** (anio - 1))
-        precio_kwh_anio = round(precio_kwh_anio, 2)
+        valor_autoconsumo = round(energia_anual * ratio_auto * precio_kwh_anio)
+        valor_excedente = round(energia_anual * ratio_exc * precio_exc_anio)
+        valor_energia = valor_autoconsumo + valor_excedente
 
-        # AOM with yearly increase
-        aom_anio = data.aom_anual * ((1 + aom_inc) ** (anio - 1)) if data.aom_anual > 0 else 0
-        aom_anio = round(aom_anio, 0)
-
-        # Energy value (considering self-consumption vs surplus)
-        valor_autoconsumo = energia_anual * pct_auto * precio_kwh_anio
-        valor_excedente = energia_anual * (1 - pct_auto) * data.precio_excedente_kwh * ((1 + inflacion) ** (anio - 1)) if pct_auto < 1 else 0
-        valor_energia = round(valor_autoconsumo + valor_excedente, 0)
-
-        # Net cash flow
         flujo_neto = valor_energia - aom_anio
 
-        # Running totals
         saldo_inversion_s1 -= flujo_neto
         saldo_inversion_s2 -= flujo_neto
         ahorro_acumulado_s1 += flujo_neto
         ahorro_acumulado_s2 += flujo_neto
         costo_total_aom += aom_anio
+        valor_total_autoconsumo += valor_autoconsumo
+        valor_total_excedentes += valor_excedente
         valor_total_energia += valor_energia
 
         proyeccion.append({
             "anio": anio,
             "energia_kwh": energia_anual,
             "precio_kwh": precio_kwh_anio,
+            "precio_exc": precio_exc_anio,
+            "valor_autoconsumo": valor_autoconsumo,
+            "valor_excedentes": valor_excedente,
             "aom": aom_anio,
             "valor_energia": valor_energia,
             "flujo_neto": round(flujo_neto, 0),
