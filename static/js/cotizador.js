@@ -1419,6 +1419,7 @@ async function guardarCotizacion(estado, openPdf = false) {
         items_json: JSON.stringify({
             mostrar_precios: stateCotizador.config.mostrar_precios_pdf !== false,
             incluir_ley1715: stateCotizador.config.incluir_ley1715,
+            base_consumo: stateCotizador.baseConsumo || 'promedio',
             items: stateCotizador.items
         }),
         subtotal: f.subtotal,

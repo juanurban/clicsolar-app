@@ -116,7 +116,10 @@
             </div>
 
         <!-- Solución Propuesta -->
-        <h3 class="text-lg border-b border-dark pb-1 mb-4 text-dark uppercase font-bold">Solución Fotovoltaica Propuesta</h3>
+        <div class="flex items-center justify-between border-b border-dark pb-1 mb-4">
+            <h3 class="text-base text-dark uppercase font-bold">Solución Fotovoltaica Propuesta</h3>
+            <span id="parametro-badge" class="font-bold text-xs px-2.5 py-0.5 rounded uppercase tracking-wide border border-dark/20 shadow-sm" style="background:#ffc800; color:#131313;">PROMEDIO MENSUAL</span>
+        </div>
 
         <!-- Diseño del sistema -->
         <div id="diseno-img-container" class="mb-4 text-center" style="display:none;">
@@ -373,6 +376,7 @@
             let items = [];
             let mostrarPrecios = true;
             let incluirLey1715 = true;
+            let baseConsumoText = 'PROMEDIO MENSUAL';
             if (Array.isArray(itemsData)) {
                 items = itemsData;
             } else if (itemsData && typeof itemsData === 'object') {
@@ -381,7 +385,14 @@
                 if (itemsData.incluir_ley1715 !== undefined) {
                     incluirLey1715 = itemsData.incluir_ley1715;
                 }
+                if (itemsData.base_consumo) {
+                    const bc = itemsData.base_consumo;
+                    if (bc === 'ultimo') baseConsumoText = 'ÚLTIMO MES';
+                    else if (bc === 'mayor') baseConsumoText = 'MES DE MAYOR CONSUMO';
+                    else if (bc === 'promedio') baseConsumoText = 'PROMEDIO MENSUAL';
+                }
             }
+            document.getElementById('parametro-badge').innerText = baseConsumoText;
 
             // Detectar si la cotización incluye batería (vía bateria_id o en los items)
             const batItem = items.find(i => i.categoria === 'bateria');
