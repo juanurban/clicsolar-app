@@ -555,13 +555,17 @@
                         return cells + `<div style="position:absolute;top:2px;left:${leftPct}%;width:${widthPct}%;height:16px;background:#ffc800;border-radius:3px;min-width:6px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:#333;">${Math.round(durBDays)}d</div>`;
                     };
 
+                    const MONTHS_ES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
                     const ganttHeaderRow = () => {
-                        let html = '<div style="display:flex;border-bottom:1px solid #999;font-size:7px;color:#666;height:12px;line-height:12px;">';
+                        let html = '<div style="display:flex;border-bottom:1px solid #999;font-size:6px;color:#333;font-weight:bold;height:14px;line-height:14px;">';
                         wdDates.forEach((dt, i) => {
                             const isWeekStart = dt.getDay() === 1 || i === 0;
                             const dayNum = dt.getDate();
-                            html += `<div style="flex:1;text-align:center;${isWeekStart?'border-left:2px solid #999;':'border-left:1px solid #ddd;'}">`;
-                            html += `${totalBDays<=20||i===0||dt.getDay()===1||dt.getDay()===5?dayNum:''}</div>`;
+                            const monthName = MONTHS_ES[dt.getMonth()];
+                            const label = `${monthName}${dayNum}`;
+                            html += `<div style="flex:1;text-align:center;overflow:hidden;${isWeekStart?'border-left:2px solid #999;':'border-left:1px solid #ddd;'}">`;
+                            html += `${totalBDays <= 25 || i === 0 || dt.getDay() === 1 || dt.getDay() === 5 ? label : ''}</div>`;
                         });
                         html += '</div>';
                         return html;
