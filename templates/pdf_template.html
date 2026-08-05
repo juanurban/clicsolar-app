@@ -298,6 +298,11 @@
                 <p class="text-[10px] text-gray" id="asesor-tel"></p>
                 <p class="text-[10px] text-gray" id="asesor-email"></p>
             </div>
+            
+            <div class="mt-4 mb-2 prevent-break hidden" id="terminos-container">
+                <h3 class="text-[9px] border-b border-gray/30 pb-0.5 mb-1 text-dark font-bold uppercase">Términos y Condiciones</h3>
+                <ul class="list-disc pl-3 text-[7px] text-gray leading-tight" id="terminos-list-pdf"></ul>
+            </div>
         </div>
 
         <!-- Footer Página 3 -->
@@ -656,10 +661,31 @@
                 cronoContainer.innerHTML = '<p class="text-gray text-sm py-4">Cronograma no disponible</p>';
             }
 
-            // Asesor
-            document.getElementById('asesor-nombre').innerText = data.asesor?.asesor_nombre || '-';
-            document.getElementById('asesor-tel').innerText = data.asesor?.asesor_telefono ? `Tel: ${data.asesor.asesor_telefono}` : '';
-            document.getElementById('asesor-email').innerText = data.asesor?.asesor_correo ? `Email: ${data.asesor.asesor_correo}` : '';
+            // Configuración del Asesor y Términos
+            if(data.asesor) {
+                document.getElementById('asesor-nombre').innerText = data.asesor.asesor_nombre || '';
+                document.getElementById('asesor-tel').innerText = data.asesor.asesor_telefono || '';
+                document.getElementById('asesor-email').innerText = data.asesor.asesor_correo || '';
+                
+                if (data.asesor.terminos_condiciones) {
+                    try {
+                        const terminos = JSON.parse(data.asesor.terminos_condiciones);
+                        if (Array.isArray(terminos) && terminos.length > 0) {
+                            const ul = document.getElementById('terminos-list-pdf');
+                            ul.innerHTML = '';
+                            terminos.forEach(t => {
+                                if (t.trim()) {
+                                    const li = document.createElement('li');
+                                    li.className = 'mb-0.5';
+                                    li.innerText = t.trim();
+                                    ul.appendChild(li);
+                                }
+                            });
+                            document.getElementById('terminos-container').classList.remove('hidden');
+                        }
+                    } catch(e) {}
+                }
+            }
 
             // Render Chart
             renderProdCurve(data.potencia_kwp, data.cliente_hsp);

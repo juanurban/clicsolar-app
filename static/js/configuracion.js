@@ -2,6 +2,43 @@
  * SunQuote — Configuración Module
  */
 
+let terminosList = [];
+
+window.renderTerminos = function() {
+    const list = document.getElementById('terminos-list');
+    const inp = document.getElementById('inp-terminos_condiciones');
+    if (!list || !inp) return;
+    
+    list.innerHTML = '';
+    terminosList.forEach((t, i) => {
+        list.innerHTML += `
+            <div class="flex items-start gap-2 bg-surface-container rounded-lg p-3 group">
+                <span class="text-primary font-bold mt-1">${i+1}.</span>
+                <textarea class="sq-input flex-1 min-h-[60px] text-sm resize-y" onchange="updateTermino(${i}, this.value)">${t}</textarea>
+                <button type="button" class="text-error hover:bg-error/10 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" onclick="removeTermino(${i})">
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
+            </div>
+        `;
+    });
+    inp.value = JSON.stringify(terminosList);
+}
+
+window.addTermino = function() {
+    terminosList.push('');
+    renderTerminos();
+}
+
+window.updateTermino = function(index, value) {
+    terminosList[index] = value;
+    document.getElementById('inp-terminos_condiciones').value = JSON.stringify(terminosList);
+}
+
+window.removeTermino = function(index) {
+    terminosList.splice(index, 1);
+    renderTerminos();
+}
+
 async function renderConfiguracion() {
     const content = document.getElementById('app-content');
     content.innerHTML = `<div class="flex items-center justify-center h-[60vh]"><div class="sq-spinner"></div></div>`;
@@ -11,6 +48,12 @@ async function renderConfiguracion() {
         
         // Helper to extract value safely
         const v = (key) => res[key] ? res[key].valor : '';
+
+        // Initialize terminosList
+        try {
+            terminosList = JSON.parse(v('terminos_condiciones') || '[]');
+            if (!Array.isArray(terminosList)) terminosList = [];
+        } catch { terminosList = []; }
 
         const html = `
             <div class="flex flex-col w-full p-4 lg:p-12 gap-8 fade-in max-w-6xl mx-auto">
@@ -210,6 +253,27 @@ async function renderConfiguracion() {
                         </div>
                     </div>
 
+                    <!-- Términos y Condiciones -->
+                    <div class="bg-surface-container-low p-8 lg:p-10 rounded-xl">
+                        <div class="flex items-center gap-4 mb-8">
+                            <div class="p-3 bg-surface-container-high rounded-lg text-primary">
+                                <span class="material-symbols-outlined">gavel</span>
+                            </div>
+                            <div class="flex-1">
+                                <h2 class="font-headline-md text-headline-md text-on-surface">Términos y Condiciones (PDF)</h2>
+                                <p class="text-sm text-on-surface-variant">Estas condiciones aparecerán en letra pequeña debajo de la firma del asesor.</p>
+                            </div>
+                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="addTermino()">
+                                <span class="material-symbols-outlined">add</span> Agregar Término
+                            </button>
+                        </div>
+                        
+                        <input type="hidden" name="terminos_condiciones" id="inp-terminos_condiciones">
+                        <div id="terminos-list" class="flex flex-col gap-3">
+                            <!-- Rendered by JS -->
+                        </div>
+                    </div>
+
                     <div class="flex justify-end gap-4 pb-8">
                         <button type="submit" class="sq-btn sq-btn-primary sq-btn-lg">
                             <span class="material-symbols-outlined">save</span> Guardar Cambios
@@ -220,6 +284,7 @@ async function renderConfiguracion() {
             </div>
         `;
         content.innerHTML = html;
+        renderTerminos();
     } catch (e) {
         content.innerHTML = `<div class="p-8 text-error text-center">Error cargando configuración: ${e.message}</div>`;
     }

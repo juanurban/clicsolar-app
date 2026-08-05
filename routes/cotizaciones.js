@@ -273,8 +273,8 @@ router.get('/:id', async (req, res) => {
     cot.empresa = {};
     configRows.forEach(r => { cot.empresa[r.clave] = r.valor; });
 
-    // Load advisor config
-    const [asesorRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'asesor_%' OR clave = 'firma_asesor'");
+    // Load advisor & terms config
+    const [asesorRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'asesor_%' OR clave = 'firma_asesor' OR clave = 'terminos_condiciones'");
     cot.asesor = {};
     asesorRows.forEach(r => { cot.asesor[r.clave] = r.valor; });
 

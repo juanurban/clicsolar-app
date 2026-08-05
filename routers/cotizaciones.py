@@ -400,12 +400,12 @@ def obtener_cotizacion(cotizacion_id: int):
                 cot[field] = []
 
     # Load config for company info (including design images)
-    config_rows = conn.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'empresa_%' OR clave LIKE 'diseno_%'").fetchall()
-    cot["empresa"] = {row["clave"]: row["valor"] for row in config_rows}
+    empresa_rows = conn.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'empresa_%' OR clave LIKE 'diseno_%'").fetchall()
+    cot["empresa"] = {r["clave"]: r["valor"] for r in empresa_rows}
 
     # Load config for advisor info
-    asesor_rows = conn.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'asesor_%' OR clave = 'firma_asesor'").fetchall()
-    cot["asesor"] = {row["clave"]: row["valor"] for row in asesor_rows}
+    asesor_rows = conn.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'asesor_%' OR clave = 'firma_asesor' OR clave = 'terminos_condiciones'").fetchall()
+    cot["asesor"] = {r["clave"]: r["valor"] for r in asesor_rows}
 
     conn.close()
     return cot
