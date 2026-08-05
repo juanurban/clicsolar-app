@@ -373,9 +373,9 @@
             const maxVal = validHist.length > 0 ? Math.max(...validHist) : baseCons;
             const minVal = validHist.length > 0 ? Math.min(...validHist) : baseCons;
 
-            document.getElementById('cl-ult-consumo').innerText = `${formatNumber(ultVal)} kWh/m`;
-            document.getElementById('cl-max-consumo').innerText = `${formatNumber(maxVal)} kWh/m`;
-            document.getElementById('cl-min-consumo').innerText = `${formatNumber(minVal)} kWh/m`;
+            document.getElementById('cl-ult-consumo').innerText = `${formatNumber(ultVal)} kWh/m (raw: ${JSON.stringify(data.cliente_historial)})`;
+            document.getElementById('cl-max-consumo').innerText = `${formatNumber(maxVal)} kWh/m (h: ${JSON.stringify(h)})`;
+            document.getElementById('cl-min-consumo').innerText = `${formatNumber(minVal)} kWh/m (len: ${validHist.length})`;
             
             // Sistema
             document.getElementById('sys-kwp').innerText = data.potencia_kwp;
