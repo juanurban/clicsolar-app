@@ -291,10 +291,7 @@ function switchClienteTab(tab) {
     document.getElementById(`tab-${tab}`).classList.remove('hidden');
 }
 
-function closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.getElementById('modal-container').innerHTML = '';
-}
+
 
 async function uploadClientFiles(input) {
     if (!input.files || input.files.length === 0) return;
