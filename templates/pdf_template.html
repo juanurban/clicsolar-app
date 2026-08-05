@@ -255,25 +255,6 @@
             </div>
         </div>
 
-        <div class="border border-gray/20 p-2 rounded prevent-break">
-            <div class="flex justify-between items-center mb-1">
-                <h4 class="font-bold uppercase text-xs text-dark">Desglose Ahorro vs Costos (25 Años)</h4>
-                <div class="text-right">
-                    <div class="text-[7px] uppercase text-gray">Ahorro Neto Acumulado</div>
-                    <div class="text-sm font-bold text-green-700" id="f-ahorro-25">-</div>
-                </div>
-            </div>
-            <div class="relative" style="height:120px;">
-                <canvas id="desglose-chart"></canvas>
-            </div>
-            <div class="flex justify-center gap-3 mt-1 text-[8px] text-gray border-t border-gray/20 pt-1">
-                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#4caf50;"></span> Ahorro Autoconsumo</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#0284c7;"></span> Venta Excedentes (30%)</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#f44336;"></span> Costos AOM</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-2" style="background:#ffc800;"></span> Retorno Acumulado</span>
-            </div>
-        </div>
-
         <!-- Footer Página 2 -->
         <div class="absolute bottom-6 left-16 right-16 text-[9px] text-gray border-t border-gray/30 pt-1 flex justify-between">
             <span id="f-emp-nombre2">SunQuote</span>
@@ -288,6 +269,26 @@
     <div class="header-stripe"></div>
     <div class="content flex flex-col justify-between" style="min-height: 270mm;">
         <div>
+            <!-- Desglose Ahorro vs Costos -->
+            <div class="border border-gray/20 p-2 rounded prevent-break mb-4">
+                <div class="flex justify-between items-center mb-1">
+                    <h4 class="font-bold uppercase text-xs text-dark">Desglose Ahorro vs Costos (25 Años)</h4>
+                    <div class="text-right">
+                        <div class="text-[7px] uppercase text-gray">Ahorro Neto Acumulado</div>
+                        <div class="text-sm font-bold text-green-700" id="f-ahorro-25">-</div>
+                    </div>
+                </div>
+                <div class="relative" style="height:140px;">
+                    <canvas id="desglose-chart"></canvas>
+                </div>
+                <div class="flex justify-center gap-3 mt-1 text-[8px] text-gray border-t border-gray/20 pt-1">
+                    <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#4caf50;"></span> Ahorro Autoconsumo</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#0284c7;"></span> Venta Excedentes (30%)</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-2 rounded-sm" style="background:#f44336;"></span> Costos AOM</span>
+                    <span class="flex items-center gap-1"><span class="w-3 h-2" style="background:#ffc800;"></span> Retorno Acumulado</span>
+                </div>
+            </div>
+
             <!-- Cronograma -->
             <h3 class="text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold prevent-break">Cronograma de Ejecución y Pagos</h3>
             <div id="crono-gantt-container" class="prevent-break mb-6"></div>
