@@ -43,6 +43,7 @@ def init_db():
             hsp REAL DEFAULT 4.2,
             cargas_especiales_kwh_dia REAL DEFAULT 0,
             historial_consumo TEXT DEFAULT '[]',
+            archivos_json TEXT DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -158,6 +159,15 @@ def init_db():
         conn2.execute("ALTER TABLE equipos ADD COLUMN iva INTEGER DEFAULT 1")
         conn2.commit()
         conn2.close()
+    except sqlite3.OperationalError:
+        pass  # Columna ya existe
+
+    # Migración: agregar columna archivos_json en clientes
+    try:
+        conn3 = get_db()
+        conn3.execute("ALTER TABLE clientes ADD COLUMN archivos_json TEXT DEFAULT '[]'")
+        conn3.commit()
+        conn3.close()
     except sqlite3.OperationalError:
         pass  # Columna ya existe
 

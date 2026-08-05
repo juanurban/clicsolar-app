@@ -54,7 +54,7 @@ app.get('/pdf/:id', (req, res) => {
 });
 
 // Fallback for SPA routing
-app.get('*', (req, res) => {
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'templates/index.html'));
 });
 

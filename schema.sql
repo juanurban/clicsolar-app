@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     hsp DECIMAL(10,2) DEFAULT 4.2,
     cargas_especiales_kwh_dia DECIMAL(10,2) DEFAULT 0,
     historial_consumo JSON,
+    archivos_json JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

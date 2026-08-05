@@ -2,8 +2,10 @@
 SunQuote - Clientes API Router
 CRUD operations for clients and energy profiles.
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
 from pydantic import BaseModel
+import os
+import shutil
 from typing import Optional, List
 import json
 from database import get_db, dict_from_row, dicts_from_rows
@@ -25,6 +27,7 @@ class ClienteCreate(BaseModel):
     hsp: Optional[float] = 4.2
     cargas_especiales_kwh_dia: Optional[float] = 0
     historial_consumo: Optional[List[float]] = []
+    archivos_json: Optional[List[dict]] = []
 
 
 class ClienteUpdate(ClienteCreate):
@@ -68,6 +71,11 @@ def listar_clientes(
                 c["historial_consumo"] = json.loads(c["historial_consumo"])
             except (json.JSONDecodeError, TypeError):
                 c["historial_consumo"] = []
+        if c.get("archivos_json"):
+            try:
+                c["archivos_json"] = json.loads(c["archivos_json"])
+            except (json.JSONDecodeError, TypeError):
+                c["archivos_json"] = []
 
     return {"data": clientes, "total": total, "page": page, "limit": limit}
 
@@ -90,6 +98,18 @@ def obtener_cliente(cliente_id: int):
             except Exception:
                 break
         cliente["historial_consumo"] = h if isinstance(h, list) else []
+
+    if cliente.get("archivos_json"):
+        a = cliente["archivos_json"]
+        while isinstance(a, str):
+            try:
+                p = json.loads(a)
+                if p == a: break
+                a = p
+            except Exception:
+                break
+        cliente["archivos_json"] = a if isinstance(a, list) else []
+
     return cliente
 
 
@@ -97,6 +117,7 @@ def obtener_cliente(cliente_id: int):
 def crear_cliente(data: ClienteCreate):
     conn = get_db()
     historial_json = json.dumps(data.historial_consumo or [])
+    archivos_json = json.dumps(data.archivos_json or [])
 
     # If historial provided, calculate average
     consumo = data.consumo_mensual_kwh
@@ -106,11 +127,11 @@ def crear_cliente(data: ClienteCreate):
     cursor = conn.execute("""
         INSERT INTO clientes (nombre, cedula_nit, direccion, telefono, correo, ciudad,
                               operador_red, tipo_tarifa, consumo_mensual_kwh, costo_kwh,
-                              hsp, cargas_especiales_kwh_dia, historial_consumo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              hsp, cargas_especiales_kwh_dia, historial_consumo, archivos_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (data.nombre, data.cedula_nit, data.direccion, data.telefono, data.correo,
           data.ciudad, data.operador_red, data.tipo_tarifa, consumo, data.costo_kwh,
-          data.hsp, data.cargas_especiales_kwh_dia, historial_json))
+          data.hsp, data.cargas_especiales_kwh_dia, historial_json, archivos_json))
     conn.commit()
     cliente_id = cursor.lastrowid
     conn.close()
@@ -126,6 +147,7 @@ def actualizar_cliente(cliente_id: int, data: ClienteUpdate):
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     historial_json = json.dumps(data.historial_consumo or [])
+    archivos_json = json.dumps(data.archivos_json or [])
     consumo = data.consumo_mensual_kwh
     if data.historial_consumo and len(data.historial_consumo) > 0 and consumo == 0:
         consumo = sum(data.historial_consumo) / len(data.historial_consumo)
@@ -133,12 +155,12 @@ def actualizar_cliente(cliente_id: int, data: ClienteUpdate):
     conn.execute("""
         UPDATE clientes SET nombre=?, cedula_nit=?, direccion=?, telefono=?, correo=?,
         ciudad=?, operador_red=?, tipo_tarifa=?, consumo_mensual_kwh=?, costo_kwh=?,
-        hsp=?, cargas_especiales_kwh_dia=?, historial_consumo=?,
+        hsp=?, cargas_especiales_kwh_dia=?, historial_consumo=?, archivos_json=?,
         updated_at=CURRENT_TIMESTAMP
         WHERE id=?
     """, (data.nombre, data.cedula_nit, data.direccion, data.telefono, data.correo,
           data.ciudad, data.operador_red, data.tipo_tarifa, consumo, data.costo_kwh,
-          data.hsp, data.cargas_especiales_kwh_dia, historial_json, cliente_id))
+          data.hsp, data.cargas_especiales_kwh_dia, historial_json, archivos_json, cliente_id))
     conn.commit()
     conn.close()
     return {"message": "Cliente actualizado exitosamente"}
@@ -162,3 +184,15 @@ def eliminar_cliente(cliente_id: int):
         raise HTTPException(status_code=400, detail=f"No se pudo eliminar el cliente: {str(e)}")
     finally:
         conn.close()
+
+@router.post("/clientes/upload")
+def upload_archivo_cliente(file: UploadFile = File(...)):
+    uploads_dir = os.path.join("static", "uploads", "clientes")
+    os.makedirs(uploads_dir, exist_ok=True)
+    # prepend a short random id to avoid collisions
+    import uuid
+    safe_filename = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    file_path = os.path.join(uploads_dir, safe_filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return {"url": f"/static/uploads/clientes/{safe_filename}", "name": file.filename}

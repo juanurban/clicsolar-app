@@ -5,8 +5,11 @@
 let stateClientes = {
     data: [],
     page: 1,
+    limit: 10,
     buscar: ''
 };
+
+let currentArchivos = [];
 
 async function renderClientes() {
     const content = document.getElementById('app-content');
@@ -53,7 +56,7 @@ function fetchClientesDebounced() {
 async function fetchClientes() {
     const container = document.getElementById('clientes-table-container');
     try {
-        const res = await API.get(`/clientes?page=${stateClientes.page}&buscar=${encodeURIComponent(stateClientes.buscar)}`);
+        const res = await API.get(`/clientes?page=${stateClientes.page}&limit=${stateClientes.limit}&buscar=${encodeURIComponent(stateClientes.buscar)}`);
         stateClientes.data = res.data;
         
         if (res.data.length === 0) {
@@ -150,7 +153,7 @@ async function openClienteModal(id = null) {
         nombre: '', cedula_nit: '', direccion: '', telefono: '', correo: '',
         ciudad: '', operador_red: '', tipo_tarifa: 'Residencial',
         consumo_mensual_kwh: 0, costo_kwh: 0, hsp: 4.2, cargas_especiales_kwh_dia: 0,
-        historial_consumo: []
+        historial_consumo: [], archivos_json: []
     };
 
     if (id) {
@@ -161,6 +164,7 @@ async function openClienteModal(id = null) {
             return;
         }
     }
+    currentArchivos = Array.isArray(c.archivos_json) ? c.archivos_json : [];
 
     const modalHtml = `
         <div class="p-8 fade-in">
@@ -169,6 +173,7 @@ async function openClienteModal(id = null) {
                 <div class="sq-tabs mb-6" id="cliente-tabs">
                     <button type="button" class="sq-tab active" onclick="switchClienteTab('datos')">Datos Básicos</button>
                     <button type="button" class="sq-tab" onclick="switchClienteTab('perfil')">Perfil Energético</button>
+                    <button type="button" class="sq-tab" onclick="switchClienteTab('archivos')">Archivos Adjuntos</button>
                 </div>
 
                 <div id="tab-datos" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -248,6 +253,21 @@ async function openClienteModal(id = null) {
                     </div>
                 </div>
 
+                <div id="tab-archivos" class="hidden flex flex-col gap-4">
+                    <div class="bg-surface-container-low border border-outline-variant/30 border-dashed rounded-xl p-6 text-center">
+                        <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">upload_file</span>
+                        <h4 class="font-bold text-on-surface mb-1">Subir Archivos</h4>
+                        <p class="text-sm text-on-surface-variant mb-4">Fotos, PDFs de la factura, planos, etc.</p>
+                        <input type="file" multiple class="hidden" id="cli-archivos-input" onchange="uploadClientFiles(this)">
+                        <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm mx-auto" onclick="document.getElementById('cli-archivos-input').click()">
+                            Seleccionar Archivos
+                        </button>
+                    </div>
+                    <div id="cli-archivos-list" class="flex flex-col gap-2 mt-2">
+                        <!-- Archivos irán aquí -->
+                    </div>
+                </div>
+
                 <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-outline-variant">
                     <button type="button" class="sq-btn sq-btn-ghost" onclick="closeModal()">Cancelar</button>
                     <button type="submit" class="sq-btn sq-btn-primary">Guardar Cliente</button>
@@ -257,6 +277,7 @@ async function openClienteModal(id = null) {
     `;
     openModal(modalHtml);
     toggleHistorial(true);
+    renderClientArchivos();
 }
 
 function switchClienteTab(tab) {
@@ -265,8 +286,70 @@ function switchClienteTab(tab) {
     
     document.getElementById('tab-datos').classList.add('hidden');
     document.getElementById('tab-perfil').classList.add('hidden');
+    document.getElementById('tab-archivos').classList.add('hidden');
     
     document.getElementById(`tab-${tab}`).classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.getElementById('modal-container').innerHTML = '';
+}
+
+async function uploadClientFiles(input) {
+    if (!input.files || input.files.length === 0) return;
+    showToast('Subiendo archivos...', 'info');
+    
+    for (const file of input.files) {
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            const res = await fetch('/api/clientes/upload', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('Error al subir');
+            const fileData = await res.json();
+            currentArchivos.push(fileData);
+        } catch (e) {
+            showToast(`Error al subir ${file.name}`, 'error');
+        }
+    }
+    input.value = '';
+    renderClientArchivos();
+    showToast('Archivos subidos exitosamente', 'success');
+}
+
+function removeClientFile(idx) {
+    currentArchivos.splice(idx, 1);
+    renderClientArchivos();
+}
+
+function renderClientArchivos() {
+    const list = document.getElementById('cli-archivos-list');
+    if (!list) return;
+    
+    if (currentArchivos.length === 0) {
+        list.innerHTML = '<p class="text-sm text-on-surface-variant text-center py-2">No hay archivos adjuntos.</p>';
+        return;
+    }
+
+    list.innerHTML = currentArchivos.map((a, i) => {
+        const isPdf = a.name.toLowerCase().endsWith('.pdf');
+        const isImg = a.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+        let icon = 'insert_drive_file';
+        if (isPdf) icon = 'picture_as_pdf';
+        if (isImg) icon = 'image';
+
+        return `
+        <div class="flex items-center justify-between bg-surface-container-high p-3 rounded-lg border border-outline-variant/50">
+            <div class="flex items-center gap-3 overflow-hidden">
+                <span class="material-symbols-outlined text-primary">${icon}</span>
+                <a href="${a.url}" target="_blank" class="text-sm text-on-surface hover:text-primary hover:underline truncate">${a.name}</a>
+            </div>
+            <button type="button" class="p-1 text-on-surface-variant hover:text-error rounded-md hover:bg-surface-container-highest transition-colors" onclick="removeClientFile(${i})">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+        `;
+    }).join('');
 }
 
 function toggleHistorial(forceShow = false) {
@@ -308,6 +391,7 @@ async function saveCliente(e, id) {
         if (!isNaN(val)) historial.push(val);
     });
     data.historial_consumo = historial;
+    data.archivos_json = currentArchivos;
 
     try {
         let res;
