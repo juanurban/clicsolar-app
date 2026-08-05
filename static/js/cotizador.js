@@ -1277,16 +1277,15 @@ function renderStep4(container) {
 
     // Generate default cronograma if empty
     if (!stateCotizador.cronograma || stateCotizador.cronograma.length === 0) {
-        const hoy = new Date();
+        const base_date = addDays(new Date(), 15);
         stateCotizador.cronograma = [
-            {fecha_inicio: addDays(hoy,0), fecha_fin: addDays(hoy,2), actividad:'Firma de contrato y anticipo', completado:false},
-            {fecha_inicio: addDays(hoy,0), fecha_fin: addDays(hoy,5), actividad:'Compra de equipos y materiales', completado:false},
-            {fecha_inicio: addDays(hoy,3), fecha_fin: addDays(hoy,7), actividad:'Diseño eléctrico y memorias de cálculo', completado:false},
-            {fecha_inicio: addDays(hoy,3), fecha_fin: addDays(hoy,7), actividad:'Trámites ante operador de red', completado:false},
-            {fecha_inicio: addDays(hoy,8), fecha_fin: addDays(hoy,14), actividad:'Instalación de estructura y paneles', completado:false},
-            {fecha_inicio: addDays(hoy,8), fecha_fin: addDays(hoy,14), actividad:'Instalación eléctrica e inversor', completado:false},
-            {fecha_inicio: addDays(hoy,15), fecha_fin: addDays(hoy,21), actividad:'Pruebas, puesta en marcha y certificación', completado:false},
-            {fecha_inicio: addDays(hoy,15), fecha_fin: addDays(hoy,21), actividad:'Entrega y capacitación', completado:false}
+            {fecha_inicio: addDays(base_date, 0), fecha_fin: addDays(base_date, 2), actividad: 'Firma de contrato y anticipo', completado: false},
+            {fecha_inicio: addDays(base_date, 3), fecha_fin: addDays(base_date, 4), actividad: 'Compra de equipos y materiales', completado: false},
+            {fecha_inicio: addDays(base_date, 3), fecha_fin: addDays(base_date, 4), actividad: 'Diseño eléctrico y memorias de cálculo', completado: false},
+            {fecha_inicio: addDays(base_date, 7), fecha_fin: addDays(base_date, 9), actividad: 'Instalación de estructura y paneles', completado: false},
+            {fecha_inicio: addDays(base_date, 8), fecha_fin: addDays(base_date, 9), actividad: 'Instalación eléctrica e inversor', completado: false},
+            {fecha_inicio: addDays(base_date, 10), fecha_fin: addDays(base_date, 10), actividad: 'Pruebas y puesta en marcha', completado: false},
+            {fecha_inicio: addDays(base_date, 11), fecha_fin: addDays(base_date, 11), actividad: 'Entrega y último pago', completado: false}
         ];
     }
 
