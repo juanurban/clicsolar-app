@@ -1250,13 +1250,35 @@ function renderProyeccionChart(canvasId, acumuladoField) {
     });
 }
 
-// ══════════════ STEP 4: RESUMEN Y GUARDAR ══════════════
-function addDays(d, n) {
-    const r = new Date(d);
-    r.setHours(12, 0, 0, 0);
-    r.setDate(r.getDate() + n);
-    return r.toISOString().split('T')[0];
+function formatCurrency(num) {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num || 0);
 }
+function formatNumber(num) {
+    return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(num || 0);
+}
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+}
+function addBusinessDays(startDate, days) {
+    let d = new Date(startDate);
+    let added = 0;
+    while (added < days) {
+        d.setDate(d.getDate() + 1);
+        if (d.getDay() !== 0 && d.getDay() !== 6) {
+            added++;
+        }
+    }
+    if (days === 0) {
+        while (d.getDay() === 0 || d.getDay() === 6) {
+            d.setDate(d.getDate() + 1);
+        }
+    }
+    return d.toISOString().split('T')[0];
+}
+
+// ══════════════ STEP 4: RESUMEN Y GUARDAR ══════════════
 
 function renderStep4(container) {
     const c = stateCotizador.clienteSelected;
@@ -1277,15 +1299,16 @@ function renderStep4(container) {
 
     // Generate default cronograma if empty
     if (!stateCotizador.cronograma || stateCotizador.cronograma.length === 0) {
-        const base_date = addDays(new Date(), 15);
+        // Start 15 business days from today
+        const base_date = addBusinessDays(new Date(), 15);
         stateCotizador.cronograma = [
-            {fecha_inicio: addDays(base_date, 0), fecha_fin: addDays(base_date, 2), actividad: 'Firma de contrato y anticipo', completado: false},
-            {fecha_inicio: addDays(base_date, 3), fecha_fin: addDays(base_date, 4), actividad: 'Compra de equipos y materiales', completado: false},
-            {fecha_inicio: addDays(base_date, 3), fecha_fin: addDays(base_date, 4), actividad: 'Diseño eléctrico y memorias de cálculo', completado: false},
-            {fecha_inicio: addDays(base_date, 7), fecha_fin: addDays(base_date, 9), actividad: 'Instalación de estructura y paneles', completado: false},
-            {fecha_inicio: addDays(base_date, 8), fecha_fin: addDays(base_date, 9), actividad: 'Instalación eléctrica e inversor', completado: false},
-            {fecha_inicio: addDays(base_date, 10), fecha_fin: addDays(base_date, 10), actividad: 'Pruebas y puesta en marcha', completado: false},
-            {fecha_inicio: addDays(base_date, 11), fecha_fin: addDays(base_date, 11), actividad: 'Entrega y último pago', completado: false}
+            {fecha_inicio: addBusinessDays(base_date, 0), fecha_fin: addBusinessDays(base_date, 2), actividad: 'Firma de contrato y anticipo', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 3), fecha_fin: addBusinessDays(base_date, 4), actividad: 'Compra de equipos y materiales', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 3), fecha_fin: addBusinessDays(base_date, 4), actividad: 'Diseño eléctrico y memorias de cálculo', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 5), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Instalación de estructura y paneles', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 6), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Instalación eléctrica e inversor', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 8), fecha_fin: addBusinessDays(base_date, 8), actividad: 'Pruebas y puesta en marcha', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 9), fecha_fin: addBusinessDays(base_date, 9), actividad: 'Entrega y último pago', completado: false}
         ];
     }
 
