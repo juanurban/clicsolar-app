@@ -38,7 +38,7 @@ router.put('/', async (req, res) => {
   try {
     const { configuracion } = req.body;
     for (const [clave, valor] of Object.entries(configuracion)) {
-      await pool.execute('UPDATE configuracion SET valor = ? WHERE clave = ?', [String(valor), clave]);
+      await pool.execute('INSERT INTO configuracion (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [clave, String(valor)]);
     }
     res.json({ message: 'Configuración actualizada exitosamente' });
   } catch (error) {

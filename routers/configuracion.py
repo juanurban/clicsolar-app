@@ -37,8 +37,8 @@ def actualizar_configuracion(data: ConfigUpdate):
     conn = get_db()
     for clave, valor in data.configuracion.items():
         conn.execute(
-            "UPDATE configuracion SET valor = ? WHERE clave = ?",
-            (str(valor), clave)
+            "INSERT INTO configuracion (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+            (clave, str(valor))
         )
     conn.commit()
     conn.close()
