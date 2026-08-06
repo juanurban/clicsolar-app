@@ -310,7 +310,52 @@
         <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
             <span id="f-emp-nombre3">SunQuote</span>
             <span id="f-emp-web3" class="flex-1 text-center"></span>
-            <span>Página 3 de 3</span>
+            <span>Página 3 de 4</span>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 4: BOM & IMAGES -->
+<div class="page print-break" id="page-4">
+    <div class="header-stripe"></div>
+    <div class="content flex flex-col justify-between" style="min-height: 270mm;">
+        <div>
+            <h3 class="text-3xl border-b-2 border-primary pb-2 mb-8 text-primary font-light prevent-break">Propuesta <span class="font-bold">Planta Solar</span></h3>
+            
+            <div class="flex gap-8 mt-6">
+                <!-- Left Column (Images) -->
+                <div class="flex-1 flex gap-4 items-end justify-center" id="resumen-imagenes">
+                    <!-- Javascript will inject images here -->
+                </div>
+                
+                <!-- Right Column (BOM Table) -->
+                <div class="w-[45%]">
+                    <table class="w-full text-[9px] text-gray mb-8">
+                        <thead>
+                            <tr class="bg-[#1a93a5] text-white">
+                                <th class="text-center p-1.5 w-8 font-bold">ITEM</th>
+                                <th class="text-left p-1.5 font-bold"></th>
+                                <th class="text-center p-1.5 w-12 font-bold">CANT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-list-pdf">
+                            <!-- Javascript will inject items here -->
+                        </tbody>
+                    </table>
+                    
+                    <div class="text-center mt-10">
+                        <div class="text-lg font-bold text-[#3a4959] uppercase mb-1">Costo Planta Solar</div>
+                        <div class="text-[40px] font-display-lg text-[#1a93a5] leading-none" id="costo-planta-solar">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Página 4 -->
+        <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
+            <span id="f-emp-nombre4">SunQuote</span>
+            <span id="f-emp-web4" class="flex-1 text-center"></span>
+            <span>Página 4 de 4</span>
         </div>
     </div>
 </div>
@@ -346,9 +391,11 @@
             document.getElementById('f-emp-nombre').innerText = data.empresa?.empresa_nombre || 'SunQuote';
             document.getElementById('f-emp-nombre2').innerText = data.empresa?.empresa_nombre || 'SunQuote';
             document.getElementById('f-emp-nombre3').innerText = data.empresa?.empresa_nombre || 'SunQuote';
+            document.getElementById('f-emp-nombre4').innerText = data.empresa?.empresa_nombre || 'SunQuote';
             document.getElementById('f-emp-web').innerText = data.empresa?.empresa_web || '';
             document.getElementById('f-emp-web2').innerText = data.empresa?.empresa_web || '';
             document.getElementById('f-emp-web3').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('f-emp-web4').innerText = data.empresa?.empresa_web || '';
             
             // Cliente
             document.getElementById('cl-nombre').innerText = data.cliente_nombre;
@@ -686,6 +733,73 @@
                         }
                     } catch(e) {}
                 }
+            }
+
+            // Página 4: Propuesta Planta Solar (Resumen Visual)
+            const bomTbody = document.getElementById('bom-list-pdf');
+            if (bomTbody && items) {
+                bomTbody.innerHTML = items.map((it, idx) => `
+                    <tr class="border-b border-gray/10">
+                        <td class="p-1.5 text-center text-[#1a93a5] font-light text-[10px]">${idx + 1}</td>
+                        <td class="p-1.5 uppercase font-light text-dark">${it.nombre}</td>
+                        <td class="p-1.5 text-center font-light text-dark">${it.cantidad}</td>
+                    </tr>
+                `).join('');
+            }
+            
+            const costoTotalEl = document.getElementById('costo-planta-solar');
+            if (costoTotalEl) {
+                const totalM = (data.total_inversion / 1000000).toFixed(1);
+                costoTotalEl.innerHTML = `${totalM} <span class="text-3xl font-light">millones</span>`;
+            }
+            
+            const imgContainer = document.getElementById('resumen-imagenes');
+            if (imgContainer) {
+                let imgHtml = '';
+                const buildEqCard = (imgUrl, eqTitle, eqDesc, marca) => {
+                    const mainImg = imgUrl || '/static/img/placeholder.png';
+                    const brandHtml = marca ? `<div class="text-[#1a93a5] font-bold text-lg mb-4 capitalize">${marca}</div>` : '';
+                    return `
+                        <div class="flex-1 flex flex-col items-center justify-end text-center p-2">
+                            ${brandHtml}
+                            <img src="${mainImg}" class="max-h-56 object-contain mb-6 drop-shadow-md" onerror="this.src='/static/img/placeholder.png'">
+                            <div class="font-bold text-[10px] text-[#3a4959] uppercase leading-tight">${eqTitle}</div>
+                            <div class="text-[9px] text-gray uppercase mt-1 leading-tight font-bold">${eqDesc}</div>
+                        </div>
+                    `;
+                };
+                
+                if (data.panel) {
+                    imgHtml += buildEqCard(
+                        data.panel.imagen_url,
+                        `PANEL BIFACIAL`,
+                        `${data.panel.potencia_wp} Wt TIPO N`,
+                        data.panel.marca
+                    );
+                }
+                
+                if (data.inversor) {
+                    // Check phase based on config or model
+                    const isTrifasico = (data.inversor.modelo || '').toLowerCase().includes('tri') || (data.inversor.fases === 3);
+                    const faseStr = isTrifasico ? 'TRIFÁSICO' : 'MONOFÁSICO';
+                    imgHtml += buildEqCard(
+                        data.inversor.imagen_url,
+                        `INVERSOR ON GRID`,
+                        `${data.inversor.potencia_kw} Kw ${faseStr}`,
+                        data.inversor.marca
+                    );
+                }
+                
+                if (tieneBaterias && data.bateria) {
+                    imgHtml += buildEqCard(
+                        data.bateria.imagen_url,
+                        `BATERÍA LÍTIO`,
+                        `${data.bateria.capacidad_kwh || data.bateria.potencia_kw} kWh`,
+                        data.bateria.marca
+                    );
+                }
+                
+                imgContainer.innerHTML = imgHtml;
             }
 
             // Render Chart
