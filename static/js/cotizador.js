@@ -1533,9 +1533,9 @@ async function guardarCotizacion(estado, openPdf = false) {
     const payload = {
         cliente_id: c.id,
         estado: estado,
-        panel_id: d.panel.id,
-        inversor_id: d.inversor_sugerido ? d.inversor_sugerido.id : null,
-        bateria_id: (stateCotizador.items.find(i => i.categoria === 'bateria') || {}).equipo_id || null,
+        panel_id: (stateCotizador.items.find(i => i.categoria === 'panel' || i.categoria === 'Paneles Solares') || d.panel || {}).equipo_id || (d.panel ? d.panel.id : null),
+        inversor_id: (stateCotizador.items.find(i => i.categoria === 'inversor' || i.categoria === 'Inversores' || i.categoria === 'Inversor') || d.inversor_sugerido || {}).equipo_id || (d.inversor_sugerido ? d.inversor_sugerido.id : null),
+        bateria_id: (stateCotizador.items.find(i => i.categoria === 'bateria' || i.categoria === 'Baterías') || {}).equipo_id || null,
         num_baterias: (stateCotizador.items.find(i => i.categoria === 'bateria') || {}).cantidad || 0,
         potencia_kwp: d.potencia_kwp,
         num_paneles: d.num_paneles,
