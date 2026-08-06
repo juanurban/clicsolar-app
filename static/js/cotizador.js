@@ -1512,43 +1512,6 @@ function setupCronoDragDrop() {
         }
 
         const item = stateCotizador.cronograma.splice(fromIdx, 1)[0];
-        } else if (e.target.classList.contains('sq-modal-overlay')) {
-            closeClienteModal();
-        }
-    });
-
-    if (document.getElementById('cot-fecha-visita')) {
-        document.getElementById('cot-fecha-visita').min = new Date().toISOString().split('T')[0];
-    }
-});
-
-let draggedItemId = null;
-function dragItem(e, id) {
-    draggedItemId = id;
-    e.dataTransfer.effectAllowed = "move";
-    e.target.style.opacity = '0.5';
-}
-function allowDrop(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-}
-function dropItem(e, targetId) {
-    e.preventDefault();
-    if (draggedItemId === targetId) return;
-
-    const items = stateCotizador.items;
-    const fromIdx = items.findIndex(i => i.id === draggedItemId);
-    const toIdx = items.findIndex(i => i.id === targetId);
-
-    if (fromIdx !== -1 && toIdx !== -1) {
-        const item = items.splice(fromIdx, 1)[0];
-        items.splice(toIdx, 0, item);
-        renderStep();
-    }
-}
-function dragEnd(e) {
-    e.target.style.opacity = '1';
-}
         stateCotizador.cronograma.splice(insertAt, 0, item);
         renderStep();
     });
@@ -1655,4 +1618,32 @@ async function guardarYDescargarPDF() {
             showToast('Error generando PDF: ' + e.message, 'error');
         }
     }, 1000);
+}
+
+let draggedItemId = null;
+function dragItem(e, id) {
+    draggedItemId = id;
+    e.dataTransfer.effectAllowed = "move";
+    e.target.style.opacity = '0.5';
+}
+function allowDrop(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+}
+function dropItem(e, targetId) {
+    e.preventDefault();
+    if (draggedItemId === targetId) return;
+
+    const items = stateCotizador.items;
+    const fromIdx = items.findIndex(i => i.id === draggedItemId);
+    const toIdx = items.findIndex(i => i.id === targetId);
+
+    if (fromIdx !== -1 && toIdx !== -1) {
+        const item = items.splice(fromIdx, 1)[0];
+        items.splice(toIdx, 0, item);
+        renderStep();
+    }
+}
+function dragEnd(e) {
+    e.target.style.opacity = '1';
 }
