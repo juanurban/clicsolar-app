@@ -725,6 +725,7 @@ function addExtraItem() {
         isAuto: false
     });
 
+    recalcularPotenciaPico();
     renderStep();
 }
 
@@ -735,6 +736,8 @@ function updateItemQty(id, val) {
     if (isNaN(qty) || qty <= 0) return;
     item.cantidad = qty;
     item.subtotal = qty * item.precio_unitario;
+    
+    recalcularPotenciaPico();
     renderStep();
 }
 
@@ -744,7 +747,35 @@ function removeItem(id) {
         stateCotizador.removedAutoItems.push(id);
     }
     stateCotizador.items = stateCotizador.items.filter(i => i.id !== id);
+    
+    recalcularPotenciaPico();
     renderStep();
+}
+
+function recalcularPotenciaPico() {
+    if (!stateCotizador.dimensionamiento || !stateCotizador.items) return;
+    let totalPaneles = 0;
+    let potenciaTotalWp = 0;
+    let hasPanels = false;
+    
+    stateCotizador.items.forEach(item => {
+        if (item.categoria === 'panel' || item.categoria === 'Paneles Solares') {
+            hasPanels = true;
+            totalPaneles += item.cantidad;
+            const panelObj = stateCotizador.paneles.find(p => p.id === item.equipo_id);
+            if (panelObj && panelObj.potencia_wp) {
+                potenciaTotalWp += (item.cantidad * panelObj.potencia_wp);
+            }
+        }
+    });
+    
+    if (hasPanels) {
+        stateCotizador.dimensionamiento.num_paneles = totalPaneles;
+        // Solo actualizamos la potencia pico si el cálculo da un valor válido
+        if (potenciaTotalWp > 0) {
+            stateCotizador.dimensionamiento.potencia_kwp = parseFloat((potenciaTotalWp / 1000).toFixed(2));
+        }
+    }
 }
 
 function updateStep2Margen(val) {
