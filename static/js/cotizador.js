@@ -495,8 +495,8 @@ async function renderStep2(container) {
                                 const hasIva = !!it.iva;
                                 const precioVenta = Math.round(it.precio_unitario * (1 + margen / 100));
                                 return `
-                                <tr class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors">
-                                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize">${it.categoria}</td>
+                                <tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
+                                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${it.categoria}</td>
                                     <td class="px-6 py-4 font-label-bold">${it.nombre} ${hasIva ? '<span class="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-1">IVA</span>' : ''}</td>
                                     <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-20 text-right inline-block text-sm" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
                                     <td class="px-6 py-4 text-right text-on-surface-variant">${formatCurrency(it.precio_unitario)}</td>
@@ -1512,6 +1512,43 @@ function setupCronoDragDrop() {
         }
 
         const item = stateCotizador.cronograma.splice(fromIdx, 1)[0];
+        } else if (e.target.classList.contains('sq-modal-overlay')) {
+            closeClienteModal();
+        }
+    });
+
+    if (document.getElementById('cot-fecha-visita')) {
+        document.getElementById('cot-fecha-visita').min = new Date().toISOString().split('T')[0];
+    }
+});
+
+let draggedItemId = null;
+function dragItem(e, id) {
+    draggedItemId = id;
+    e.dataTransfer.effectAllowed = "move";
+    e.target.style.opacity = '0.5';
+}
+function allowDrop(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+}
+function dropItem(e, targetId) {
+    e.preventDefault();
+    if (draggedItemId === targetId) return;
+
+    const items = stateCotizador.items;
+    const fromIdx = items.findIndex(i => i.id === draggedItemId);
+    const toIdx = items.findIndex(i => i.id === targetId);
+
+    if (fromIdx !== -1 && toIdx !== -1) {
+        const item = items.splice(fromIdx, 1)[0];
+        items.splice(toIdx, 0, item);
+        renderStep();
+    }
+}
+function dragEnd(e) {
+    e.target.style.opacity = '1';
+}
         stateCotizador.cronograma.splice(insertAt, 0, item);
         renderStep();
     });
