@@ -494,10 +494,30 @@ async function renderStep2(container) {
                                 const margen = stateCotizador.config.margen || 15;
                                 const hasIva = !!it.iva;
                                 const precioVenta = Math.round(it.precio_unitario * (1 + margen / 100));
+                                
+                                const cat = (it.categoria || '').toLowerCase();
+                                let options = [];
+                                if (cat === 'panel' || cat === 'paneles solares') options = stateCotizador.paneles;
+                                else if (cat === 'inversor' || cat === 'inversores') options = stateCotizador.inversores;
+                                else if (cat === 'bateria' || cat === 'baterías') options = stateCotizador.baterias;
+                                else if (cat === 'estructura' || cat === 'materiales') options = stateCotizador.materiales;
+                                else if (cat === 'servicio' || cat === 'servicios') options = stateCotizador.servicios;
+                                
+                                let nombreHtml = it.nombre;
+                                if (options && options.length > 0) {
+                                    nombreHtml = `<select class="sq-input py-1 px-2 text-sm max-w-[200px]" onchange="changeItemEquipo('${it.id}', this.value)">`;
+                                    options.forEach(opt => {
+                                        const isSelected = opt.id === it.equipo_id ? 'selected' : '';
+                                        const optName = `${opt.marca || ''} ${opt.modelo}`.trim();
+                                        nombreHtml += `<option value="${opt.id}" ${isSelected}>${optName}</option>`;
+                                    });
+                                    nombreHtml += `</select>`;
+                                }
+
                                 return `
                                 <tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
                                     <td class="px-6 py-4 text-sm text-on-surface-variant capitalize"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${it.categoria}</td>
-                                    <td class="px-6 py-4 font-label-bold">${it.nombre} ${hasIva ? '<span class="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-1">IVA</span>' : ''}</td>
+                                    <td class="px-6 py-4 font-label-bold">${nombreHtml} ${hasIva ? '<span class="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded ml-1 align-middle">IVA</span>' : ''}</td>
                                     <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-20 text-right inline-block text-sm" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
                                     <td class="px-6 py-4 text-right text-on-surface-variant">${formatCurrency(it.precio_unitario)}</td>
                                     <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(precioVenta)}</td>
@@ -634,7 +654,7 @@ function rebuildBOM() {
     }
 
     // 6. ACCESORIOS DE INSTALACION
-    const acc = stateCotizador.materiales.find(e => e.modelo.includes('Accesorios')) || stateCotizador.materiales.find(e => e.modelo.includes('Protecciones'));
+    const acc = stateCotizador.materiales.find(e => (e.id !== (est ? est.id : null)) && (e.modelo.includes('Accesorios') || e.modelo.includes('Protecciones')));
     if (acc) {
         addAuto('auto-acc', acc, 1, 'estructura');
     }
@@ -739,6 +759,30 @@ function updateItemQty(id, val) {
     
     recalcularPotenciaPico();
     renderStep();
+}
+
+function changeItemEquipo(itemId, newEquipoId) {
+    const item = stateCotizador.items.find(i => i.id === itemId);
+    if (!item) return;
+    const cat = (item.categoria || '').toLowerCase();
+    let options = [];
+    if (cat === 'panel' || cat === 'paneles solares') options = stateCotizador.paneles;
+    else if (cat === 'inversor' || cat === 'inversores') options = stateCotizador.inversores;
+    else if (cat === 'bateria' || cat === 'baterías') options = stateCotizador.baterias;
+    else if (cat === 'estructura' || cat === 'materiales') options = stateCotizador.materiales;
+    else if (cat === 'servicio' || cat === 'servicios') options = stateCotizador.servicios;
+
+    const newEq = options.find(o => o.id === parseInt(newEquipoId));
+    if (newEq) {
+        item.equipo_id = newEq.id;
+        item.nombre = `${newEq.marca || ''} ${newEq.modelo}`.trim();
+        item.precio_unitario = newEq.costo;
+        item.iva = !!newEq.iva;
+        item.subtotal = item.cantidad * newEq.costo;
+        
+        recalcularPotenciaPico();
+        renderStep();
+    }
 }
 
 function removeItem(id) {
