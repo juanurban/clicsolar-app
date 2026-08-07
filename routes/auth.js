@@ -41,7 +41,8 @@ router.post('/login', async (req, res) => {
 
     res.cookie('sq_session', token, {
       httpOnly: true,
-      sameSite: 'lax', // For production on same domain, this is fine
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
       maxAge: SESSION_DURATION_HOURS * 3600000,
       path: '/'
     });

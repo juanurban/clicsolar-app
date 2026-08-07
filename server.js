@@ -7,6 +7,11 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// Trust proxy (behind Nginx/Apache/cPanel)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Middleware
 app.use(cors({
   origin: ['http://localhost:8000', 'https://clicsolar.com', 'https://www.clicsolar.com'],

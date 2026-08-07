@@ -86,6 +86,7 @@ router.post('/dimensionar', async (req, res) => {
 
 router.post('/calcular-financiero', async (req, res) => {
   try {
+    const d = req.body;
     const produccionMensual = d.produccion_mensual_kwh || 0;
     const consumoMensual = d.consumo_mensual_kwh || 0;
     const costoKwh = d.costo_kwh || 0;
