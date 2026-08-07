@@ -530,11 +530,14 @@
             });
             tb.innerHTML = itemsHtml;
 
-            const subtotal = data.subtotal || 0;
-            const montoMargen = Math.round(subtotal * (margen / 100));
+            const subtotal = parseFloat(data.subtotal) || 0;
+            const pct = parseFloat(margen) || 0;
+            const montoMargen = Math.round(subtotal * (pct / 100));
             const subtotalConMargen = subtotal + montoMargen;
-            const montoIva = Math.round(subtotalIvaItems * (1 + margen / 100) * 0.19);
-            const totalConIva = subtotalConMargen + montoIva;
+            
+            // Usar la inversión total calculada y guardada desde el cotizador para evitar discrepancias
+            const totalConIva = parseFloat(data.total_inversion) || 0;
+            const montoIva = Math.max(0, totalConIva - subtotalConMargen);
 
             document.getElementById('tot-subtotal').innerText = formatCurrency(subtotalConMargen);
             document.getElementById('tot-iva').innerText = formatCurrency(montoIva);
