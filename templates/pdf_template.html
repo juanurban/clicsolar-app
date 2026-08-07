@@ -362,7 +362,7 @@
 </div>
 
 <script>
-    const cotizacionId = {{ cotizacion_id }};
+    const cotizacionId = window.location.pathname.split('/').pop();
     
     // Helpers
     function formatCurrency(v) { return '$' + Number(v||0).toLocaleString('es-CO', {maximumFractionDigits:0}); }
