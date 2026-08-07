@@ -1,4 +1,3 @@
-USE sunquote;
 
 -- Limpiar tablas
 SET FOREIGN_KEY_CHECKS = 0;
