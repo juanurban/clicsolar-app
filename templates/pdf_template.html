@@ -228,30 +228,34 @@
         <!-- Propuesta Planta Solar (Images & BOM) -->
         <h3 class="text-3xl border-b-2 border-primary pb-2 mt-4 mb-6 text-primary font-light prevent-break">Propuesta <span class="font-bold text-dark">Planta Solar</span></h3>
         
-        <div class="flex gap-8 mt-2">
-            <!-- Left Column (Images) -->
-            <div class="flex-1 flex gap-4 items-end justify-center" id="resumen-imagenes">
+        <div class="mt-2">
+            <!-- Top Row: Equipment Images -->
+            <div class="flex gap-4 items-end justify-center mb-6" id="resumen-imagenes">
                 <!-- Javascript will inject images here -->
             </div>
             
-            <!-- Right Column (BOM Table) -->
-            <div class="w-[45%]">
-                <table class="w-full text-[9px] text-gray mb-8">
-                    <thead>
-                        <tr class="bg-primary text-dark">
-                            <th class="text-center p-1.5 w-8 font-bold">ITEM</th>
-                            <th class="text-left p-1.5 font-bold"></th>
-                            <th class="text-center p-1.5 w-12 font-bold">CANT</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bom-list-pdf">
-                        <!-- Javascript will inject items here -->
-                    </tbody>
-                </table>
+            <!-- Bottom Row: BOM Table + Cost -->
+            <div class="flex gap-8 items-start">
+                <div class="flex-1">
+                    <table class="w-full text-[9px] text-gray">
+                        <thead>
+                            <tr class="bg-primary text-dark">
+                                <th class="text-center p-1.5 w-8 font-bold">ITEM</th>
+                                <th class="text-left p-1.5 font-bold"></th>
+                                <th class="text-center p-1.5 w-12 font-bold">CANT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-list-pdf">
+                            <!-- Javascript will inject items here -->
+                        </tbody>
+                    </table>
+                </div>
                 
-                <div class="text-center mt-10">
-                    <div class="text-lg font-bold text-dark uppercase mb-1">Costo Planta Solar</div>
-                    <div class="text-[40px] font-display-lg text-primary leading-none" id="costo-planta-solar">-</div>
+                <div class="w-[35%] flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="text-lg font-bold text-dark uppercase mb-1">Costo Planta Solar</div>
+                        <div class="text-[40px] font-display-lg text-primary leading-none" id="costo-planta-solar">-</div>
+                    </div>
                 </div>
             </div>
         </div>
