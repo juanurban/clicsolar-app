@@ -783,12 +783,22 @@
                 }
                 
                 if (data.inversor) {
-                    // Check phase based on config or model
-                    const isTrifasico = (data.inversor.modelo || '').toLowerCase().includes('tri') || (data.inversor.fases === 3);
+                    // Normalize helper: strip accents for reliable comparison
+                    const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                    const tipoNorm = norm(data.inversor.tipo);
+                    const descNorm = norm(data.inversor.descripcion);
+                    const modeloNorm = norm(data.inversor.modelo);
+                    // Check phase based on tipo (sub-tipo), descripcion, or modelo
+                    const isTrifasico = tipoNorm.includes('trifasico') ||
+                                        descNorm.includes('trifasico') ||
+                                        descNorm.includes('three phase') ||
+                                        modeloNorm.includes('tri') ||
+                                        (data.inversor.fases === 3);
                     const faseStr = isTrifasico ? 'TRIFÁSICO' : 'MONOFÁSICO';
+                    const tipoInv = tipoNorm.includes('hibrido') || descNorm.includes('hibrido') || descNorm.includes('hybrid') ? 'HÍBRIDO' : 'ON GRID';
                     imgHtml += buildEqCard(
                         data.inversor.imagen_url,
-                        `INVERSOR ON GRID`,
+                        `INVERSOR ${tipoInv}`,
                         `${data.inversor.potencia_kw} Kw ${faseStr}`,
                         data.inversor.marca
                     );
