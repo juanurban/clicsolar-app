@@ -114,6 +114,10 @@ router.post('/upload-imagen', upload.single('file'), (req, res) => {
   res.json({ url: `/static/uploads/${req.file.filename}` });
 });
 
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const pdfParse = require('pdf-parse');
+const cheerio = require('cheerio');
+
 // ── Bulk Delete ──
 router.post('/bulk-delete', async (req, res) => {
   try {
@@ -126,6 +130,85 @@ router.post('/bulk-delete', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ detail: 'Error del servidor' });
+  }
+});
+
+// ── Extract Data from URL/PDF ──
+router.post('/extract-data', upload.single('file'), async (req, res) => {
+  try {
+    const { url, categoria } = req.body;
+    let text = '';
+    let imageUrl = '';
+
+    if (req.file) {
+      if (req.file.mimetype !== 'application/pdf') {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ detail: 'Solo se aceptan archivos PDF' });
+      }
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const data = await pdfParse(dataBuffer);
+      text = data.text;
+      fs.unlinkSync(req.file.path); // Cleanup
+    } else if (url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('No se pudo acceder a la URL');
+      const html = await response.text();
+      const $ = cheerio.load(html);
+      
+      $('script, style, noscript, iframe, svg').remove();
+      text = $('body').text().replace(/\s+/g, ' ').trim();
+      imageUrl = $('meta[property="og:image"]').attr('content') || '';
+    } else {
+      return res.status(400).json({ detail: 'Debes proveer una URL o un archivo PDF' });
+    }
+
+    if (!text || text.length < 50) {
+      return res.status(400).json({ detail: 'No se pudo extraer texto suficiente para analizar.' });
+    }
+
+    if (text.length > 40000) text = text.substring(0, 40000);
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ detail: 'GEMINI_API_KEY no está configurado en el servidor.' });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `
+Extract the technical specifications of a solar equipment (${categoria}) from the following text.
+Return a valid JSON object EXACTLY matching this structure. Use null if a value is not found.
+Do not wrap the JSON in markdown blocks. Just return the raw JSON object.
+
+Structure:
+{
+  "marca": "string",
+  "modelo": "string",
+  "descripcion": "string (short summary)",
+  "potencia_wp": number (only for panels, in Watts peak. E.g. 550),
+  "potencia_kw": number (only for inverters, in kW. E.g. 10.5),
+  "capacidad_kwh": number (only for batteries, in kWh. E.g. 5.12),
+  "peso_kg": number,
+  "area_m2": number (only for panels),
+  "tipo": "string (e.g., Monocristalino, Híbrido, Litio)"
+}
+
+Text to analyze:
+${text}
+    `;
+
+    const result = await model.generateContent(prompt);
+    let responseText = result.response.text();
+    responseText = responseText.replace(/```json/i, '').replace(/```/g, '').trim();
+    
+    let parsedData = JSON.parse(responseText);
+    if (imageUrl) parsedData.imagen_url = imageUrl;
+
+    res.json(parsedData);
+  } catch (error) {
+    console.error('Error in extract-data:', error);
+    res.status(500).json({ detail: 'Error al extraer los datos: ' + error.message });
   }
 });
 

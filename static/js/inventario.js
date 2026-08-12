@@ -194,11 +194,32 @@ async function openEquipoModal(id = null) {
         `;
     }
 
+    const importHtml = !id ? `
+        <div class="mb-6 p-4 bg-surface-container-low border border-primary/30 rounded-xl">
+            <h3 class="font-label-bold text-primary mb-3"><span class="material-symbols-outlined text-sm align-middle mr-1">auto_awesome</span> Autocompletar con IA</h3>
+            <div class="flex flex-col md:flex-row gap-3 items-end">
+                <div class="flex-1 w-full">
+                    <label class="sq-label">URL del producto</label>
+                    <input type="url" id="import-url" class="sq-input" placeholder="https://ejemplo.com/producto">
+                </div>
+                <div class="flex-1 w-full">
+                    <label class="sq-label">Ficha Técnica (PDF)</label>
+                    <input type="file" id="import-file" class="sq-input py-1 text-sm" accept=".pdf">
+                </div>
+                <button type="button" onclick="extraerDatosIA()" class="sq-btn bg-primary text-on-primary w-full md:w-auto" id="btn-extract-ia">
+                    <span class="material-symbols-outlined">magic_button</span> EXTRAER
+                </button>
+            </div>
+            <div id="import-status" class="text-xs mt-2 hidden"></div>
+        </div>
+    ` : '';
+
     const modalHtml = `
         <div class="p-8 fade-in">
             <h2 class="font-headline-md text-headline-md text-on-surface mb-6">${id ? 'Editar' : 'Nuevo'} ${e.categoria}</h2>
+            ${importHtml}
             <form id="equipo-form" onsubmit="saveEquipo(event, ${id})">
-                <input type="hidden" name="categoria" value="${e.categoria}">
+                <input type="hidden" name="categoria" id="form-categoria" value="${e.categoria}">
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div class="md:col-span-2 flex items-center gap-4 mb-2">
@@ -434,4 +455,70 @@ function eliminarSeleccionados() {
             showToast(error.message, 'error');
         }
     });
+}
+
+async function extraerDatosIA() {
+    const urlInput = document.getElementById('import-url').value;
+    const fileInput = document.getElementById('import-file').files[0];
+    const statusEl = document.getElementById('import-status');
+    const btn = document.getElementById('btn-extract-ia');
+    const categoria = document.getElementById('form-categoria').value;
+
+    if (!urlInput && !fileInput) {
+        showToast('Por favor, ingresa una URL o selecciona un PDF', 'error');
+        return;
+    }
+
+    statusEl.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin align-middle mr-1">sync</span> Extrayendo datos con IA... esto puede tomar unos segundos.';
+    statusEl.className = 'text-xs mt-2 text-primary font-medium block';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('categoria', categoria);
+        if (urlInput) formData.append('url', urlInput);
+        if (fileInput) formData.append('file', fileInput);
+
+        // Can't use App.API.post easily with FormData, so use fetch directly
+        const response = await fetch('/api/equipos/extract-data', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Error al extraer datos');
+        }
+
+        // Fill form fields if they exist
+        const form = document.getElementById('equipo-form');
+        
+        if (data.marca) form.querySelector('[name="marca"]').value = data.marca;
+        if (data.modelo) form.querySelector('[name="modelo"]').value = data.modelo;
+        if (data.descripcion) form.querySelector('[name="descripcion"]').value = data.descripcion;
+        if (data.tipo) form.querySelector('[name="tipo"]').value = data.tipo;
+        
+        if (data.potencia_wp && form.querySelector('[name="potencia_wp"]')) form.querySelector('[name="potencia_wp"]').value = data.potencia_wp;
+        if (data.potencia_kw && form.querySelector('[name="potencia_kw"]')) form.querySelector('[name="potencia_kw"]').value = data.potencia_kw;
+        if (data.capacidad_kwh && form.querySelector('[name="capacidad_kwh"]')) form.querySelector('[name="capacidad_kwh"]').value = data.capacidad_kwh;
+        if (data.peso_kg && form.querySelector('[name="peso_kg"]')) form.querySelector('[name="peso_kg"]').value = data.peso_kg;
+        if (data.area_m2 && form.querySelector('[name="area_m2"]')) form.querySelector('[name="area_m2"]').value = data.area_m2;
+
+        if (data.imagen_url) {
+            form.querySelector('[name="imagen_url"]').value = data.imagen_url;
+            document.getElementById('img-preview-container').innerHTML = \`<img src="\${data.imagen_url}" class="w-full h-full object-cover">\`;
+        }
+
+        statusEl.innerHTML = '<span class="material-symbols-outlined text-sm align-middle mr-1">check_circle</span> Datos extraídos correctamente. Por favor verifica antes de guardar.';
+        statusEl.className = 'text-xs mt-2 text-green-500 font-medium block';
+        showToast('Datos extraídos', 'success');
+
+    } catch (error) {
+        statusEl.innerHTML = '<span class="material-symbols-outlined text-sm align-middle mr-1">error</span> Error: ' + error.message;
+        statusEl.className = 'text-xs mt-2 text-error font-medium block';
+        showToast(error.message, 'error');
+    } finally {
+        btn.disabled = false;
+    }
 }
