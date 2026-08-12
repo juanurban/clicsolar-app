@@ -134,7 +134,6 @@ router.post('/bulk-delete', async (req, res) => {
 // ── Extract Data from URL/PDF ──
 router.post('/extract-data', upload.single('file'), async (req, res) => {
   try {
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
     const pdfParse = require('pdf-parse');
     const cheerio = require('cheerio');
 
@@ -170,14 +169,10 @@ router.post('/extract-data', upload.single('file'), async (req, res) => {
 
     if (text.length > 40000) text = text.substring(0, 40000);
 
-    // Sanitize the API key in case it was pasted with spaces or quotes in the hosting panel
-    const apiKey = (process.env.GEMINI_API_KEY || '').trim().replace(/['"]/g, '');
+    const apiKey = (process.env.GROQ_API_KEY || '').trim().replace(/['"]/g, '');
     if (!apiKey) {
-      return res.status(500).json({ detail: 'GEMINI_API_KEY no está configurado en el servidor.' });
+      return res.status(500).json({ detail: 'GROQ_API_KEY no está configurado en el servidor.' });
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
 Extract the technical specifications of a solar equipment (${categoria}) from the following text.
@@ -201,8 +196,27 @@ Text to analyze:
 ${text}
     `;
 
-    const result = await model.generateContent(prompt);
-    let responseText = result.response.text();
+    const responseGroq = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!responseGroq.ok) {
+      const errorData = await responseGroq.text();
+      throw new Error(`Groq API Error: ${errorData}`);
+    }
+
+    const result = await responseGroq.json();
+    let responseText = result.choices[0].message.content;
     responseText = responseText.replace(/```json/i, '').replace(/```/g, '').trim();
     
     let parsedData = JSON.parse(responseText);
