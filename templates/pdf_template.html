@@ -287,6 +287,13 @@
                 </div>
             </div>
 
+            <div class="flex justify-center mb-4 prevent-break">
+                <div class="bg-dark text-center px-8 py-3 rounded">
+                    <div class="text-[10px] text-gray uppercase mb-1">Ahorro Acumulado a 25 Años</div>
+                    <div class="text-2xl font-bold text-primary" id="f-ahorro-25">-</div>
+                </div>
+            </div>
+
             <!-- Proyección 25 Años Detallada -->
             <div class="mt-4 border border-gray/20 rounded p-2">
                 <h4 class="font-bold uppercase text-[10px] text-dark text-center mb-2">Proyección Financiera Detallada a 25 Años</h4>
@@ -584,7 +591,8 @@
             if(p25 && p25.length > 0) {
                 const ult = p25[p25.length - 1];
                 const campoAhorro25 = incluirLey1715 ? 'ahorro_acumulado_s2' : 'ahorro_acumulado_s1';
-                document.getElementById('f-ahorro-25').innerText = formatCurrency(ult[campoAhorro25]);
+                const ahorroEl = document.getElementById('f-ahorro-25');
+                if (ahorroEl) ahorroEl.innerText = formatCurrency(ult[campoAhorro25]);
             }
 
             // Cronograma Gantt
