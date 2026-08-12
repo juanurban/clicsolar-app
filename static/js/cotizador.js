@@ -391,7 +391,7 @@ async function renderStep2(container) {
                     <span class="material-symbols-outlined text-primary text-[28px]">wb_sunny</span>
                     <div>
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Consumo Diario</div>
-                        <div class="font-label-bold text-on-surface text-xl">${d.consumo_diario_kwh} kWh/día</div>
+                        <div class="font-label-bold text-on-surface text-xl">${d.consumo_diario_kwh || 0} kWh/día</div>
                     </div>
                 </div>
                 <div class="w-px h-10 bg-outline-variant/30 hidden sm:block"></div>
@@ -399,7 +399,7 @@ async function renderStep2(container) {
                     <span class="material-symbols-outlined text-primary text-[28px]">hdr_strong</span>
                     <div>
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">HSP</div>
-                        <div class="font-label-bold text-on-surface text-xl">${d.hsp} h</div>
+                        <div class="font-label-bold text-on-surface text-xl">${d.hsp || 0} h</div>
                     </div>
                 </div>
             </div>
@@ -410,20 +410,20 @@ async function renderStep2(container) {
                     <h3 class="font-headline-md text-headline-md text-on-surface">Sistema Propuesto</h3>
                     <div class="text-right">
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">Cobertura</div>
-                        <div class="font-display-lg text-primary text-4xl">${d.cobertura_pct}%</div>
+                        <div class="font-display-lg text-primary text-4xl">${d.cobertura_pct || 0}%</div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-primary text-[40px] mb-4">solar_power</span>
-                        <div class="font-display-lg text-on-surface text-4xl mb-2">${d.potencia_kwp} <span class="text-xl">kWp</span></div>
+                        <div class="font-display-lg text-on-surface text-4xl mb-2">${d.potencia_kwp || 0} <span class="text-xl">kWp</span></div>
                         <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Potencia Instalada</div>
                     </div>
 
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-primary text-[40px] mb-4">grid_view</span>
-                        <div class="font-display-lg text-on-surface text-4xl mb-2">${d.num_paneles} <span class="text-xl">Und</span></div>
+                        <div class="font-display-lg text-on-surface text-4xl mb-2">${d.num_paneles || 0} <span class="text-xl">Und</span></div>
                         <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Cantidad Paneles</div>
                     </div>
 
@@ -435,8 +435,8 @@ async function renderStep2(container) {
 
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-4">architecture</span>
-                        <div class="font-display-lg text-on-surface text-3xl mb-2">${d.area_requerida_m2} <span class="text-lg">m²</span></div>
-                        <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Área · ${d.peso_total_kg} kg</div>
+                        <div class="font-display-lg text-on-surface text-3xl mb-2">${d.area_requerida_m2 || 0} <span class="text-lg">m²</span></div>
+                        <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Área · ${d.peso_total_kg || 0} kg</div>
                     </div>
                 </div>
             </div>
@@ -567,10 +567,10 @@ async function executeDimensionamiento(panel_id, inversor_id = null, eficiencia 
 
     try {
         const payload = {
-            consumo_mensual_kwh: consumo_usar,
-            costo_kwh: c.costo_kwh,
-            hsp: c.hsp,
-            cargas_especiales_kwh_dia: c.cargas_especiales_kwh_dia,
+            consumo_mensual_kwh: parseFloat(consumo_usar) || 0,
+            costo_kwh: parseFloat(c.costo_kwh) || 0,
+            hsp: parseFloat(c.hsp) || 4.2,
+            cargas_especiales_kwh_dia: parseFloat(c.cargas_especiales_kwh_dia) || 0,
             panel_id: parseInt(panel_id)
         };
         if (inversor_id) payload.inversor_id = parseInt(inversor_id);
