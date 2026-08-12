@@ -507,7 +507,7 @@ async function extraerDatosIA() {
 
         if (data.imagen_url) {
             form.querySelector('[name="imagen_url"]').value = data.imagen_url;
-            document.getElementById('img-preview-container').innerHTML = \`<img src="\${data.imagen_url}" class="w-full h-full object-cover">\`;
+            document.getElementById('img-preview-container').innerHTML = `<img src="${data.imagen_url}" class="w-full h-full object-cover">`;
         }
 
         statusEl.innerHTML = '<span class="material-symbols-outlined text-sm align-middle mr-1">check_circle</span> Datos extraídos correctamente. Por favor verifica antes de guardar.';
