@@ -114,9 +114,7 @@ router.post('/upload-imagen', upload.single('file'), (req, res) => {
   res.json({ url: `/static/uploads/${req.file.filename}` });
 });
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const pdfParse = require('pdf-parse');
-const cheerio = require('cheerio');
+
 
 // ── Bulk Delete ──
 router.post('/bulk-delete', async (req, res) => {
@@ -136,6 +134,10 @@ router.post('/bulk-delete', async (req, res) => {
 // ── Extract Data from URL/PDF ──
 router.post('/extract-data', upload.single('file'), async (req, res) => {
   try {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const pdfParse = require('pdf-parse');
+    const cheerio = require('cheerio');
+
     const { url, categoria } = req.body;
     let text = '';
     let imageUrl = '';
