@@ -170,7 +170,8 @@ router.post('/extract-data', upload.single('file'), async (req, res) => {
 
     if (text.length > 40000) text = text.substring(0, 40000);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Sanitize the API key in case it was pasted with spaces or quotes in the hosting panel
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim().replace(/['"]/g, '');
     if (!apiKey) {
       return res.status(500).json({ detail: 'GEMINI_API_KEY no está configurado en el servidor.' });
     }
