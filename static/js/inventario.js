@@ -51,7 +51,7 @@ async function renderInventario() {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="equipos-grid">
+            <div class="flex flex-col gap-2" id="equipos-grid">
                 <!-- Loaded via JS -->
             </div>
         </div>
@@ -110,45 +110,54 @@ async function fetchEquipos() {
 
         const html = res.data.map(e => {
             let specHtml = '';
-            if (e.categoria === 'panel') specHtml = `<div class="font-bold text-primary text-xl">${e.potencia_wp} Wp</div><div class="text-xs text-on-surface-variant">${e.tipo}</div>`;
-            else if (e.categoria === 'inversor') specHtml = `<div class="font-bold text-primary text-xl">${e.potencia_kw} kW</div><div class="text-xs text-on-surface-variant">${e.tipo}</div>`;
-            else if (e.categoria === 'bateria') specHtml = `<div class="font-bold text-primary text-xl">${e.capacidad_kwh} kWh</div><div class="text-xs text-on-surface-variant">${e.tipo}</div>`;
-            else specHtml = `<div class="font-bold text-primary">${e.tipo || '-'}</div><div class="text-xs text-on-surface-variant">Unidad: ${e.unidad}</div>`;
+            if (e.categoria === 'panel') specHtml = `<span class="font-bold text-primary">${e.potencia_wp} Wp</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
+            else if (e.categoria === 'inversor') specHtml = `<span class="font-bold text-primary">${e.potencia_kw} kW</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
+            else if (e.categoria === 'bateria') specHtml = `<span class="font-bold text-primary">${e.capacidad_kwh} kWh</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
+            else specHtml = `<span class="font-bold text-primary">${e.tipo || '-'}</span> <span class="text-xs text-on-surface-variant">(Unidad: ${e.unidad})</span>`;
 
             let imgHtml = e.imagen_url ? 
-                `<img src="${e.imagen_url}" class="w-12 h-12 rounded object-cover border border-outline-variant/30 bg-surface-container-highest">` :
-                `<div class="p-2 bg-surface-container-high rounded-lg text-primary w-12 h-12 flex items-center justify-center">
-                    <span class="material-symbols-outlined">${icons[e.categoria]}</span>
+                `<img src="${e.imagen_url}" class="w-10 h-10 rounded object-cover border border-outline-variant/30 bg-surface-container-highest flex-shrink-0">` :
+                `<div class="w-10 h-10 bg-surface-container-high rounded border border-outline-variant/30 text-primary flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-xl">${icons[e.categoria]}</span>
                 </div>`;
 
             let isSelected = stateInventario.selectedIds.includes(e.id);
             return `
-                <div class="sq-card relative group hover:border-primary/50 border ${isSelected ? 'border-primary' : 'border-transparent'} transition-colors flex flex-col h-full ${e.activo ? '' : 'opacity-50'}">
-                    <div class="absolute -top-3 -left-3 z-10 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity bg-surface-container rounded-full shadow p-1">
+                <div class="sq-card !p-3 group hover:border-primary/50 border ${isSelected ? 'border-primary bg-primary/5' : 'border-outline-variant/30'} transition-colors flex items-center gap-4 ${e.activo ? '' : 'opacity-50'}">
+                    <div class="flex items-center justify-center">
                         <input type="checkbox" class="w-5 h-5 accent-primary cursor-pointer" ${isSelected ? 'checked' : ''} onchange="toggleSelectEquipo(${e.id}, this.checked, this)">
                     </div>
-                    <div class="flex justify-between items-start mb-6">
-                        ${imgHtml}
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onclick="openEquipoModal(${e.id})" class="p-1 text-on-surface-variant hover:text-white"><span class="material-symbols-outlined text-[18px]">edit</span></button>
-                            <button onclick="eliminarEquipo(${e.id})" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                    
+                    ${imgHtml}
+                    
+                    <div class="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                        <div class="md:col-span-3 min-w-0">
+                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider truncate">${e.marca}</div>
+                            <div class="font-label-bold text-sm truncate">${e.modelo}</div>
                         </div>
-                    </div>
-                    <div class="mb-6 flex-1">
-                        <div class="text-xs text-on-surface-variant uppercase tracking-wider mb-2">${e.marca}</div>
-                        <div class="font-label-bold text-lg leading-tight mb-3">${e.modelo}</div>
-                        ${specHtml}
-                    </div>
-                    <div class="pt-6 border-t border-outline-variant/30 flex justify-between items-center">
-                        <div>
-                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">Costo</div>
-                            <div class="font-body-md">${formatCurrency(e.costo)}</div>
+                        
+                        <div class="md:col-span-4 flex items-center">
+                            ${specHtml}
                         </div>
-                        <div class="flex items-center gap-1 cursor-pointer" onclick="toggleIvaEquipo(${e.id}, '${e.categoria}')" title="Incluye IVA">
-                            <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${e.iva ? 'bg-primary border-primary' : 'border-outline-variant'}">
-                                ${e.iva ? '<span class="material-symbols-outlined text-on-primary text-[10px]">check</span>' : ''}
-                            </span>
-                            <span class="text-[10px] ${e.iva ? 'text-primary' : 'text-on-surface-variant'}">IVA</span>
+                        
+                        <div class="md:col-span-3 text-right">
+                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Costo</div>
+                            <div class="font-body-md whitespace-nowrap">${formatCurrency(e.costo)}</div>
+                        </div>
+                        
+                        <div class="md:col-span-2 flex items-center justify-end gap-2">
+                            <div class="flex items-center gap-1 cursor-pointer mr-2" onclick="toggleIvaEquipo(${e.id}, '${e.categoria}')" title="Incluye IVA">
+                                <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${e.iva ? 'bg-primary border-primary' : 'border-outline-variant'}">
+                                    ${e.iva ? '<span class="material-symbols-outlined text-on-primary text-[10px]">check</span>' : ''}
+                                </span>
+                                <span class="text-[10px] hidden lg:inline ${e.iva ? 'text-primary' : 'text-on-surface-variant'}">IVA</span>
+                            </div>
+                            <button onclick="openEquipoModal(${e.id})" class="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant hover:text-white transition-colors" title="Editar">
+                                <span class="material-symbols-outlined text-[18px]">edit</span>
+                            </button>
+                            <button onclick="eliminarEquipo(${e.id})" class="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant hover:text-error transition-colors" title="Eliminar">
+                                <span class="material-symbols-outlined text-[18px]">delete</span>
+                            </button>
                         </div>
                     </div>
                 </div>
