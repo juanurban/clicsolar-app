@@ -304,10 +304,21 @@ async function uploadImage(input) {
 }
 
 function formatCurrencyInput(input) {
-    let val = input.value.replace(/\D/g, '');
+    // Save cursor position relative to end (to restore after formatting)
+    const cursorFromEnd = input.value.length - (input.selectionStart || 0);
+    
+    // Remove everything that isn't a digit
+    let val = input.value.replace(/[^\d]/g, '');
     if (val === '') val = '0';
     const num = parseInt(val, 10);
-    input.value = formatNumber(num);
+    
+    // Format with Colombian thousands separator (dots)
+    const formatted = num.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+    input.value = formatted;
+    
+    // Restore cursor position relative to end
+    const newPos = Math.max(0, formatted.length - cursorFromEnd);
+    input.setSelectionRange(newPos, newPos);
     
     if (input.id === 'eq-costo-display') {
         document.getElementById('eq-costo').value = num;
