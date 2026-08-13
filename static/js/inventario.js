@@ -22,6 +22,9 @@ async function renderInventario() {
                     <button id="btn-bulk-delete" onclick="eliminarSeleccionados()" class="sq-btn bg-error text-white hidden">
                         <span class="material-symbols-outlined">delete</span> ELIMINAR (<span id="bulk-delete-count">0</span>)
                     </button>
+                    <button onclick="openImportPDFModal()" class="sq-btn sq-btn-ghost border border-primary/30">
+                        <span class="material-symbols-outlined">upload_file</span> IMPORTAR PDF
+                    </button>
                     <button onclick="openEquipoModal()" class="sq-btn sq-btn-primary">
                         <span class="material-symbols-outlined">add</span> NUEVO ÍTEM
                     </button>
@@ -531,5 +534,185 @@ async function extraerDatosIA() {
         showToast(error.message, 'error');
     } finally {
         btn.disabled = false;
+    }
+}
+
+// ── Bulk Import from PDF ──
+let importedProducts = [];
+
+function openImportPDFModal() {
+    importedProducts = [];
+    const modalHtml = `
+        <div class="p-8 fade-in" style="max-width:900px;">
+            <h2 class="font-headline-md text-headline-md text-on-surface mb-2">Importar Listado de Precios</h2>
+            <p class="text-on-surface-variant text-sm mb-6">Sube un PDF con el listado de precios de tu proveedor. La IA identificará los productos, los clasificará como inversores, baterías o paneles, y extraerá los precios automáticamente.</p>
+
+            <div id="import-pdf-upload-section">
+                <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <div class="flex-1 w-full">
+                        <label class="sq-label">Listado de precios (PDF)</label>
+                        <input type="file" id="import-pdf-file" class="sq-input py-1 text-sm" accept=".pdf">
+                    </div>
+                    <button type="button" onclick="procesarPDFMasivo()" class="sq-btn bg-primary text-on-primary w-full md:w-auto" id="btn-procesar-pdf">
+                        <span class="material-symbols-outlined">auto_awesome</span> ANALIZAR CON IA
+                    </button>
+                </div>
+                <div id="import-pdf-status" class="text-xs mt-3 hidden"></div>
+            </div>
+
+            <div id="import-pdf-results" class="hidden mt-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-label-bold text-lg text-on-surface">
+                        Productos encontrados: <span id="import-count" class="text-primary">0</span>
+                    </h3>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="toggleSelectAllImport()" class="sq-btn sq-btn-ghost text-xs px-3 py-1">
+                            <span class="material-symbols-outlined text-sm">select_all</span> Sel. todos
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-outline-variant/30" style="max-height:400px; overflow-y:auto;">
+                    <table class="w-full text-sm">
+                        <thead class="bg-surface-container-high sticky top-0">
+                            <tr>
+                                <th class="p-3 text-left w-8"><input type="checkbox" id="import-select-all" checked onchange="toggleSelectAllImport(this.checked)" class="w-4 h-4 accent-primary"></th>
+                                <th class="p-3 text-left">Categoría</th>
+                                <th class="p-3 text-left">Marca</th>
+                                <th class="p-3 text-left">Modelo</th>
+                                <th class="p-3 text-left">Tipo</th>
+                                <th class="p-3 text-left">Potencia/Cap.</th>
+                                <th class="p-3 text-right">Costo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="import-table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-outline-variant">
+                    <button type="button" class="sq-btn sq-btn-ghost" onclick="closeModal()">Cancelar</button>
+                    <button type="button" onclick="confirmarImportacion()" class="sq-btn sq-btn-primary" id="btn-confirmar-import">
+                        <span class="material-symbols-outlined">save</span> IMPORTAR SELECCIONADOS
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    openModal(modalHtml);
+}
+
+async function procesarPDFMasivo() {
+    const fileInput = document.getElementById('import-pdf-file').files[0];
+    const statusEl = document.getElementById('import-pdf-status');
+    const btn = document.getElementById('btn-procesar-pdf');
+
+    if (!fileInput) {
+        showToast('Selecciona un archivo PDF', 'error');
+        return;
+    }
+
+    statusEl.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin align-middle mr-1">sync</span> Analizando el PDF con IA... esto puede tomar entre 10 y 30 segundos dependiendo del tamaño del listado.';
+    statusEl.className = 'text-xs mt-3 text-primary font-medium block';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('file', fileInput);
+
+        const response = await fetch('/api/equipos/bulk-import-pdf', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Error al procesar el PDF');
+
+        importedProducts = data.productos.map((p, i) => ({ ...p, selected: true, index: i }));
+
+        renderImportTable();
+
+        document.getElementById('import-count').textContent = importedProducts.length;
+        document.getElementById('import-pdf-results').classList.remove('hidden');
+        document.getElementById('import-pdf-upload-section').classList.add('hidden');
+
+        showToast(`${importedProducts.length} productos encontrados`, 'success');
+    } catch (error) {
+        statusEl.innerHTML = '<span class="material-symbols-outlined text-sm align-middle mr-1">error</span> ' + error.message;
+        statusEl.className = 'text-xs mt-3 text-error font-medium block';
+        showToast(error.message, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function renderImportTable() {
+    const tbody = document.getElementById('import-table-body');
+    const catIcons = { panel: '☀️', inversor: '⚡', bateria: '🔋' };
+    const catColors = { panel: 'text-yellow-400', inversor: 'text-blue-400', bateria: 'text-green-400' };
+
+    tbody.innerHTML = importedProducts.map((p, i) => {
+        let specValue = '-';
+        if (p.categoria === 'panel' && p.potencia_wp) specValue = `${p.potencia_wp} Wp`;
+        else if (p.categoria === 'inversor' && p.potencia_kw) specValue = `${p.potencia_kw} kW`;
+        else if (p.categoria === 'bateria' && p.capacidad_kwh) specValue = `${p.capacidad_kwh} kWh`;
+
+        return `
+            <tr class="border-t border-outline-variant/20 hover:bg-surface-container-low/50 ${p.selected ? '' : 'opacity-40'}">
+                <td class="p-3"><input type="checkbox" ${p.selected ? 'checked' : ''} onchange="toggleImportItem(${i}, this.checked)" class="w-4 h-4 accent-primary"></td>
+                <td class="p-3">
+                    <select onchange="changeImportCategory(${i}, this.value)" class="bg-transparent border border-outline-variant/30 rounded px-2 py-1 text-xs ${catColors[p.categoria] || ''}">
+                        <option value="inversor" ${p.categoria === 'inversor' ? 'selected' : ''}>⚡ Inversor</option>
+                        <option value="bateria" ${p.categoria === 'bateria' ? 'selected' : ''}>🔋 Batería</option>
+                        <option value="panel" ${p.categoria === 'panel' ? 'selected' : ''}>☀️ Panel</option>
+                    </select>
+                </td>
+                <td class="p-3 font-medium">${p.marca || '-'}</td>
+                <td class="p-3">${p.modelo || '-'}</td>
+                <td class="p-3 text-on-surface-variant">${p.tipo || '-'}</td>
+                <td class="p-3 font-medium">${specValue}</td>
+                <td class="p-3 text-right font-medium">${formatCurrency(p.costo || 0)}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function toggleImportItem(index, checked) {
+    importedProducts[index].selected = checked;
+}
+
+function toggleSelectAllImport(checked) {
+    if (checked === undefined) {
+        const cb = document.getElementById('import-select-all');
+        checked = !cb.checked;
+        cb.checked = checked;
+    }
+    importedProducts.forEach(p => p.selected = checked);
+    renderImportTable();
+}
+
+function changeImportCategory(index, newCat) {
+    importedProducts[index].categoria = newCat;
+}
+
+async function confirmarImportacion() {
+    const selected = importedProducts.filter(p => p.selected);
+    if (selected.length === 0) {
+        showToast('Selecciona al menos un producto', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirmar-import');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Importando...';
+
+    try {
+        const res = await API.post('/equipos/bulk-create', { productos: selected });
+        showToast(res.message, 'success');
+        closeModal();
+        fetchEquipos();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined">save</span> IMPORTAR SELECCIONADOS';
     }
 }
