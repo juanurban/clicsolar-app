@@ -195,7 +195,7 @@ window.ProyectosModule = (function () {
 
             // API Call
             try {
-                const res = await fetch(\`/api/proyectos/\${proyectoId}\`, {
+                const res = await fetch(`/api/proyectos/${proyectoId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ estado_id: nuevoEstadoId })
@@ -217,10 +217,10 @@ window.ProyectosModule = (function () {
     function openManageEstadosModal() {
         let rowsHtml = ESTADOS_KANBAN.map(e => `
             <div class="flex items-center gap-3 p-3 bg-surface-container rounded-lg border border-outline-variant/30">
-                <div class="w-4 h-4 rounded-full \${e.color.split(' ')[1]} shadow-sm"></div>
-                <span class="flex-1 font-label-bold">\${e.nombre}</span>
-                <span class="text-xs text-on-surface-variant bg-surface px-2 py-1 rounded">Orden \${e.orden}</span>
-                <button onclick="ProyectosModule.deleteEstado(\${e.id})" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Eliminar">
+                <div class="w-4 h-4 rounded-full ${e.color.split(' ')[1]} shadow-sm"></div>
+                <span class="flex-1 font-label-bold">${e.nombre}</span>
+                <span class="text-xs text-on-surface-variant bg-surface px-2 py-1 rounded">Orden ${e.orden}</span>
+                <button onclick="ProyectosModule.deleteEstado(${e.id})" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Eliminar">
                     <span class="material-symbols-outlined text-[18px]">delete</span>
                 </button>
             </div>
@@ -240,7 +240,7 @@ window.ProyectosModule = (function () {
                 </div>
                 
                 <div class="space-y-3 mb-6 max-h-[40vh] overflow-y-auto">
-                    \${rowsHtml}
+                    ${rowsHtml}
                 </div>
 
                 <form onsubmit="ProyectosModule.saveEstado(event)" class="bg-surface-container p-4 rounded-xl border border-outline-variant/50">
@@ -296,7 +296,7 @@ window.ProyectosModule = (function () {
     async function deleteEstado(id) {
         if(!confirm('¿Estás seguro? No se puede eliminar si hay proyectos en este estado.')) return;
         try {
-            const res = await fetch(\`/api/proyectos/estados/\${id}\`, { method: 'DELETE' });
+            const res = await fetch(`/api/proyectos/estados/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 window.showToast('Estado eliminado', 'success');
                 await loadEstados();
@@ -333,7 +333,7 @@ window.ProyectosModule = (function () {
                         <label class="block text-label-sm font-label-bold text-on-surface-variant mb-1">Cliente</label>
                         <select name="cliente_id" required class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all">
                             <option value="">Seleccione un cliente...</option>
-                            \${clientesList.map(c => \`<option value="\${c.id}">\${c.nombre}</option>\`).join('')}
+                            ${clientesList.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
                         </select>
                     </div>
                     <div>
@@ -382,7 +382,7 @@ window.ProyectosModule = (function () {
         // Fetch tareas
         let tareas = [];
         try {
-            const res = await fetch(\`/api/proyectos/\${id}/tareas\`);
+            const res = await fetch(`/api/proyectos/${id}/tareas`);
             if(res.ok) tareas = await res.json();
         } catch(e) { console.error(e); }
 
@@ -390,14 +390,14 @@ window.ProyectosModule = (function () {
             <div class="p-6 h-[80vh] flex flex-col">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h2 class="text-headline-md font-headline-md">\${proyecto.nombre}</h2>
+                        <h2 class="text-headline-md font-headline-md">${proyecto.nombre}</h2>
                         <div class="flex items-center gap-4 text-sm text-on-surface-variant mt-2">
-                            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">person</span> \${proyecto.cliente_nombre}</span>
-                            <span class="bg-surface-dim px-2 py-1 rounded text-primary">\${proyecto.estado}</span>
+                            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">person</span> ${proyecto.cliente_nombre}</span>
+                            <span class="bg-surface-dim px-2 py-1 rounded text-primary">${proyecto.estado}</span>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button onclick="ProyectosModule.deleteProyecto(\${proyecto.id})" class="text-error hover:bg-error/10 p-2 rounded-lg transition-colors flex items-center justify-center" title="Eliminar proyecto">
+                        <button onclick="ProyectosModule.deleteProyecto(${proyecto.id})" class="text-error hover:bg-error/10 p-2 rounded-lg transition-colors flex items-center justify-center" title="Eliminar proyecto">
                             <span class="material-symbols-outlined">delete</span>
                         </button>
                         <button onclick="window.closeModal()" class="text-on-surface-variant hover:text-primary p-2 rounded-lg transition-colors">
@@ -410,7 +410,7 @@ window.ProyectosModule = (function () {
                     <!-- Notas -->
                     <div class="bg-surface p-4 rounded-xl border border-outline-variant/30">
                         <h3 class="font-label-bold text-on-surface mb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">notes</span> Notas</h3>
-                        <p class="text-on-surface-variant text-sm whitespace-pre-wrap">\${proyecto.notas || 'Sin notas.'}</p>
+                        <p class="text-on-surface-variant text-sm whitespace-pre-wrap">${proyecto.notas || 'Sin notas.'}</p>
                     </div>
 
                     <!-- Tareas (Checklist) -->
@@ -420,19 +420,19 @@ window.ProyectosModule = (function () {
                         </div>
                         
                         <div class="space-y-2 mb-4" id="tareas-list">
-                            \${tareas.map(t => `
+                            ${tareas.map(t => `
                                 <div class="flex items-center gap-3 p-2 hover:bg-surface-container rounded-lg transition-colors group">
-                                    <input type="checkbox" \${t.completada ? 'checked' : ''} onchange="ProyectosModule.toggleTarea(\${t.id}, this.checked)" class="w-5 h-5 text-primary rounded border-outline-variant focus:ring-primary focus:ring-2 cursor-pointer bg-surface accent-primary">
-                                    <span class="flex-1 \${t.completada ? 'line-through text-on-surface-variant' : 'text-on-surface'}">\${t.descripcion}</span>
-                                    <button onclick="ProyectosModule.deleteTarea(\${t.id}, \${proyecto.id})" class="text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <input type="checkbox" ${t.completada ? 'checked' : ''} onchange="ProyectosModule.toggleTarea(${t.id}, this.checked)" class="w-5 h-5 text-primary rounded border-outline-variant focus:ring-primary focus:ring-2 cursor-pointer bg-surface accent-primary">
+                                    <span class="flex-1 ${t.completada ? 'line-through text-on-surface-variant' : 'text-on-surface'}">${t.descripcion}</span>
+                                    <button onclick="ProyectosModule.deleteTarea(${t.id}, ${proyecto.id})" class="text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-opacity">
                                         <span class="material-symbols-outlined text-[18px]">delete</span>
                                     </button>
                                 </div>
                             `).join('')}
-                            \${tareas.length === 0 ? '<p class="text-sm text-on-surface-variant italic">No hay tareas creadas.</p>' : ''}
+                            ${tareas.length === 0 ? '<p class="text-sm text-on-surface-variant italic">No hay tareas creadas.</p>' : ''}
                         </div>
 
-                        <form onsubmit="ProyectosModule.addTarea(event, \${proyecto.id})" class="flex gap-2 mt-4">
+                        <form onsubmit="ProyectosModule.addTarea(event, ${proyecto.id})" class="flex gap-2 mt-4">
                             <input type="text" name="descripcion" placeholder="Nueva tarea..." required class="flex-1 bg-surface-container border border-outline-variant/50 rounded-lg px-4 py-2 text-on-surface text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all">
                             <button type="submit" class="bg-surface-container-highest hover:bg-surface-variant text-on-surface px-4 py-2 rounded-lg font-label-bold transition-all text-sm">Añadir</button>
                         </form>
@@ -445,7 +445,7 @@ window.ProyectosModule = (function () {
 
     async function toggleTarea(tareaId, completada) {
         try {
-            await fetch(\`/api/proyectos/tareas/\${tareaId}\`, {
+            await fetch(`/api/proyectos/tareas/${tareaId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ completada })
@@ -463,7 +463,7 @@ window.ProyectosModule = (function () {
         const descripcion = input.value;
         
         try {
-            const res = await fetch(\`/api/proyectos/\${proyectoId}/tareas\`, {
+            const res = await fetch(`/api/proyectos/${proyectoId}/tareas`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ descripcion })
@@ -478,7 +478,7 @@ window.ProyectosModule = (function () {
     async function deleteTarea(tareaId, proyectoId) {
         if(!confirm('¿Eliminar esta tarea?')) return;
         try {
-            const res = await fetch(\`/api/proyectos/tareas/\${tareaId}\`, { method: 'DELETE' });
+            const res = await fetch(`/api/proyectos/tareas/${tareaId}`, { method: 'DELETE' });
             if(res.ok) {
                 openProyecto(proyectoId);
             }
@@ -488,7 +488,7 @@ window.ProyectosModule = (function () {
     async function deleteProyecto(id) {
         if(!confirm('¿Estás seguro de que deseas eliminar este proyecto y todas sus tareas?')) return;
         try {
-            const res = await fetch(\`/api/proyectos/\${id}\`, { method: 'DELETE' });
+            const res = await fetch(`/api/proyectos/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 window.closeModal();
                 window.showToast('Proyecto eliminado', 'success');
