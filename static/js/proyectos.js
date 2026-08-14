@@ -51,7 +51,10 @@ window.ProyectosModule = (function () {
     async function loadClientes() {
         try {
             const res = await fetch('/api/clientes');
-            if(res.ok) clientesList = await res.json();
+            if(res.ok) {
+                const json = await res.json();
+                clientesList = json.data || json;
+            }
         } catch (e) { console.error('Error loading clientes:', e); }
     }
 
