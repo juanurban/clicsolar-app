@@ -19,7 +19,7 @@ def escape_number(n):
     return str(n)
 
 def export_table(cursor, table_name, columns, types):
-    cursor.execute(f"SELECT * FROM {table_name}")
+    cursor.execute(f"SELECT {', '.join(columns)} FROM {table_name}")
     rows = cursor.fetchall()
     if not rows:
         return ""
@@ -68,6 +68,8 @@ def main():
             try:
                 print(f"Exporting {table}...")
                 sql = export_table(cursor, table, cols, types)
+                # Modify INSERT IGNORE to REPLACE INTO to overwrite any dummy data
+                sql = sql.replace("INSERT IGNORE INTO", "REPLACE INTO")
                 f.write(sql)
             except Exception as e:
                 print(f"Error exporting {table}: {e}")
@@ -78,7 +80,17 @@ def main():
 -- Reset admin password to be compatible with Node.js backend
 DELETE FROM usuarios WHERE username = 'admin';
 INSERT INTO usuarios (id, username, password_hash, password_salt, nombre_completo, correo, perfil_id, activo)
-VALUES (1, 'admin', '5eb50c99a61579be408e03ed1be3e4cf6f76c5f49e4da74b46c64ff3f3a8f4c0', 'e5c92c8152db4be588cfdc77ebccb21b', 'Administrador', 'admin@sunquote.co', 1, 1);
+VALUES (1, 'admin', '7f0b720e9c7b7f75bfa5e8b0c2330f02c47c7204701fc2ea5eabc75a2150233a', 'e5c92c8152db4be588cfdc77ebccb21b', 'Administrador', 'admin@sunquote.co', 1, 1);
+
+-- Seed Estados del Kanban (Proyectos)
+INSERT IGNORE INTO estados_proyecto (nombre, color, orden) VALUES
+('Evaluación', 'border-l-4 border-gray-400 bg-surface-container', 1),
+('Adjudicado', 'border-l-4 border-blue-400 bg-surface-container', 2),
+('Diseño Eléctrico', 'border-l-4 border-purple-400 bg-surface-container', 3),
+('Permisos y Trámites', 'border-l-4 border-yellow-400 bg-surface-container', 4),
+('Instalación', 'border-l-4 border-orange-400 bg-surface-container', 5),
+('Certificación RETIE', 'border-l-4 border-teal-400 bg-surface-container', 6),
+('Entregado', 'border-l-4 border-green-500 bg-surface-container', 7);
 """
         f.write(admin_sql)
         f.write("\nSET FOREIGN_KEY_CHECKS = 1;\n")

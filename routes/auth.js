@@ -9,7 +9,7 @@ const SESSION_DURATION_HOURS = 24;
 // Helper to hash password
 function hashPassword(password, salt) {
   const hash = crypto.createHash('sha256');
-  hash.update(password + salt);
+  hash.update(salt + password);
   return hash.digest('hex');
 }
 
@@ -25,6 +25,10 @@ router.post('/login', async (req, res) => {
     if (!user.activo) return res.status(401).json({ detail: "Usuario desactivado" });
 
     const pwHash = hashPassword(password, user.password_salt);
+    console.log("DB Hash: ", user.password_hash);
+    console.log("Calculated Hash: ", pwHash);
+    console.log("Are they equal?", pwHash === user.password_hash);
+    
     if (pwHash !== user.password_hash) {
       return res.status(401).json({ detail: "Usuario o contraseña incorrectos" });
     }

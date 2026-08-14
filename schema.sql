@@ -118,3 +118,36 @@ CREATE TABLE IF NOT EXISTS sesiones (
     expires_at TIMESTAMP NOT NULL,
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
+
+CREATE TABLE IF NOT EXISTS estados_proyecto (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    color VARCHAR(100) DEFAULT 'border-gray-400 bg-surface-container',
+    orden INT DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS proyectos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    cotizacion_id INT,
+    cliente_id INT NOT NULL,
+    estado_id INT,
+    fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_entrega_estimada TIMESTAMP NULL,
+    fecha_entrega_real TIMESTAMP NULL,
+    notas TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id),
+    FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+    FOREIGN KEY (estado_id) REFERENCES estados_proyecto(id)
+);
+
+CREATE TABLE IF NOT EXISTS tareas_proyecto (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    proyecto_id INT NOT NULL,
+    descripcion TEXT NOT NULL,
+    completada TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id) ON DELETE CASCADE
+);

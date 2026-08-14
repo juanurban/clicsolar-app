@@ -148,6 +148,31 @@ def init_db():
             expires_at TIMESTAMP NOT NULL,
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         );
+
+        CREATE TABLE IF NOT EXISTS proyectos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            cotizacion_id INTEGER,
+            cliente_id INTEGER NOT NULL,
+            estado TEXT DEFAULT 'Evaluación',
+            fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fecha_entrega_estimada TIMESTAMP,
+            fecha_entrega_real TIMESTAMP,
+            notas TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id),
+            FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS tareas_proyecto (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proyecto_id INTEGER NOT NULL,
+            descripcion TEXT NOT NULL,
+            completada INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (proyecto_id) REFERENCES proyectos(id) ON DELETE CASCADE
+        );
     """)
 
     conn.commit()

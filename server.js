@@ -43,6 +43,9 @@ app.use('/api/equipos', require('./routes/inventario'));
 // Cotizaciones
 app.use('/api/cotizaciones', require('./routes/cotizaciones'));
 
+// Proyectos (Kanban)
+app.use('/api/proyectos', require('./routes/proyectos'));
+
 // Configuración
 app.use('/api/configuracion', require('./routes/configuracion'));
 

@@ -1,13 +1,16 @@
 
 -- Limpiar tablas
 SET FOREIGN_KEY_CHECKS = 0;
-TRUNCATE TABLE sesiones;
-TRUNCATE TABLE usuarios;
-TRUNCATE TABLE perfiles;
-TRUNCATE TABLE configuracion;
-TRUNCATE TABLE cotizaciones;
-TRUNCATE TABLE equipos;
-TRUNCATE TABLE clientes;
+DELETE FROM sesiones;
+DELETE FROM usuarios;
+DELETE FROM perfiles;
+DELETE FROM configuracion;
+DELETE FROM cotizaciones;
+DELETE FROM equipos;
+DELETE FROM clientes;
+DELETE FROM tareas_proyecto;
+DELETE FROM proyectos;
+DELETE FROM estados_proyecto;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Seed Configuración
@@ -36,4 +39,14 @@ INSERT INTO perfiles (id, nombre, descripcion, permisos, es_sistema) VALUES
 
 -- Password es "admin123"
 INSERT INTO usuarios (username, password_hash, password_salt, nombre_completo, correo, perfil_id, activo) VALUES 
-('admin', '7ffc5dffdc5cd61f7db191dcb04d49ed4e015d2fb3be1eccecc5274d47343e03', 'f0e4c2f76c58916ec258f246851bea091d14d4247a2fc3e18f26ea462610b64d', 'Administrador Principal', 'admin@ejemplo.com', 1, 1);
+('admin', '7f0b720e9c7b7f75bfa5e8b0c2330f02c47c7204701fc2ea5eabc75a2150233a', 'f0e4c2f76c58916ec258f246851bea091d14d4247a2fc3e18f26ea462610b64d', 'Administrador Principal', 'admin@ejemplo.com', 1, 1);
+
+-- Seed Estados del Kanban (Proyectos)
+INSERT IGNORE INTO estados_proyecto (nombre, color, orden) VALUES
+('Evaluación', 'border-l-4 border-gray-400 bg-surface-container', 1),
+('Adjudicado', 'border-l-4 border-blue-400 bg-surface-container', 2),
+('Diseño Eléctrico', 'border-l-4 border-purple-400 bg-surface-container', 3),
+('Permisos y Trámites', 'border-l-4 border-yellow-400 bg-surface-container', 4),
+('Instalación', 'border-l-4 border-orange-400 bg-surface-container', 5),
+('Certificación RETIE', 'border-l-4 border-teal-400 bg-surface-container', 6),
+('Entregado', 'border-l-4 border-green-500 bg-surface-container', 7);
