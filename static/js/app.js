@@ -182,6 +182,7 @@ const routes = {
     'clientes': () => renderClientes(),
     'inventario': () => renderInventario(),
     'propuestas': () => renderPropuestas(),
+    'proyectos': () => renderProyectos(),
     'configuracion': () => renderConfiguracion(),
     'usuarios': () => renderUsuarios(),
 };
