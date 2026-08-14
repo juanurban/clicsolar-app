@@ -512,3 +512,8 @@ window.ProyectosModule = (function () {
         deleteEstado
     };
 })();
+
+// Expose the render function for the router
+window.renderProyectos = function() {
+    ProyectosModule.init();
+};
