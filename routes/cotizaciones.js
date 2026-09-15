@@ -492,60 +492,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── Download exact PDF copy of the HTML preview ──
-// Chrome renders the same /pdf/:id template shown to the user, preserving CSS,
-// charts, images and print pagination instead of generating a second layout.
-router.get('/:id/pdf-download', async (req, res) => {
-  const chromePath = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  let tempDir;
-  try {
-    const [rows] = await pool.execute('SELECT id FROM cotizaciones WHERE id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ detail: 'Cotización no encontrada' });
-    if (!fs.existsSync(chromePath)) {
-      return res.status(500).json({ detail: 'No se encontró Chrome/Chromium para generar el PDF. Configura CHROME_PATH.' });
-    }
-
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sunquote-pdf-'));
-    const outputPath = path.join(tempDir, `propuesta_${req.params.id}.pdf`);
-    const pdfToken = createPdfToken(req.params.id);
-    const previewUrl = `${req.protocol}://${req.get('host')}/pdf/${encodeURIComponent(req.params.id)}?pdf=1&pdf_token=${encodeURIComponent(pdfToken)}`;
-    await renderPdfWithChrome(chromePath, [
-      '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
-      '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-      '--disable-component-update', '--disable-extensions',
-      '--no-pdf-header-footer', '--run-all-compositor-stages-before-draw',
-      '--virtual-time-budget=10000', `--print-to-pdf=${outputPath}`,
-      `--user-data-dir=${path.join(tempDir, 'profile')}`, previewUrl
-    ], outputPath, 30000);
-
-    const pdf = fs.readFileSync(outputPath);
-    if (pdf.subarray(0, 5).toString() !== '%PDF-') {
-      throw new Error('El renderizador no produjo un PDF válido');
-    }
-    res.status(200);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="propuesta_${req.params.id}.pdf"`);
-    res.setHeader('Content-Length', pdf.length);
-    res.end(pdf);
-  } catch (error) {
-    console.error('Error generando PDF desde vista previa:', error.message);
-    if (!res.headersSent) res.status(500).json({ detail: 'No se pudo generar el PDF desde la vista previa' });
-  } finally {
-    if (tempDir) {
-      try {
-        fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-      } catch (cleanupError) {
-        // Chrome puede liberar alguno de sus archivos unos milisegundos después.
-        // La descarga ya fue enviada; no debemos tumbar el servidor por limpiar
-        // el directorio temporal.
-        console.warn('No se pudo limpiar temporalmente el PDF:', cleanupError.message);
-      }
-    }
-  }
-});
-
-// ── Legacy fallback PDF generator (kept below the exact renderer) ──
-// The browser preview is HTML, but this endpoint must return actual PDF bytes.
+// ── Download PDF (always works, any environment) ──
 router.get('/:id/pdf-download', async (req, res) => {
   try {
     const [rows] = await pool.execute(`
