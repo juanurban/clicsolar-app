@@ -59,6 +59,32 @@ function renderPdfWithChrome(chromePath, args, outputPath, timeoutMs = 30000) {
   });
 }
 
+// ── Chrome auto-detection ──
+function findChrome() {
+    if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
+    const candidates = [
+        '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium', '/usr/bin/chromium-browser',
+        '/usr/lib/chromium/chromium', '/opt/google/chrome/google-chrome',
+        '/snap/bin/google-chrome',
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ];
+    for (const p of candidates) {
+        if (fs.existsSync(p)) return p;
+    }
+    const pathDirs = (process.env.PATH || '').split(':');
+    for (const dir of pathDirs) {
+        for (const name of ['google-chrome', 'chromium', 'chromium-browser', 'chrome']) {
+            const fullPath = path.join(dir, name);
+            if (fs.existsSync(fullPath)) return fullPath;
+        }
+    }
+    return null;
+}
+
 // ── Helper: Get config value ──
 async function getConfigValue(clave, defaultVal = null) {
   const [rows] = await pool.execute('SELECT valor, tipo FROM configuracion WHERE clave = ?', [clave]);
@@ -492,8 +518,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── Download PDF (always works, any environment) ──
-router.get('/:id/pdf-download', async (req, res) => {
+// ── PDF generator (legacy, used as fallback when Chrome unavailable) ──
+async function generateLegacyPDF(req, res) {
   try {
     const [rows] = await pool.execute(`
       SELECT c.*, cl.nombre as cliente_nombre, cl.cedula_nit as cliente_cedula,
@@ -596,6 +622,52 @@ router.get('/:id/pdf-download', async (req, res) => {
   } catch (error) {
     console.error('Error generando PDF:', error);
     if (!res.headersSent) res.status(500).json({ detail: 'No se pudo generar el PDF' });
+  }
+}
+
+// ── Download PDF (Chrome exact rendering, legacy fallback) ──
+router.get('/:id/pdf-download', async (req, res) => {
+  const chromePath = findChrome();
+  if (!chromePath) return generateLegacyPDF(req, res);
+
+  let tempDir;
+  try {
+    const [rows] = await pool.execute('SELECT id FROM cotizaciones WHERE id = ?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ detail: 'Cotización no encontrada' });
+
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sunquote-pdf-'));
+    const outputPath = path.join(tempDir, `propuesta_${req.params.id}.pdf`);
+    const pdfToken = createPdfToken(req.params.id);
+    const previewUrl = `${req.protocol}://${req.get('host')}/pdf/${encodeURIComponent(req.params.id)}?pdf=1&pdf_token=${encodeURIComponent(pdfToken)}`;
+    await renderPdfWithChrome(chromePath, [
+      '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
+      '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
+      '--disable-component-update', '--disable-extensions',
+      '--no-pdf-header-footer', '--run-all-compositor-stages-before-draw',
+      '--virtual-time-budget=10000', `--print-to-pdf=${outputPath}`,
+      `--user-data-dir=${path.join(tempDir, 'profile')}`, previewUrl
+    ], outputPath, 30000);
+
+    const pdf = fs.readFileSync(outputPath);
+    if (pdf.subarray(0, 5).toString() !== '%PDF-') {
+      throw new Error('El renderizador no produjo un PDF válido');
+    }
+    res.status(200);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="propuesta_${req.params.id}.pdf"`);
+    res.setHeader('Content-Length', pdf.length);
+    res.end(pdf);
+  } catch (error) {
+    console.error('Error generando PDF desde vista previa:', error.message);
+    if (!res.headersSent) return generateLegacyPDF(req, res);
+  } finally {
+    if (tempDir) {
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      } catch (cleanupError) {
+        console.warn('No se pudo limpiar temporalmente el PDF:', cleanupError.message);
+      }
+    }
   }
 });
 
