@@ -63,11 +63,25 @@ function hashPassword(password) {
     // ── 2. Ejecutar schema.sql ──
     console.log('📦 Ejecutando schema.sql...');
     const schemaPath = path.join(__dirname, '..', 'database', 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
-    // Dividir en statements individuales
-    const statements = schema.split(';').filter(s => s.trim());
-    for (const statement of statements) {
-      await connection.execute(statement);
+    let schema = fs.readFileSync(schemaPath, 'utf8');
+    
+    // Eliminar comentarios de MySQL (líneas que empiezan con --)
+    schema = schema.split('\n').filter(line => !line.trim().startsWith('--')).join('\n');
+    
+    // Dividir en statements individuales, manejando correctamente los ;
+    const statements = schema.split(';').map(s => s.trim()).filter(s => s.length > 0);
+    
+    for (let i = 0; i < statements.length; i++) {
+      const statement = statements[i];
+      if (statement) {
+        try {
+          await connection.execute(statement);
+        } catch (stmtError) {
+          console.error(`Error en statement ${i + 1}:`, stmtError.message);
+          console.error('Statement:', statement.substring(0, 100) + '...');
+          throw stmtError;
+        }
+      }
     }
     console.log(`✅ ${statements.length} statements ejecutados`);
 
