@@ -1,0 +1,27 @@
+# Python (legacy)
+.venv/
+__pycache__/
+*.pyc
+
+# Node.js
+node_modules/
+
+# OS
+.DS_Store
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+.freebuff/
+
+# User-generated uploads (catalog assets committed separately if needed)
+static/uploads/clientes/
+static/uploads/
+
+# Generated files
+output/
+tmp/

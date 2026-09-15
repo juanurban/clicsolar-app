@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Propuesta Comercial — Plantas Solares de Colombia</title>
+    <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config={theme:{extend:{colors:{primary:"#ffc800",dark:"#131313",gray:"#353535",light:"#e4e2e1"}},fontFamily:{sans:['Inter','sans-serif'],heading:['Montserrat','sans-serif']}}};
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script>
+    if (window.Chart) {
+        window.pdfRender = new URLSearchParams(window.location.search).get('pdf') === '1';
+        Chart.defaults.devicePixelRatio = window.pdfRender ? 1 : 3;
+    }
+    </script>
+    
+    <style>
+        @page { size: A4; margin: 0; }
+        body { background: #fff; color: #131313; font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Montserrat', sans-serif; }
+        
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
+            page-break-after: always;
+        }
+
+        .header-stripe {
+            height: 8mm;
+            background: #ffc800;
+            width: 100%;
+        }
+
+        .content { padding: 10mm 16mm; }
+
+        @media print {
+            html, body { margin: 0; padding: 0; background: none; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .page { margin: 0; box-shadow: none; border: none; width: 210mm; min-height: 297mm; height: 297mm; overflow: hidden; break-after: page; page-break-after: always; }
+            .no-print { display: none !important; }
+            .print-break { page-break-before: always; }
+            .prevent-break { page-break-inside: avoid; break-inside: avoid; }
+
+            /* Keep the financial analysis on the same physical page as in the preview. */
+            #page-3 .content { min-height: 270mm !important; }
+            #page-3 .flex.flex-col.gap-4 { gap: 2mm !important; margin-bottom: 3mm !important; }
+            #page-3 .flex.flex-col.gap-4 > div { padding: 3mm !important; }
+            #page-3 .relative[style*="height:160px"] { height: 105px !important; }
+            #page-3 .flex.justify-around { margin-top: 1mm !important; padding-top: 1mm !important; font-size: 8px !important; }
+            #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
+            #page-3 .flex.justify-center > div { padding-top: 2mm !important; padding-bottom: 2mm !important; }
+            #page-3 .mt-4.border { margin-top: 2mm !important; }
+            #page-3 table td, #page-3 table th { padding: 1px 3px !important; font-size: 6px !important; line-height: 1.05 !important; }
+
+            /* Preserve the visible bell-curve proportions in the printed preview. */
+            #page-1 > .content > .w-full.h-32 { height: 180px !important; }
+        }
+
+        table.sq-pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        table.sq-pdf-table th { background: #131313; color: #ffc800; padding: 4px 6px; text-align: center; font-size: 10px; text-transform: uppercase; }
+        table.sq-pdf-table td { border-bottom: 1px solid #ccc; padding: 4px 6px; font-size: 10px; }
+        table.sq-pdf-table tr:last-child td { border-bottom: 2px solid #131313; }
+
+        /* Fotografías compactas para productos/equipos en propuestas de suministro. */
+        #supply-items-on-page1 #resumen-imagenes.supply-product-images {
+            display: flex !important;
+            gap: 8px;
+            margin: 4px 0 8px !important;
+            align-items: flex-start;
+        }
+        #supply-items-on-page1 #resumen-imagenes.supply-product-images > div {
+            padding: 2px !important;
+        }
+        #supply-items-on-page1 #resumen-imagenes.supply-product-images img {
+            width: 78px !important;
+            height: 82px !important;
+        }
+        #supply-items-on-page1 #resumen-imagenes.supply-product-images div[style*="width:160px"] {
+            width: 84px !important;
+            height: 88px !important;
+            margin-bottom: 3px !important;
+        }
+        #supply-items-on-page1 #resumen-imagenes.supply-product-images .text-primary {
+            font-size: 9px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .kpi-box { background: #f8f8f8; border-left: 3px solid #ffc800; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<div class="fixed top-4 right-4 no-print flex gap-2">
+    <button onclick="window.print()" class="bg-primary text-dark font-bold px-6 py-2 rounded shadow-lg hover:brightness-110 flex items-center gap-2">
+        <span class="material-symbols-outlined">print</span> Imprimir
+    </button>
+    <button onclick="descargarPDF()" class="bg-dark text-white font-bold px-6 py-2 rounded shadow-lg hover:brightness-125 flex items-center gap-2">
+        <span class="material-symbols-outlined">download</span> Descargar PDF
+    </button>
+</div>
+
+<!-- PAGE 1: PORTADA Y RESUMEN TÉCNICO -->
+<div class="page" id="page-1">
+    <div class="header-stripe"></div>
+    <div class="content">
+        
+        <!-- Header -->
+            <div class="flex justify-between items-start border-b border-dark pb-4 mb-5">
+                <div class="flex items-center gap-3">
+                    <img src="/static/img/logo.svg" alt="Logo" class="h-12 w-auto header-logo">
+                    <div>
+                        <h1 class="text-2xl font-heading text-dark" id="emp-nombre">Plantas Solares de Colombia</h1>
+                        <p class="text-xs text-gray" id="emp-dir"></p>
+                        <p class="text-[10px] text-gray" id="emp-tel"></p>
+                        <p class="text-[10px] text-gray" id="emp-email"></p>
+                        <p class="text-xs text-gray" id="emp-web">plantassolaresdecolombia.com</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <h2 class="text-lg font-bold text-gray">PROPUESTA COMERCIAL</h2>
+                    <p class="text-base font-bold text-primary" id="prop-codigo">PROP-0000</p>
+                    <p class="text-xs" id="prop-fecha">Fecha: -</p>
+                    <p class="text-xs" id="prop-vencimiento">Vence: -</p>
+                </div>
+            </div>
+
+        <!-- Cliente Info -->
+            <div class="grid grid-cols-2 gap-6 mb-6" id="perfil-energetico-section">
+                <div>
+                    <h3 class="text-sm border-b border-gray pb-1 mb-2 text-primary uppercase font-bold">Datos del Cliente</h3>
+                    <p class="font-bold text-base" id="cl-nombre">-</p>
+                    <p class="text-xs mt-0.5" id="cl-id">NIT/CC: -</p>
+                    <p class="text-xs" id="cl-dir">-</p>
+                    <p class="text-xs" id="cl-ciudad">-</p>
+                </div>
+                <div>
+                    <h3 class="text-sm border-b border-gray pb-1 mb-2 text-primary uppercase font-bold">Perfil Energético</h3>
+                    <div class="grid grid-cols-2 gap-y-1 text-xs">
+                        <span class="text-gray">Tarifa:</span> <span class="font-bold" id="cl-tarifa">-</span>
+                        <span class="text-gray">Operador:</span> <span class="font-bold" id="cl-op">-</span>
+                        <span class="text-gray">Consumo Prom.:</span> <span class="font-bold" id="cl-consumo">-</span>
+                        <span class="text-gray">Valor Energía:</span> <span class="font-bold" id="cl-costo">-</span>
+                        <span class="text-gray">Último Consumo:</span> <span class="font-bold" id="cl-ult-consumo">-</span>
+                        <span class="text-gray">Consumo Máx.:</span> <span class="font-bold" id="cl-max-consumo">-</span>
+                        <span class="text-gray">Consumo Mín.:</span> <span class="font-bold" id="cl-min-consumo">-</span>
+                    </div>
+                </div>
+            </div>
+
+        <!-- Solución Propuesta -->
+        <div class="flex items-center justify-between border-b border-dark pb-1 mb-4" id="solucion-heading">
+            <h3 class="text-base text-dark uppercase font-bold">Solución Fotovoltaica Propuesta</h3>
+            <span id="parametro-badge" class="font-bold text-xs px-2.5 py-0.5 rounded uppercase tracking-wide border border-dark/20 shadow-sm" style="background:#ffc800; color:#131313;">PROMEDIO MENSUAL</span>
+        </div>
+
+        <!-- Diseño del sistema -->
+        <div id="diseno-img-container" class="mb-4 text-center" style="display:none;">
+            <img id="diseno-img" class="max-w-full max-h-64 mx-auto rounded-lg border border-gray/20">
+        </div>
+
+        <div class="grid grid-cols-6 gap-2 mb-5" id="solar-kpis">
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[8px] font-bold uppercase text-gray mb-0.5">POTENCIA</div>
+                <div class="text-sm font-bold text-dark"><span id="sys-kwp">-</span> <span class="text-[9px]">kWp</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[8px] font-bold uppercase text-gray mb-0.5">GENERACIÓN MES</div>
+                <div class="text-sm font-bold text-dark"><span id="sys-prod">-</span> <span class="text-[9px]">kWh</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[8px] font-bold uppercase text-gray mb-0.5">PANELES</div>
+                <div class="text-sm font-bold text-dark"><span id="sys-pan">-</span> <span class="text-[9px]">Und</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[8px] font-bold uppercase text-gray mb-0.5">ÁREA</div>
+                <div class="text-sm font-bold text-dark"><span id="sys-area">-</span> <span class="text-[9px]">m²</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[8px] font-bold uppercase text-gray mb-0.5">PRODUCCIÓN DÍA</div>
+                <div class="text-sm font-bold text-dark"><span id="sys-prod-dia">-</span> <span class="text-[9px]">kWh</span></div>
+            </div>
+            <div class="kpi-box text-center py-2 px-1">
+                <div class="text-[8px] font-bold uppercase text-gray mb-0.5">PESO</div>
+                <div class="text-sm font-bold text-dark"><span id="sys-peso">-</span> <span class="text-[9px]">kg</span></div>
+            </div>
+        </div>
+
+        <div class="w-full h-32 mb-5 relative" id="prod-chart-container">
+            <canvas id="prod-chart"></canvas>
+        </div>
+
+        <!-- Equipos Principales -->
+        <div id="eq-container" class="grid grid-cols-2 gap-4 mb-6">
+            <div class="border border-gray/20 rounded p-3">
+                <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
+                    <span class="material-symbols-outlined text-dark text-sm">solar_power</span> Panel Solar
+                </div>
+                <div class="font-bold text-sm" id="eq-pan-marca">-</div>
+                <div class="text-[10px] text-gray uppercase" id="eq-pan-mod">-</div>
+            </div>
+            <div class="border border-gray/20 rounded p-3">
+                <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
+                    <span class="material-symbols-outlined text-dark text-sm">electric_meter</span> Inversor
+                </div>
+                <div class="font-bold text-sm" id="eq-inv-marca">-</div>
+                <div class="text-[10px] text-gray uppercase" id="eq-inv-mod">-</div>
+            </div>
+            <div class="border border-gray/20 rounded p-3" id="eq-bateria-box" style="display:none;">
+                <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
+                    <span class="material-symbols-outlined text-dark text-sm">battery_charging_full</span> Batería
+                </div>
+                <div class="font-bold text-sm" id="eq-bat-marca">-</div>
+                <div class="text-[10px] text-gray uppercase" id="eq-bat-mod">-</div>
+            </div>
+        </div>
+
+        <!-- En propuestas de suministro, el listado se reubica aquí para evitar una página casi vacía. -->
+        <div id="supply-items-on-page1" style="display:none;"></div>
+
+        <!-- Footer Página 1 -->
+        <div class="absolute bottom-8 left-16 right-16 text-[10px] text-gray border-t border-gray/30 pt-2 flex justify-between">
+                            <span id="f-emp-nombre">Plantas Solares de Colombia</span>
+            <span id="f-emp-web" class="flex-1 text-center"></span>
+            <span id="f-pagina">Página 1 de 4</span>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 2: INVERSIÓN Y FINANCIERO -->
+<div class="page print-break" id="page-2">
+    <div class="header-stripe"></div>
+    <div class="content">
+        
+        <!-- Propuesta Planta Solar (Images) -->
+        <h3 id="pdf-propuesta-heading" class="text-3xl border-b-2 border-primary pb-2 mt-0 mb-6 text-primary font-light prevent-break">Propuesta <span class="font-bold text-dark">Planta Solar</span></h3>
+        
+            <div class="mt-2 mb-8" id="solar-cost-block">
+            <!-- Top Row: Equipment Images -->
+            <div class="flex gap-4 items-end justify-center mb-6" id="resumen-imagenes">
+                <!-- Javascript will inject images here -->
+            </div>
+            
+            <!-- Bottom Row: Costo Planta Solar -->
+            <div class="flex items-center justify-center mt-6">
+                <div class="text-center">
+                    <div class="text-lg font-bold text-dark uppercase mb-1">Costo Planta Solar</div>
+                    <div class="text-[40px] font-display-lg text-primary leading-none" id="costo-planta-solar">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desglose Inversión -->
+        <div id="supply-items-section">
+        <h3 class="text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold mt-8">Productos y servicios incluidos</h3>
+        <table class="sq-pdf-table" id="items-table">
+            <thead>
+                <tr id="items-header">
+                    <th style="width:18%">Ítem</th>
+                    <th style="width:52%">Descripción</th>
+                    <th class="text-center" style="width:10%">Cant.</th>
+                </tr>
+            </thead>
+            <tbody id="items-tbody">
+            </tbody>
+        </table>
+        </div>
+        
+        <div id="financial-totals">
+        <div class="flex justify-between border-b border-gray/20 py-1 text-xs">
+            <span class="font-bold">SUBTOTAL</span>
+            <span id="tot-subtotal" class="font-bold">-</span>
+        </div>
+        <div class="flex justify-between border-b border-gray/20 py-1 text-xs">
+            <span class="font-bold">IVA (19%)</span>
+            <span id="tot-iva" class="font-bold">-</span>
+        </div>
+        <div class="flex justify-between py-2 mt-1 bg-dark text-primary px-4 rounded font-bold text-sm mb-4">
+            <span>INVERSIÓN TOTAL</span>
+            <span id="tot-inv">-</span>
+        </div>
+        <p class="text-[8px] text-gray mt-1 text-right mb-4">* Inversión total incluye IVA según aplique.</p>
+        </div>
+
+        <!-- Footer Página 2 -->
+        <div class="absolute bottom-6 left-16 right-16 text-[9px] text-gray border-t border-gray/30 pt-1 flex justify-between">
+                            <span id="f-emp-nombre2">Plantas Solares de Colombia</span>
+            <span id="f-emp-web2" class="flex-1 text-center"></span>
+            <span>Página 2 de 4</span>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 3: ANÁLISIS FINANCIERO -->
+<div class="page print-break" id="page-3">
+    <div class="header-stripe"></div>
+    <div class="content flex flex-col justify-between" style="min-height: 270mm;">
+        <div>
+            <!-- Análisis Financiero -->
+            <h3 class="text-sm border-b border-dark pb-1 mb-4 text-dark uppercase font-bold">Análisis Financiero y Retorno</h3>
+            <div class="flex flex-col gap-4 mb-6 prevent-break">
+                <div class="border border-gray/20 p-4 rounded">
+                    <h4 class="font-bold text-center bg-gray text-white py-1 mb-2 text-xs">RETORNO DE INVERSIÓN</h4>
+                    <div class="relative" style="height:160px;">
+                        <canvas id="payback-chart"></canvas>
+                    </div>
+                    <div class="flex justify-around mt-3 text-[11px] text-gray border-t border-gray/20 pt-2">
+                        <span>Inversión: <span id="pc-inv" class="font-bold text-dark">-</span></span>
+                        <span>Retorno: <span id="pc-roi" class="font-bold text-dark">-</span></span>
+                        <span>Ahorro Anual: <span id="pc-aho" class="font-bold text-green-600">-</span></span>
+                    </div>
+                </div>
+                
+                <div class="border border-[#ffc800] p-4 rounded relative overflow-hidden bg-[#ffc800]/5" id="ley1715-card">
+                    <div class="absolute -right-3 -top-3 w-8 h-8 bg-[#ffc800] transform rotate-45"></div>
+                    <h4 class="font-bold text-center bg-[#ffc800] text-black py-1 mb-2 text-xs">CON LEY 1715 — DEDUCCIÓN DEL 50% DE LA INVERSIÓN</h4>
+                    <div class="relative" style="height:160px;">
+                        <canvas id="ley1715-chart"></canvas>
+                    </div>
+                    <div class="flex justify-around mt-3 text-[11px] text-gray border-t border-[#ffc800]/20 pt-2">
+                        <span>Inversión: <span id="f2-inv1" class="font-bold text-dark">-</span></span>
+                        <span class="text-[#ffc800] font-bold">Deducción 50%: <span id="f2-ded" class="font-bold text-black">-</span></span>
+                        <span>Inversión Neta: <span id="f2-inv2" class="font-bold text-dark">-</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-center mb-4 prevent-break">
+                <div class="bg-dark text-center px-8 py-3 rounded">
+                    <div class="text-[10px] text-white uppercase mb-1">Ahorro Acumulado a 25 Años</div>
+                    <div class="text-2xl font-bold text-primary" id="f-ahorro-25">-</div>
+                </div>
+            </div>
+
+            <!-- Proyección 25 Años Detallada -->
+            <div class="mt-4 border border-gray/20 rounded p-2">
+                <h4 class="font-bold uppercase text-[10px] text-dark text-center mb-2">Proyección Financiera Detallada a 25 Años</h4>
+                <table class="w-full text-[7px] text-gray border-collapse text-center">
+                    <thead>
+                        <tr class="bg-gray/10 text-dark border-b border-gray/30">
+                            <th class="p-1 font-bold">Año</th>
+                            <th class="p-1 font-bold">Energía (kWh)</th>
+                            <th class="p-1 font-bold">Tarifa ($/kWh)</th>
+                            <th class="p-1 font-bold">Ahorro Energía</th>
+                            <th class="p-1 font-bold">Costos O&M</th>
+                            <th class="p-1 font-bold">Flujo Neto</th>
+                            <th class="p-1 font-bold">Ahorro Acumulado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proyeccion-25-tbody">
+                        <!-- Javascript will inject 25 rows here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer Página 3 -->
+        <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
+                            <span id="f-emp-nombre3">Plantas Solares de Colombia</span>
+            <span id="f-emp-web3" class="flex-1 text-center"></span>
+            <span>Página 3 de 4</span>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 4: CRONOGRAMA -->
+<div class="page print-break" id="page-4">
+    <div class="header-stripe"></div>
+    <div class="content flex flex-col justify-between" style="min-height: 270mm;">
+        <div>
+            <div class="prevent-break mb-6" id="cronograma-container">
+                <h3 class="text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold">Cronograma de Ejecución (Días Hábiles)</h3>
+                <div id="crono-gantt-container" class="mt-2 text-[8px]"></div>
+            </div>
+            
+            <div class="flex justify-between items-end mt-12 mb-4 prevent-break">
+                <div class="w-1/2 pr-8">
+                    <div class="border-b border-dark mb-1 h-12 flex items-end">
+                        <span class="text-dark font-bold">Firma Asesor:</span>
+                    </div>
+                    <p class="text-[10px] font-bold text-dark uppercase" id="asesor-nombre"></p>
+                    <p class="text-[10px] text-gray">Consultor Energético</p>
+                    <p class="text-[10px] text-gray" id="asesor-tel"></p>
+                    <p class="text-[10px] text-gray" id="asesor-email"></p>
+                </div>
+                
+                <div class="mt-4 mb-2 prevent-break hidden" id="terminos-container">
+                    <h3 class="text-[9px] border-b border-gray/30 pb-0.5 mb-1 text-dark font-bold uppercase">Términos y Condiciones</h3>
+                    <ul class="list-disc pl-3 text-[7px] text-gray leading-tight" id="terminos-list-pdf"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Página 4 -->
+        <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
+                            <span id="f-emp-nombre4">Plantas Solares de Colombia</span>
+            <span id="f-emp-web4" class="flex-1 text-center"></span>
+            <span>Página 4 de 4</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    const cotizacionId = window.location.pathname.split('/').pop();
+    
+    // Helpers
+    function formatCurrency(v) { return '$' + Number(v||0).toLocaleString('es-CO', {maximumFractionDigits:0}); }
+    function formatNumber(v) { return Number(v||0).toLocaleString('es-CO', {maximumFractionDigits:1}); }
+    function formatDate(d) { return new Date(d).toLocaleDateString('es-CO', {year:'numeric',month:'long',day:'numeric'}); }
+    function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(+y, +m-1, +d); }
+    
+    async function init() {
+        try {
+            const pdfToken = new URLSearchParams(window.location.search).get('pdf_token');
+            const tokenQuery = pdfToken ? `&pdf_token=${encodeURIComponent(pdfToken)}` : '';
+            const res = await fetch(`/api/cotizaciones/${cotizacionId}?t=${new Date().getTime()}${tokenQuery}`);
+            const data = await res.json();
+            
+            // Header & Empresa
+            const logoUrl = data.empresa?.empresa_logo || '/static/img/logo.svg';
+            document.querySelector('.header-logo').src = logoUrl;
+            document.getElementById('emp-nombre').innerText = data.empresa?.empresa_nombre || 'Plantas Solares de Colombia';
+            document.getElementById('emp-dir').innerText = data.empresa?.empresa_direccion || '';
+            document.getElementById('emp-tel').innerText = data.empresa?.empresa_telefono || '';
+            document.getElementById('emp-email').innerText = data.empresa?.empresa_correo || '';
+            document.getElementById('emp-web').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('prop-codigo').innerText = data.codigo;
+            document.getElementById('prop-fecha').innerText = `Fecha: ${formatDate(data.fecha)}`;
+            // Expiration date: 15 days from proposal date
+            const fechaVence = new Date(data.fecha);
+            fechaVence.setDate(fechaVence.getDate() + 15);
+            document.getElementById('prop-vencimiento').innerText = `Vence: ${formatDate(fechaVence)}`;
+            document.getElementById('f-emp-nombre').innerText = data.empresa?.empresa_nombre || 'Plantas Solares de Colombia';
+            document.getElementById('f-emp-nombre2').innerText = data.empresa?.empresa_nombre || 'Plantas Solares de Colombia';
+            document.getElementById('f-emp-nombre3').innerText = data.empresa?.empresa_nombre || 'Plantas Solares de Colombia';
+            document.getElementById('f-emp-nombre4').innerText = data.empresa?.empresa_nombre || 'Plantas Solares de Colombia';
+            document.getElementById('f-emp-web').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('f-emp-web2').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('f-emp-web3').innerText = data.empresa?.empresa_web || '';
+            document.getElementById('f-emp-web4').innerText = data.empresa?.empresa_web || '';
+            
+            // Cliente
+            document.getElementById('cl-nombre').innerText = data.cliente_nombre;
+            document.getElementById('cl-id').innerText = `NIT/CC: ${data.cliente_cedula || '-'}`;
+            document.getElementById('cl-dir').innerText = `Dir: ${data.cliente_direccion || '-'}`;
+            document.getElementById('cl-ciudad').innerText = `Ciudad: ${data.cliente_ciudad || '-'}`;
+            document.getElementById('cl-tarifa').innerText = data.cliente_tarifa;
+            document.getElementById('cl-op').innerText = data.cliente_operador || '-';
+            document.getElementById('cl-consumo').innerText = `${formatNumber(data.cliente_consumo)} kWh/m`;
+            document.getElementById('cl-costo').innerText = formatCurrency(data.cliente_costo_kwh);
+            
+            let h = data.cliente_historial;
+            while (typeof h === 'string') {
+                try {
+                    const p = JSON.parse(h);
+                    if (p === h) break;
+                    h = p;
+                } catch {
+                    if (typeof h === 'string' && h.includes(',')) {
+                        h = h.split(',').map(v => v.trim());
+                    } else { break; }
+                }
+            }
+            const validHist = (Array.isArray(h) ? h : []).map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
+            const baseCons = data.cliente_consumo || 0;
+
+            const ultVal = validHist.length > 0 ? validHist[validHist.length - 1] : baseCons;
+            const maxVal = validHist.length > 0 ? Math.max(...validHist) : baseCons;
+            const minVal = validHist.length > 0 ? Math.min(...validHist) : baseCons;
+
+            document.getElementById('cl-ult-consumo').innerText = `${formatNumber(ultVal)} kWh/m`;
+            document.getElementById('cl-max-consumo').innerText = `${formatNumber(maxVal)} kWh/m`;
+            document.getElementById('cl-min-consumo').innerText = `${formatNumber(minVal)} kWh/m`;
+            
+            // Sistema
+            document.getElementById('sys-kwp').innerText = data.potencia_kwp;
+            document.getElementById('sys-prod').innerText = formatNumber(data.produccion_mensual_kwh);
+            document.getElementById('sys-pan').innerText = data.num_paneles;
+            document.getElementById('sys-area').innerText = data.area_requerida_m2;
+            document.getElementById('sys-prod-dia').innerText = formatNumber(data.produccion_diaria_kwh);
+            const pesoPaneles = (data.panel?.peso_kg || 0) * data.num_paneles;
+            document.getElementById('sys-peso').innerText = formatNumber(pesoPaneles * 1.1);
+
+            // Inversión / Items
+            const itemsData = data.items_json;
+            let items = [];
+            let mostrarPrecios = true;
+            let incluirLey1715 = true;
+            let baseConsumoText = 'PROMEDIO MENSUAL';
+            if (Array.isArray(itemsData)) {
+                items = itemsData;
+            } else if (itemsData && typeof itemsData === 'object') {
+                items = itemsData.items || [];
+                mostrarPrecios = itemsData.mostrar_precios !== false;
+                if (itemsData.incluir_ley1715 !== undefined) {
+                    incluirLey1715 = itemsData.incluir_ley1715;
+                }
+                if (itemsData.base_consumo) {
+                    const bc = itemsData.base_consumo;
+                    if (bc === 'ultimo') baseConsumoText = 'ÚLTIMO MES';
+                    else if (bc === 'mayor') baseConsumoText = 'MES DE MAYOR CONSUMO';
+                    else if (bc === 'promedio') baseConsumoText = 'PROMEDIO MENSUAL';
+                }
+            }
+            const esSuministro = (itemsData && typeof itemsData === 'object' && itemsData.tipo_propuesta === 'suministro');
+            if (esSuministro) {
+                document.querySelector('.text-right h2').innerText = 'PROPUESTA DE SUMINISTRO';
+                document.getElementById('solucion-heading').querySelector('h3').innerText = 'SUMINISTRO DE PRODUCTOS Y SERVICIOS';
+                document.getElementById('perfil-energetico-section').style.display = 'none';
+                document.getElementById('diseno-img-container').style.display = 'none';
+                document.getElementById('solar-kpis').style.display = 'none';
+                document.getElementById('prod-chart-container').style.display = 'none';
+                document.getElementById('eq-container').style.display = 'none';
+                document.getElementById('parametro-badge').style.display = 'none';
+                document.getElementById('solar-cost-block').style.display = 'none';
+                document.getElementById('page-3').style.display = 'none';
+                document.getElementById('page-2').style.display = 'none';
+                const compactarSuministro = items.length <= 6;
+                const supplyItemsSection = document.getElementById('supply-items-section');
+                const supplyItemsOnPage1 = document.getElementById('supply-items-on-page1');
+                if (compactarSuministro && supplyItemsSection && supplyItemsOnPage1) {
+                    supplyItemsOnPage1.style.display = 'block';
+
+                    const supplyImages = document.getElementById('resumen-imagenes');
+                    if (supplyImages) {
+                        supplyImages.classList.add('supply-product-images');
+                        supplyImages.style.display = 'flex';
+                        supplyItemsOnPage1.appendChild(supplyImages);
+                    }
+                    supplyItemsOnPage1.appendChild(supplyItemsSection);
+                    const supplyHeading = supplyItemsSection.querySelector('h3');
+                    if (supplyHeading) {
+                        supplyHeading.classList.remove('mt-8');
+                        supplyHeading.classList.add('mt-4');
+                    }
+
+                    const financialTotals = document.getElementById('financial-totals');
+                    if (financialTotals) {
+                        financialTotals.style.display = 'block';
+                        supplyItemsOnPage1.appendChild(financialTotals);
+                    }
+
+                    // En suministro, el cronograma y el cierre se integran en la portada
+                    // para aprovechar el espacio disponible y evitar páginas casi vacías.
+                    const cronograma = document.getElementById('cronograma-container');
+                    const cierre = document.querySelector('#page-4 .content > div > .flex.justify-between');
+                    if (cronograma) supplyItemsOnPage1.appendChild(cronograma);
+                    if (cierre) {
+                        cierre.classList.remove('mt-12', 'mb-4');
+                        cierre.classList.add('mt-6', 'mb-2');
+                        supplyItemsOnPage1.appendChild(cierre);
+                    }
+                }
+                if (compactarSuministro) {
+                    document.getElementById('page-4').style.display = 'none';
+                    document.getElementById('f-pagina').innerText = 'Página 1 de 1';
+                } else {
+                    document.getElementById('f-pagina').innerText = 'Página 1 de 2';
+                    document.querySelector('#page-4 .border-t span:last-child').innerText = 'Página 2 de 2';
+                }
+                // En suministro sí se muestran valores unitarios, subtotales e impuestos.
+                mostrarPrecios = true;
+                document.getElementById('pdf-propuesta-heading').innerHTML = 'Propuesta <span class="font-bold text-dark">de Suministro</span>';
+            }
+            document.getElementById('parametro-badge').innerText = baseConsumoText;
+
+            // Detectar si la cotización incluye batería (vía bateria_id o en los items)
+            const batItem = items.find(i => i.categoria === 'bateria');
+            const tieneBaterias = !!(data.bateria_id || data.num_baterias > 0 || batItem);
+
+            // Design image
+            const disenoUrl = tieneBaterias
+                ? (data.empresa?.diseno_on_grid_bat || '')
+                : (data.empresa?.diseno_on_grid || '');
+            if (disenoUrl && !esSuministro) {
+                const dc = document.getElementById('diseno-img-container');
+                dc.style.display = 'block';
+                document.getElementById('diseno-img').src = disenoUrl;
+            }
+            
+            if(data.panel) {
+                document.getElementById('eq-pan-marca').innerText = data.panel.marca?.toUpperCase() || '-';
+                document.getElementById('eq-pan-mod').innerText = `${data.panel.modelo?.toUpperCase() || '-'} (${data.panel.potencia_wp}Wp)`;
+            }
+            if(data.inversor) {
+                document.getElementById('eq-inv-marca').innerText = data.inversor.marca?.toUpperCase() || '-';
+                document.getElementById('eq-inv-mod').innerText = `${data.inversor.modelo?.toUpperCase() || '-'} (${data.inversor.potencia_kw}kW)`;
+            }
+
+            // Tarjeta de Batería
+            if(tieneBaterias) {
+                document.getElementById('eq-bateria-box').style.display = 'block';
+                const batMarca = data.bateria?.marca || (batItem ? (batItem.nombre ? batItem.nombre.split(' ')[0] : 'Batería') : 'Batería');
+                const batMod = data.bateria?.modelo 
+                    ? `${data.bateria.modelo} (${data.bateria.capacidad_kwh || data.bateria.potencia_kw}${data.bateria.capacidad_kwh ? 'kWh' : 'kW'})`
+                    : (batItem ? batItem.nombre : 'Litio / Backup');
+                const numBat = data.num_baterias || (batItem ? batItem.cantidad : 1);
+                const cantBatText = numBat > 1 ? ` x${numBat}` : '';
+
+                document.getElementById('eq-bat-marca').innerText = batMarca.toUpperCase();
+                document.getElementById('eq-bat-mod').innerText = `${batMod.toUpperCase()}${cantBatText}`;
+
+                const eqGrid = document.getElementById('eq-container');
+                eqGrid.classList.remove('grid-cols-2');
+                eqGrid.classList.add('grid-cols-3');
+            }
+
+            // Hide/show precio column
+            const headerRow = document.getElementById('items-header');
+            if (mostrarPrecios) {
+                if (esSuministro) {
+                    headerRow.innerHTML += '<th class="text-right">V. Unitario</th><th class="text-right">Subtotal</th>';
+                } else {
+                    headerRow.innerHTML += '<th class="text-center">Subtotal</th>';
+                }
+            }
+
+            const tb = document.getElementById('items-tbody');
+            let itemsHtml = '';
+            const margen = data.margen_comercial_pct || 30;
+            let subtotalIvaItems = 0;
+            items.forEach(item => {
+                const precioVenta = Math.round(item.precio_unitario * (1 + margen / 100));
+                itemsHtml += '<tr>';
+                itemsHtml += `<td class="uppercase font-bold">${item.categoria}</td>`;
+                itemsHtml += `<td class="uppercase">${item.nombre}</td>`;
+                itemsHtml += `<td class="text-center">${item.cantidad}</td>`;
+                if (mostrarPrecios) {
+                    itemsHtml += `<td class="text-right">${formatCurrency(precioVenta)}</td>`;
+                    if (esSuministro) {
+                        itemsHtml += `<td class="text-right">${formatCurrency(precioVenta * (Number(item.cantidad) || 0))}</td>`;
+                    }
+                }
+                itemsHtml += '</tr>';
+                if (item.iva !== false) {
+                    subtotalIvaItems += item.subtotal;
+                }
+            });
+            tb.innerHTML = itemsHtml;
+
+            const subtotal = parseFloat(data.subtotal) || 0;
+            const pct = parseFloat(margen) || 0;
+            const montoMargen = Math.round(subtotal * (pct / 100));
+            const subtotalConMargen = subtotal + montoMargen;
+            
+            // Usar la inversión total calculada y guardada desde el cotizador para evitar discrepancias
+            const totalConIva = parseFloat(data.total_inversion) || 0;
+            const montoIva = Math.max(0, totalConIva - subtotalConMargen);
+
+            document.getElementById('tot-subtotal').innerText = formatCurrency(subtotalConMargen);
+            document.getElementById('tot-iva').innerText = formatCurrency(montoIva);
+            document.getElementById('tot-inv').innerText = formatCurrency(totalConIva);
+
+            // Financiero - Payback charts
+            const p25 = data.proyeccion_25_json || [];
+            if (p25.length > 0) {
+                // Scenario 1: Without incentives
+                renderPaybackChart('payback-chart', data.total_inversion, p25, data.roi_sin_incentivos_meses / 12, {
+                    acumuladoField: 'ahorro_acumulado_s1'
+                });
+                // Scenario 2: With Law 1715 incentives (conditional)
+                if (incluirLey1715) {
+                    const deduccion = data.total_inversion * (data.deduccion_renta_pct / 100);
+                    const inversionNeta = data.total_inversion - Math.round(deduccion * 0.33);
+                    renderPaybackChart('ley1715-chart', inversionNeta, p25, data.roi_con_incentivos_meses / 12, {
+                        acumuladoField: 'ahorro_acumulado_s2',
+                        barColor: 'rgba(255, 200, 0, 0.25)',
+                        barBorderColor: '#d4a800',
+                        lineColor: '#fbbf24',
+                        lineFillColor: 'rgba(251, 191, 36, 0.1)',
+                        invLineColor: '#f97316',
+                        roiMarkerColor: '#fbbf24',
+                        roiTextColor: '#92400e'
+                    });
+                } else {
+                    document.getElementById('ley1715-card').style.display = 'none';
+                }
+            }
+            document.getElementById('pc-inv').innerText = formatCurrency(data.total_inversion);
+            document.getElementById('pc-roi').innerText = (data.roi_sin_incentivos_meses / 12).toFixed(1) + ' años';
+            document.getElementById('pc-aho').innerText = formatCurrency(data.ahorro_anual) + '/año';
+
+            // 25-Year Proyeccion Table
+            if (p25.length > 0) {
+                renderProyeccionTablePDF(p25, incluirLey1715 ? 'ahorro_acumulado_s2' : 'ahorro_acumulado_s1');
+            }
+
+            // Beneficio Ley 1715: hasta 50% deducción de renta (solo si aplica)
+            if (incluirLey1715) {
+                const deduccion = data.total_inversion * (data.deduccion_renta_pct / 100);
+                const inversionNeta = data.total_inversion - Math.round(deduccion * 0.33);
+                document.getElementById('f2-inv1').innerText = formatCurrency(data.total_inversion);
+                document.getElementById('f2-ded').innerText = formatCurrency(deduccion);
+                document.getElementById('f2-inv2').innerText = formatCurrency(inversionNeta);
+            }
+
+            // 25 Years
+            if(p25 && p25.length > 0) {
+                const ult = p25[p25.length - 1];
+                const campoAhorro25 = incluirLey1715 ? 'ahorro_acumulado_s2' : 'ahorro_acumulado_s1';
+                const ahorroEl = document.getElementById('f-ahorro-25');
+                if (ahorroEl) ahorroEl.innerText = formatCurrency(ult[campoAhorro25]);
+            }
+
+            // Cronograma Gantt
+            const cronoContainer = document.getElementById('crono-gantt-container');
+            const crono = data.cronograma_json;
+            if (crono && crono.length > 0) {
+                if (crono[0].fecha_inicio) {
+                    const dates = crono.map(c => parseDate(c.fecha_inicio));
+                    const minStart = new Date(Math.min(...dates));
+                    const maxEnd = new Date(Math.max(...crono.map(c => parseDate(c.fecha_fin))));
+
+                    function countWeekdays(d1, d2) {
+                        let c = 0;
+                        const d = new Date(Math.min(d1, d2));
+                        const e = new Date(Math.max(d1, d2));
+                        while (d <= e) { const dw = d.getDay(); if (dw !== 0 && dw !== 6) c++; d.setDate(d.getDate() + 1); }
+                        return c;
+                    }
+                    function weekdayOffset(from, target) {
+                        let c = 0;
+                        const d = new Date(from);
+                        while (d < target) { const dw = d.getDay(); if (dw !== 0 && dw !== 6) c++; d.setDate(d.getDate() + 1); }
+                        return c;
+                    }
+
+                    // Generate weekday dates array
+                    const wdDates = [];
+                    const d = new Date(minStart);
+                    while (d <= maxEnd) {
+                        const dw = d.getDay();
+                        if (dw !== 0 && dw !== 6) wdDates.push(new Date(d));
+                        d.setDate(d.getDate() + 1);
+                    }
+                    const totalBDays = wdDates.length;
+
+                    // Group into calendar weeks (Mon-Sun)
+                    const calWeeks = [];
+                    let curWeek = [];
+                    wdDates.forEach((dt, i) => {
+                        if (curWeek.length > 0 && dt.getDay() === 1) {
+                            calWeeks.push(curWeek);
+                            curWeek = [];
+                        }
+                        curWeek.push(dt);
+                    });
+                    if (curWeek.length > 0) calWeeks.push(curWeek);
+                    const totalCWeeks = calWeeks.length;
+
+                    const ganttBarRow = (startBDay, durBDays) => {
+                        const leftPct = (startBDay / totalBDays) * 100;
+                        const widthPct = (durBDays / totalBDays) * 100;
+                        let cells = '';
+                        for (let d = 0; d < totalBDays; d++) {
+                            const isWeekStart = d === 0 || wdDates[d].getDay() === 1;
+                            cells += `<div style="flex:1;height:100%;overflow:visible;${isWeekStart?'border-left:2px solid #e0e0e0;':'border-left:1px solid #f0f0f0;'}${d%2===0?'background:#fafafa;':''}"></div>`;
+                        }
+                        return cells + `<div style="position:absolute;top:2px;left:${leftPct}%;width:${widthPct}%;height:16px;background:#ffc800;border-radius:3px;min-width:6px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:#333;">${Math.round(durBDays)}d</div>`;
+                    };
+
+                    const MONTHS_ES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
+                    const ganttHeaderRow = () => {
+                        let html = '<div style="display:flex;border-bottom:1px solid #999;font-size:6px;color:#333;font-weight:bold;height:14px;line-height:14px;">';
+                        wdDates.forEach((dt, i) => {
+                            const isWeekStart = dt.getDay() === 1 || i === 0;
+                            const dayNum = dt.getDate();
+                            const monthName = MONTHS_ES[dt.getMonth()];
+                            const label = `${monthName}${dayNum}`;
+                            html += `<div style="flex:1;text-align:center;overflow:hidden;${isWeekStart?'border-left:2px solid #999;':'border-left:1px solid #ddd;'}">`;
+                            html += `${totalBDays <= 25 || i === 0 || dt.getDay() === 1 || dt.getDay() === 5 ? label : ''}</div>`;
+                        });
+                        html += '</div>';
+                        return html;
+                    };
+
+                    const ganttWeekRow = () => {
+                        let html = '<div style="display:flex;font-size:7px;color:#666;height:12px;line-height:12px;border-bottom:2px solid #666;">';
+                        calWeeks.forEach((weekDays, w) => {
+                            const bDays = weekDays.length;
+                            html += `<div style="flex:${bDays};text-align:center;font-weight:bold;border-left:2px solid #999;">SEMANA ${w+1}</div>`;
+                        });
+                        html += '</div>';
+                        return html;
+                    };
+
+                    let ganttHtml = '<div style="display:flex;width:100%;overflow:visible;">';
+                    // Left column: Actividad
+                    ganttHtml += '<div style="width:40%;padding-right:8px;overflow:visible;">';
+                    ganttHtml += '<div style="font-size:7px;font-weight:bold;color:#666;height:22px;line-height:22px;text-transform:uppercase;">Actividad</div>';
+                    crono.forEach((c, i) => {
+                        const bg = i % 2 === 0 ? '' : 'background:#f8f8f8;';
+                        ganttHtml += `<div style="height:20px;display:flex;align-items:center;font-size:9px;font-weight:bold;padding-left:4px;${bg}">${c.actividad}</div>`;
+                    });
+                    ganttHtml += '</div>';
+                    // Right column: Timeline (weekdays only)
+                    ganttHtml += '<div style="width:60%;overflow:visible;">';
+                    ganttHtml += ganttHeaderRow();
+                    ganttHtml += ganttWeekRow();
+                    crono.forEach((c, i) => {
+                        const start = parseDate(c.fecha_inicio);
+                        const end = parseDate(c.fecha_fin);
+                        const startBDay = weekdayOffset(minStart, start);
+                        const durBDays = Math.max(countWeekdays(start, end), 1);
+                        ganttHtml += `<div style="display:flex;height:20px;position:relative;overflow:visible;${i%2===0?'':'background:#f8f8f8;'}">`;
+                        ganttHtml += ganttBarRow(startBDay, durBDays);
+                        ganttHtml += '</div>';
+                    });
+                    ganttHtml += '</div></div>';
+                    cronoContainer.innerHTML = ganttHtml;
+                } else {
+                    // Old format (semana) — simple table
+                    let oldHtml = `<table class="sq-pdf-table"><thead><tr><th style="width:15%">Semana</th><th style="width:85%">Actividad</th></tr></thead><tbody>`;
+                    crono.forEach(c => {
+                        oldHtml += `<tr><td class="font-bold">SEMANA ${c.semana}</td><td>${c.actividad}</td></tr>`;
+                    });
+                    oldHtml += '</tbody></table>';
+                    cronoContainer.innerHTML = oldHtml;
+                }
+            } else {
+                cronoContainer.innerHTML = '<p class="text-gray text-sm py-4">Cronograma no disponible</p>';
+            }
+
+            // Configuración del Asesor y Términos
+            if(data.asesor) {
+                document.getElementById('asesor-nombre').innerText = data.asesor.asesor_nombre || '';
+                document.getElementById('asesor-tel').innerText = data.asesor.asesor_telefono || '';
+                document.getElementById('asesor-email').innerText = data.asesor.asesor_correo || '';
+                
+                if (data.asesor.terminos_condiciones) {
+                    try {
+                        const terminosRaw = JSON.parse(data.asesor.terminos_condiciones);
+                        const terminos = (Array.isArray(terminosRaw) ? terminosRaw : []).map(t => {
+                            if (typeof t !== 'string') return t || { texto: '', aplica: 'ambos' };
+                            const soloSolar = /panel|bater[ií]a|generaci[oó]n|RETIE|operador de red|legalizaci[oó]n/i.test(t);
+                            return { texto: t, aplica: soloSolar ? 'solar' : 'ambos' };
+                        });
+                        if (Array.isArray(terminos) && terminos.length > 0) {
+                            const ul = document.getElementById('terminos-list-pdf');
+                            ul.innerHTML = '';
+                            terminos.forEach(t => {
+                                const texto = String(t.texto || '').trim();
+                                const aplica = t.aplica || 'ambos';
+                                const aplicaAPropuesta = aplica === 'ambos' || (esSuministro && aplica === 'suministro') || (!esSuministro && aplica === 'solar');
+                                if (texto && aplicaAPropuesta) {
+                                    const li = document.createElement('li');
+                                    li.className = 'mb-0.5';
+                                    li.innerText = texto;
+                                    ul.appendChild(li);
+                                }
+                            });
+                            document.getElementById('terminos-container').classList.remove('hidden');
+                        }
+                    } catch(e) {}
+                }
+            }
+
+            // Página 2: Propuesta Planta Solar (Resumen Visual)
+            const bomTbody = document.getElementById('bom-list-pdf');
+            if (bomTbody && items) {
+                bomTbody.innerHTML = items.map((it, idx) => `
+                    <tr class="border-b border-gray/10">
+                        <td class="p-1.5 text-center text-primary font-bold text-[10px]">${idx + 1}</td>
+                        <td class="p-1.5 uppercase font-light text-dark">${it.nombre}</td>
+                        <td class="p-1.5 text-center font-bold text-dark">${it.cantidad}</td>
+                    </tr>
+                `).join('');
+            }
+            
+            const costoTotalEl = document.getElementById('costo-planta-solar');
+            if (costoTotalEl) {
+                const totalM = (data.total_inversion / 1000000).toFixed(1);
+                costoTotalEl.innerHTML = `${totalM} <span class="text-3xl font-light text-dark">millones</span>`;
+            }
+            
+            const imgContainer = document.getElementById('resumen-imagenes');
+            if (imgContainer) {
+                let imgHtml = '';
+                const buildEqCard = (imgUrl, eqTitle, eqDesc, marca) => {
+                    const mainImg = imgUrl || '/static/img/placeholder.png';
+                    const brandHtml = marca ? `<div class="text-primary font-bold text-xl mb-4 capitalize">${marca}</div>` : '';
+                    return `
+                        <div class="flex-1 flex flex-col items-center justify-end text-center p-2">
+                            ${brandHtml}
+                            <div style="width:160px;height:180px;display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem;">
+                                <img src="${mainImg}" style="width:160px;height:180px;object-fit:contain;" onerror="this.src='/static/img/placeholder.png'">
+                            </div>
+                            <div class="font-bold text-[10px] text-dark uppercase leading-tight">${eqTitle}</div>
+                            <div class="text-[9px] text-gray uppercase mt-1 leading-tight font-bold">${eqDesc}</div>
+                        </div>
+                    `;
+                };
+                
+                if (esSuministro) {
+                    // Los ítems de suministro pueden ser equipos o productos del inventario.
+                    // Sus fotografías se cargan desde la ficha asociada al equipo.
+                    items.forEach(item => {
+                        const equipo = item.equipo || {};
+                        const imagen = equipo.imagen_url || item.imagen_url;
+                        if (!imagen) return;
+                        imgHtml += buildEqCard(
+                            imagen,
+                            (item.categoria || 'PRODUCTO').toUpperCase(),
+                            item.nombre || equipo.modelo || '',
+                            equipo.marca || ''
+                        );
+                    });
+                } else if (data.panel) {
+                    imgHtml += buildEqCard(
+                        data.panel.imagen_url,
+                        `PANEL BIFACIAL`,
+                        `${data.panel.potencia_wp} Wt TIPO N`,
+                        data.panel.marca
+                    );
+                }
+                
+                if (!esSuministro && data.inversor) {
+                    // Normalize helper: strip accents for reliable comparison
+                    const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                    const tipoNorm = norm(data.inversor.tipo);
+                    const descNorm = norm(data.inversor.descripcion);
+                    const modeloNorm = norm(data.inversor.modelo);
+                    // Check phase based on tipo (sub-tipo), descripcion, or modelo
+                    const isTrifasico = tipoNorm.includes('trifasico') ||
+                                        descNorm.includes('trifasico') ||
+                                        descNorm.includes('three phase') ||
+                                        modeloNorm.includes('tri') ||
+                                        (data.inversor.fases === 3);
+                    const faseStr = isTrifasico ? 'TRIFÁSICO' : 'MONOFÁSICO';
+                    const tipoInv = tipoNorm.includes('hibrido') || descNorm.includes('hibrido') || descNorm.includes('hybrid') ? 'HÍBRIDO' : 'ON GRID';
+                    imgHtml += buildEqCard(
+                        data.inversor.imagen_url,
+                        `INVERSOR ${tipoInv}`,
+                        `${data.inversor.potencia_kw} Kw ${faseStr}`,
+                        data.inversor.marca
+                    );
+                }
+                
+                if (!esSuministro && tieneBaterias && data.bateria) {
+                    imgHtml += buildEqCard(
+                        data.bateria.imagen_url,
+                        `BATERÍA LÍTIO`,
+                        `${data.bateria.capacidad_kwh || data.bateria.potencia_kw} kWh`,
+                        data.bateria.marca
+                    );
+                }
+                
+                imgContainer.innerHTML = imgHtml;
+            }
+
+            // Render Chart
+            renderProdCurve(data.potencia_kwp, data.cliente_hsp);
+
+            // Print automatically after 1s if ?print=1
+            if (window.location.search.includes('print=1')) {
+                setTimeout(() => window.print(), 1000);
+            }
+
+        } catch (e) {
+            console.error("Error cargando PDF", e);
+            document.body.innerHTML = `<div class="p-8 text-red-500">Error cargando cotización: ${e.message}</div>`;
+        }
+    }
+
+    function renderPaybackChart(canvasId, totalInv, proyeccion, roiAnos, opts = {}) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const {
+            acumuladoField = 'ahorro_acumulado_s1',
+            barColor = 'rgba(255, 200, 0, 0.5)',
+            barBorderColor = '#ffc800',
+            lineColor = '#22c55e',
+            lineFillColor = 'rgba(34, 197, 94, 0.08)',
+            invLineColor = '#ef4444',
+            roiMarkerColor = '#4ade80',
+            roiTextColor = '#166534'
+        } = opts;
+
+        const years = proyeccion.map(p => p.anio);
+        const valorAuto = proyeccion.map(p => p.valor_autoconsumo || p.valor_energia || p.flujo_neto);
+        const valorExc = proyeccion.map(p => p.valor_excedentes || 0);
+        const acumulado = proyeccion.map(p => p[acumuladoField]);
+
+        // Custom plugin to draw investment target line and ROI marker
+        const pluginId = 'targetLine_' + canvasId.replace('-', '_');
+        const targetLinePlugin = {
+            id: pluginId,
+            afterDraw: function(chart) {
+                const yScale = chart.scales.y;
+                const xScale = chart.scales.x;
+                const yPixel = yScale.getPixelForValue(totalInv);
+
+                if (yPixel < yScale.top || yPixel > yScale.bottom) return;
+
+                const ctx2 = chart.ctx;
+                // Investment line
+                ctx2.save();
+                ctx2.setLineDash([5, 4]);
+                ctx2.strokeStyle = invLineColor;
+                ctx2.lineWidth = 1.5;
+                ctx2.beginPath();
+                ctx2.moveTo(xScale.left, yPixel);
+                ctx2.lineTo(xScale.right, yPixel);
+                ctx2.stroke();
+                ctx2.restore();
+
+                // Label
+                ctx2.save();
+                ctx2.fillStyle = invLineColor;
+                ctx2.font = 'bold 7px Inter, sans-serif';
+                ctx2.textAlign = 'right';
+                ctx2.fillText('Inversión: ' + formatCurrency(totalInv), xScale.right - 4, yPixel - 3);
+                ctx2.restore();
+
+                // ROI marker
+                const roiAnio = Math.round(roiAnos);
+                if (roiAnio >= 1 && roiAnio <= 25) {
+                    const roiX = xScale.getPixelForValue(roiAnio);
+                    const roiDataPoint = proyeccion[roiAnio - 1];
+                    if (roiDataPoint) {
+                        const roiY = yScale.getPixelForValue(roiDataPoint[acumuladoField]);
+                        ctx2.save();
+                        ctx2.beginPath();
+                        ctx2.arc(roiX, roiY, 6, 0, 2 * Math.PI);
+                        ctx2.fillStyle = roiMarkerColor;
+                        ctx2.strokeStyle = '#fff';
+                        ctx2.lineWidth = 2;
+                        ctx2.fill();
+                        ctx2.stroke();
+                        ctx2.restore();
+
+                        ctx2.save();
+                        ctx2.fillStyle = roiTextColor;
+                        ctx2.font = 'bold 7px Inter, sans-serif';
+                        ctx2.textAlign = 'center';
+                        ctx2.fillText('✓ ROI ' + roiAnos.toFixed(1) + ' años', roiX, roiY - 10);
+                        ctx2.restore();
+                    }
+                }
+            }
+        };
+
+        new Chart(ctx, {
+            plugins: [targetLinePlugin],
+            type: 'bar',
+            data: {
+                labels: years,
+                datasets: [
+                    {
+                        label: 'Ahorro Autoconsumo',
+                        data: valorAuto,
+                        backgroundColor: 'rgba(76, 175, 80, 0.65)',
+                        borderColor: '#4caf50',
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        stack: 'flujo',
+                        order: 2
+                    },
+                    {
+                        label: 'Venta Excedentes (30%)',
+                        data: valorExc,
+                        backgroundColor: 'rgba(2, 132, 199, 0.65)',
+                        borderColor: '#0284c7',
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        stack: 'flujo',
+                        order: 2
+                    },
+                    {
+                        label: 'Acumulado Total',
+                        type: 'line',
+                        data: acumulado,
+                        borderColor: lineColor,
+                        backgroundColor: lineFillColor,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 1.5,
+                        pointBackgroundColor: lineColor,
+                        pointHoverRadius: 4,
+                        borderWidth: 2,
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            padding: 8,
+                            font: { size: 8, family: 'Inter, sans-serif' },
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatCurrency(context.parsed.y);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        display: true,
+                        beginAtZero: true,
+                        grid: { color: '#f0f0f0' },
+                        title: { display: false },
+                        ticks: {
+                            font: { size: 8, family: 'Inter, sans-serif' },
+                            callback: function(v) { return '$' + Math.round(v/1000) + 'k'; }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: 7, family: 'Inter, sans-serif' },
+                            maxTicksLimit: 13,
+                            maxRotation: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderProdCurve(kwp, hsp) {
+        const ctx = document.getElementById('prod-chart');
+        if (window.pdfRender) {
+            // Print media can be applied after the page loads. Set the canvas
+            // dimensions explicitly so Chart.js does not reuse screen geometry.
+            const box = ctx.parentElement;
+            ctx.width = Math.max(600, box.clientWidth);
+            ctx.height = 180;
+            ctx.style.width = '100%';
+            ctx.style.height = '180px';
+            box.style.height = '190px';
+        }
+        
+        // Simular curva campana (Gaussiana simple para generación solar de 6am a 6pm)
+        const hours = ['6AM','7AM','8AM','9AM','10AM','11AM','12PM','1PM','2PM','3PM','4PM','5PM','6PM'];
+        const factors = [0, 0.1, 0.3, 0.6, 0.85, 1, 1, 0.85, 0.6, 0.3, 0.1, 0, 0];
+        
+        // Normalizar curva para que el area aproxime HSP * kWp
+        const sumFactors = factors.reduce((a,b)=>a+b, 0);
+        const data = factors.map(f => (f / sumFactors) * hsp * kwp);
+
+        if (window.pdfRender) {
+            // Chart.js can retain screen coordinates when Chrome switches to
+            // print media. Use an explicit SVG for the PDF so the curve geometry
+            // is identical at every print resolution.
+            const width = 1000, height = 230;
+            // Reserve space above the plot for the labels at the daily peak.
+            const left = 58, right = 12, top = 28, bottom = 42;
+            const plotWidth = width - left - right;
+            const plotHeight = height - top - bottom;
+            const maxValue = Math.max(2, Math.ceil(Math.max(...data) / 2) * 2);
+            const points = data.map((value, index) => {
+                const x = left + (index * plotWidth / (data.length - 1));
+                const y = top + plotHeight - (value / maxValue) * plotHeight;
+                return { x, y, value };
+            });
+            const linePath = points.map((p, i) => `${i ? 'L' : 'M'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
+            const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${top + plotHeight} L ${points[0].x.toFixed(2)} ${top + plotHeight} Z`;
+            const grid = Array.from({ length: 5 }, (_, i) => {
+                const value = maxValue * i / 4;
+                const y = top + plotHeight - (value / maxValue) * plotHeight;
+                return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" stroke="#eeeeee"/><text x="${left - 8}" y="${y + 4}" text-anchor="end" fill="#666" font-size="12">${value.toFixed(1)}</text>`;
+            }).join('');
+            const labels = points.map((p, i) => `<text x="${p.x}" y="${height - 10}" text-anchor="middle" fill="#666" font-size="12">${hours[i]}</text>`).join('');
+            const valueLabels = points.filter(p => p.value > 0).map(p => `<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" fill="#131313" font-size="12" font-weight="700">${p.value.toFixed(1)}</text>`).join('');
+            const dots = points.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#ffc800" stroke="#fff" stroke-width="1"/>`).join('');
+            ctx.parentElement.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Curva de producción diaria" style="width:100%;height:190px;display:block;overflow:visible"><text transform="translate(14 ${top + plotHeight / 2}) rotate(-90)" text-anchor="middle" fill="#666" font-size="13">kW Generados</text>${grid}<path d="${areaPath}" fill="rgba(255,200,0,0.2)"/><path d="${linePath}" fill="none" stroke="#ffc800" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${valueLabels}${labels}</svg>`;
+            return;
+        }
+
+        // Local plugin for hourly labels (only for prod-chart)
+        const hourlyLabelsPlugin = {
+            id: 'hourlyLabels',
+            afterDraw: function(chart) {
+                const ctx2 = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                ctx2.fillStyle = '#131313';
+                ctx2.font = 'bold 8px Inter, sans-serif';
+                ctx2.textAlign = 'center';
+                meta.data.forEach(function(elem, i) {
+                    const val = chart.data.datasets[0].data[i];
+                    if (val > 0) {
+                        ctx2.fillText(val.toFixed(1), elem.x, elem.y - 10);
+                    }
+                });
+            }
+        };
+
+        new Chart(ctx, {
+            plugins: [hourlyLabelsPlugin],
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    label: 'Potencia Generada Estimada (kW)',
+                    data: data,
+                    borderColor: '#ffc800',
+                    backgroundColor: 'rgba(255, 200, 0, 0.2)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#ffc800',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 0.5
+                }]
+            },
+            options: {
+                responsive: !window.pdfRender,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 18 } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) { return context.parsed.y.toFixed(1) + ' kW'; }
+                        }
+                    }
+                },
+                scales: {
+                    y: { display: true, beginAtZero: true, grid: { color: '#eee' }, title: { display: true, text: 'kW Generados' }, ticks: { callback: function(v) { return v.toFixed(1); } } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // Helper to abbreviate large numbers for chart labels
+    function abreviarNumero(v) {
+        if (v === 0) return '';
+        const abs = Math.abs(v);
+        if (abs >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+        if (abs >= 1000) return Math.round(v / 1000) + 'K';
+        return String(Math.round(v));
+    }
+
+    function renderProyeccionTablePDF(proyeccion, acumuladoField) {
+        const tbody = document.getElementById('proyeccion-25-tbody');
+        if (!tbody) return;
+
+        let html = '';
+        proyeccion.forEach(p => {
+            const ahorroEnergia = p.valor_autoconsumo || p.valor_energia || 0;
+            const aom = p.aom || 0;
+            const flujo = p.flujo_neto || 0;
+            const acumulado = p[acumuladoField] || 0;
+            const energiaKwh = p.energia_kwh || 0;
+            const tarifa = p.precio_kwh || 0;
+
+            html += `
+                <tr class="border-b border-gray/10">
+                    <td class="p-1 font-bold text-dark">${p.anio}</td>
+                    <td class="p-1">${Math.round(energiaKwh).toLocaleString()}</td>
+                    <td class="p-1">${formatCurrency(tarifa)}</td>
+                    <td class="p-1 text-green-700">${formatCurrency(ahorroEnergia)}</td>
+                    <td class="p-1 text-red-600">-${formatCurrency(aom)}</td>
+                    <td class="p-1 font-bold ${flujo >= 0 ? 'text-green-700' : 'text-red-600'}">${formatCurrency(flujo)}</td>
+                    <td class="p-1 font-bold text-dark">${formatCurrency(acumulado)}</td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    async function descargarPDF() {
+        const btn = event.target.closest('button');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando...';
+        try {
+            const res = await fetch(`/api/cotizaciones/${cotizacionId}/pdf-download`);
+            if (!res.ok) {
+                const detail = await res.json().catch(() => null);
+                throw new Error(detail?.detail || 'Error al generar PDF');
+            }
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.toLowerCase().includes('application/pdf')) {
+                throw new Error('El servidor no devolvió un PDF válido');
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `propuesta_${cotizacionId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('Error generando PDF: ' + e.message);
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined">download</span> Descargar PDF';
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
