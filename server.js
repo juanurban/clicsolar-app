@@ -68,9 +68,15 @@ app.use('/api', async (req, res, next) => {
 
 // Usuarios, Perfiles, Permisos (all under /api)
 const usuariosRouter = require('./routes/usuarios');
-app.use('/api/productos', usuariosRouter);
-app.use('/api/perfiles', usuariosRouter); // Re-route /api/perfiles/* to usuarios router (which handles /perfiles)
-app.use('/api/permisos', usuariosRouter); // Re-route /api/permisos to usuarios router
+app.use('/api/usuarios', usuariosRouter);
+app.use('/api/perfiles', (req, res, next) => {
+    req.url = req.url === '/' ? '/perfiles' : `/perfiles${req.url}`;
+    usuariosRouter(req, res, next);
+});
+app.use('/api/permisos', (req, res, next) => {
+    req.url = req.url === '/' ? '/permisos' : `/permisos${req.url}`;
+    usuariosRouter(req, res, next);
+});
 
 // Clientes
 app.use('/api/clientes', require('./routes/clientes'));
