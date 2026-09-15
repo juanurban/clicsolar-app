@@ -40,9 +40,13 @@ app.use('/static', express.static(path.join(__dirname, 'static')));
 app.use('/api/auth', authRouter);
 app.use('/api/empresas', require('./routes/empresas'));
 
+// Configuración (branding - público para login)
+app.use('/api/configuracion', require('./routes/configuracion'));
+
 // Every non-authenticated API call is scoped to the signed-in company.
 app.use('/api', async (req, res, next) => {
-  if (req.path === '/auth' || req.path.startsWith('/auth/')) return next();
+  if (req.path === '/auth' || req.path.startsWith('/auth/') || req.path === '/login' || req.path.startsWith('/login/') || req.path === '/logout' || req.path.startsWith('/logout/')) return next();
+  if (req.path === '/configuracion' || req.path.startsWith('/configuracion/')) return next();
   // El renderizador headless no comparte las cookies del navegador. Sólo se
   // permite saltar la sesión con un token HMAC de corta duración generado por
   // la propia descarga PDF y únicamente para consultar una cotización.
@@ -64,7 +68,7 @@ app.use('/api', async (req, res, next) => {
 
 // Usuarios, Perfiles, Permisos (all under /api)
 const usuariosRouter = require('./routes/usuarios');
-app.use('/api/usuarios', usuariosRouter);
+app.use('/api/productos', usuariosRouter);
 app.use('/api/perfiles', usuariosRouter); // Re-route /api/perfiles/* to usuarios router (which handles /perfiles)
 app.use('/api/permisos', usuariosRouter); // Re-route /api/permisos to usuarios router
 
@@ -82,9 +86,6 @@ app.use('/api/cotizaciones', require('./routes/cotizaciones'));
 
 // Proyectos (Kanban)
 app.use('/api/proyectos', require('./routes/proyectos'));
-
-// Configuración
-app.use('/api/configuracion', require('./routes/configuracion'));
 
 // Dashboard & Reportes
 app.use('/api', require('./routes/reportes'));

@@ -73,7 +73,7 @@ router.get('/me', async (req, res) => {
   if (!token) return res.status(401).json({ detail: "No autenticado" });
 
   try {
-    const [sessions] = await pool.query("SELECT * FROM sesiones WHERE token = ? AND datetime(expires_at) > datetime('now')", [token]);
+    const [sessions] = await pool.query("SELECT * FROM sesiones WHERE token = ? AND expires_at > NOW()", [token]);
     if (sessions.length === 0) return res.status(401).json({ detail: "Sesión expirada" });
     
     const session = sessions[0];
@@ -103,7 +103,7 @@ module.exports = router;
 module.exports.getCurrentUser = async function getCurrentUser(req) {
   const token = req.cookies.sq_session;
   if (!token) return null;
-  const [sessions] = await pool.execute("SELECT * FROM sesiones WHERE token = ? AND datetime(expires_at) > datetime('now')", [token]);
+  const [sessions] = await pool.execute("SELECT * FROM sesiones WHERE token = ? AND expires_at > NOW()", [token]);
   if (sessions.length === 0) return null;
   const [users] = await pool.execute(`
     SELECT u.id, u.username, u.nombre_completo, u.correo, u.perfil_id, u.empresa_id,
