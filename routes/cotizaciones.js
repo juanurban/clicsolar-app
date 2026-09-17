@@ -559,6 +559,7 @@ router.get('/:id/pdf-download', async (req, res) => {
     const previewUrl = `${req.protocol}://${req.get('host')}/pdf/${encodeURIComponent(req.params.id)}?pdf=1&pdf_token=${encodeURIComponent(pdfToken)}`;
 
     const browser = await puppeteer.launch({
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     });
@@ -581,7 +582,9 @@ router.get('/:id/pdf-download', async (req, res) => {
     res.setHeader('Content-Length', pdfBuffer.length);
     res.end(pdfBuffer);
   } catch (error) {
-    console.error('Error generando PDF:', error.message);
+    console.error('Error generando PDF con Puppeteer:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('Fallback: generando PDF con formato legado...');
     if (!res.headersSent) return generateLegacyPDF(req, res);
   }
 });
