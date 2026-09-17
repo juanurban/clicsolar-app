@@ -37,7 +37,29 @@ router.get('/public', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const empresaId = req.user?.empresa_id || 1;
-    const [rows] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = ? ORDER BY clave', [empresaId]);
+    let [rows] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = ? ORDER BY clave', [empresaId]);
+
+    // Si la empresa no tiene filas de configuración aún, copiar desde la empresa base
+    if (rows.length === 0 && empresaId > 1) {
+      const [baseRows] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1)');
+      for (const item of baseRows) {
+        let val = item.valor;
+        if (item.clave === 'empresa_nombre' || item.clave === 'empresa_nombre_corto') {
+          const [emp] = await pool.execute('SELECT nombre FROM empresas WHERE id = ?', [empresaId]);
+          if (emp.length) val = emp[0].nombre;
+        }
+        if (item.clave === 'empresa_nit') {
+          const [emp] = await pool.execute('SELECT nit FROM empresas WHERE id = ?', [empresaId]);
+          if (emp.length) val = emp[0].nit;
+        }
+        await pool.execute(
+          'INSERT INTO configuracion (empresa_id, clave, valor, tipo, descripcion) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [empresaId, item.clave, val, item.tipo || 'string', item.descripcion || '']
+        );
+      }
+      [rows] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = ? ORDER BY clave', [empresaId]);
+    }
+
     const result = {};
     rows.forEach(item => {
       result[item.clave] = { valor: item.valor, tipo: item.tipo, descripcion: item.descripcion };

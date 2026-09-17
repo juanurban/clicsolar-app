@@ -1761,28 +1761,24 @@ async function guardarYDescargarPDF() {
     setTimeout(async () => {
         try {
             const res = await fetch(`/api/cotizaciones/${id}/pdf-download`);
-            if (!res.ok) {
-                const detail = await res.json().catch(() => null);
-                throw new Error(detail?.detail || 'Error al generar PDF');
-            }
             const contentType = res.headers.get('content-type') || '';
-            if (!contentType.toLowerCase().includes('application/pdf')) {
-                throw new Error('El servidor no devolvió un PDF válido');
+            if (res.ok && contentType.toLowerCase().includes('application/pdf')) {
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `propuesta_${id}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('PDF descargado exitosamente', 'success');
+                return;
             }
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `propuesta_${id}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast('PDF descargado exitosamente', 'success');
-        } catch (e) {
-            showToast('Error generando PDF: ' + e.message, 'error');
-        }
-    }, 1000);
+        } catch {}
+        // Si el servidor no dispone de Puppeteer (ej. Hostinger), abrir la plantilla con auto-impresión para guardar en PDF con el diseño exacto
+        window.open(`/pdf/${id}?print=1`, '_blank');
+    }, 500);
 }
 
 let draggedItemId = null;

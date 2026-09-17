@@ -197,19 +197,44 @@ function ensureSqliteProjectSchema(database) {
 
 async function ensureMysqlSchema(p) {
   try {
-    const [columns] = await p.query(`
+    // 1. Verificar/Añadir columna empresa_id
+    const [cols] = await p.query(`
       SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configuracion' AND COLUMN_NAME = 'empresa_id'
     `);
-    if (columns.length === 0) {
-      console.log('🔧 Aplicando migración MySQL en producción: configuracion.empresa_id...');
-      const [firstEmp] = await p.query('SELECT id FROM empresas ORDER BY id LIMIT 1');
-      const firstEmpId = firstEmp.length ? firstEmp[0].id : 1;
+    if (cols.length === 0) {
+      console.log('🔧 MySQL: Añadiendo columna empresa_id a tabla configuracion...');
       await p.query('ALTER TABLE configuracion ADD COLUMN empresa_id INT NOT NULL DEFAULT 1');
-      await p.query('UPDATE configuracion SET empresa_id = ? WHERE empresa_id IS NULL OR empresa_id = 0', [firstEmpId]);
-      await p.query('ALTER TABLE configuracion DROP PRIMARY KEY, ADD PRIMARY KEY (empresa_id, clave)');
-      console.log('✅ Migración MySQL para configuracion aplicada con éxito en producción');
+      await p.query('UPDATE configuracion SET empresa_id = 1 WHERE empresa_id IS NULL OR empresa_id = 0');
     }
+
+    // 2. Verificar/Actualizar clave primaria a (empresa_id, clave)
+    const [pkCols] = await p.query(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configuracion' AND CONSTRAINT_NAME = 'PRIMARY'
+    `);
+    const pkNames = pkCols.map(c => c.COLUMN_NAME);
+    if (!pkNames.includes('empresa_id') || pkNames.length < 2) {
+      console.log('🔧 MySQL: Actualizando clave primaria de configuracion a (empresa_id, clave)...');
+      await p.query('UPDATE configuracion SET empresa_id = 1 WHERE empresa_id IS NULL OR empresa_id = 0');
+      try {
+        await p.query('ALTER TABLE configuracion DROP PRIMARY KEY');
+      } catch (e) {}
+      await p.query('ALTER TABLE configuracion ADD PRIMARY KEY (empresa_id, clave)');
+      console.log('✅ MySQL: Clave primaria (empresa_id, clave) establecida con éxito');
+    }
+
+    // 3. Asegurar que todas las empresas tengan filas de configuración copiadas de la empresa base
+    await p.query(`
+      INSERT IGNORE INTO configuracion (empresa_id, clave, valor, tipo, descripcion)
+      SELECT e.id, c.clave,
+             IF(c.clave = 'empresa_nombre' OR c.clave = 'empresa_nombre_corto', e.nombre,
+             IF(c.clave = 'empresa_nit', e.nit, c.valor)),
+             c.tipo, c.descripcion
+      FROM empresas e
+      CROSS JOIN configuracion c
+      WHERE c.empresa_id = 1 AND e.id > 1
+    `);
   } catch (err) {
     console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);
   }

@@ -592,10 +592,13 @@ router.get('/:id/pdf-download', async (req, res) => {
     res.setHeader('Content-Length', pdfBuffer.length);
     res.end(pdfBuffer);
   } catch (error) {
-    console.error('Error generando PDF con Puppeteer:', error.message);
-    console.error('Stack:', error.stack);
-    console.error('Fallback: generando PDF con formato legado...');
-    if (!res.headersSent) return generateLegacyPDF(req, res);
+    console.error('Puppeteer no disponible o falló:', error.message);
+    if (!res.headersSent) {
+      res.status(503).json({
+        detail: 'El servidor requiere la vista interactiva para generar el PDF con diseño exacto.',
+        fallback_print_url: `/pdf/${req.params.id}?print=1`
+      });
+    }
   }
 });
 
