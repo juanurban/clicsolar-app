@@ -20,49 +20,74 @@
     </script>
     
     <style>
-        @page { size: A4; margin: 0; }
-        body { background: #fff; color: #131313; font-family: 'Inter', sans-serif; }
+        @page { size: A4 portrait; margin: 0; }
+        body { background: #fff; color: #131313; font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         h1, h2, h3 { font-family: 'Montserrat', sans-serif; }
         
         .page {
             width: 210mm;
-            min-height: 297mm;
+            height: 295mm;
+            max-height: 295mm;
             margin: 0 auto;
             background: white;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
             position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
             page-break-after: always;
+            break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
 
         .header-stripe {
-            height: 8mm;
+            height: 6mm;
             background: #ffc800;
             width: 100%;
         }
 
-        .content { padding: 10mm 16mm; }
+        .content { padding: 6mm 14mm; }
 
         @media print {
-            html, body { margin: 0; padding: 0; background: none; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .page { margin: 0; box-shadow: none; border: none; width: 210mm; min-height: 297mm; height: 297mm; overflow: hidden; break-after: page; page-break-after: always; }
+            html, body { margin: 0 !important; padding: 0 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .page {
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                width: 210mm !important;
+                height: 295mm !important;
+                max-height: 295mm !important;
+                overflow: hidden !important;
+                position: relative !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
             .no-print { display: none !important; }
-            .print-break { page-break-before: always; }
+            .print-break { page-break-before: auto !important; }
             .prevent-break { page-break-inside: avoid; break-inside: avoid; }
 
-            /* Keep the financial analysis on the same physical page as in the preview. */
-            #page-3 .content { min-height: 270mm !important; }
-            #page-3 .flex.flex-col.gap-4 { gap: 2mm !important; margin-bottom: 3mm !important; }
-            #page-3 .flex.flex-col.gap-4 > div { padding: 3mm !important; }
-            #page-3 .relative[style*="height:160px"] { height: 105px !important; }
-            #page-3 .flex.justify-around { margin-top: 1mm !important; padding-top: 1mm !important; font-size: 8px !important; }
-            #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
-            #page-3 .flex.justify-center > div { padding-top: 2mm !important; padding-bottom: 2mm !important; }
-            #page-3 .mt-4.border { margin-top: 2mm !important; }
-            #page-3 table td, #page-3 table th { padding: 1px 3px !important; font-size: 6px !important; line-height: 1.05 !important; }
+            /* Ajustes compactos Página 1 */
+            #page-1 .content { padding: 4mm 14mm !important; }
+            #page-1 #diseno-img-container img { max-height: 110px !important; }
+            #page-1 .w-full.h-32 { height: 125px !important; }
+            #page-1 #eq-container { margin-bottom: 0.5rem !important; }
 
-            /* Preserve the visible bell-curve proportions in the printed preview. */
-            #page-1 > .content > .w-full.h-32 { height: 180px !important; }
+            /* Ajustes compactos Página 3 */
+            #page-3 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
+            #page-3 .flex.flex-col.gap-4 { gap: 1.5mm !important; margin-bottom: 2mm !important; }
+            #page-3 .flex.flex-col.gap-4 > div { padding: 2mm !important; }
+            #page-3 .relative[style*="height:160px"] { height: 95px !important; }
+            #page-3 .flex.justify-around { margin-top: 1mm !important; padding-top: 1mm !important; font-size: 7.5px !important; }
+            #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
+            #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
+            #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
+            #page-3 table td, #page-3 table th { padding: 1px 2px !important; font-size: 6.5px !important; line-height: 1.05 !important; }
+
+            /* Ajustes compactos Página 4 */
+            #page-4 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
+            #page-4 .flex.justify-between.items-end { margin-top: 1rem !important; margin-bottom: 0.5rem !important; }
         }
 
         table.sq-pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -236,7 +261,7 @@
 </div>
 
 <!-- PAGE 2: INVERSIÓN Y FINANCIERO -->
-<div class="page print-break" id="page-2">
+<div class="page" id="page-2">
     <div class="header-stripe"></div>
     <div class="content">
         
@@ -300,9 +325,9 @@
 </div>
 
 <!-- PAGE 3: ANÁLISIS FINANCIERO -->
-<div class="page print-break" id="page-3">
+<div class="page" id="page-3">
     <div class="header-stripe"></div>
-    <div class="content flex flex-col justify-between" style="min-height: 270mm;">
+    <div class="content flex flex-col justify-between">
         <div>
             <!-- Análisis Financiero -->
             <h3 class="text-sm border-b border-dark pb-1 mb-4 text-dark uppercase font-bold">Análisis Financiero y Retorno</h3>
@@ -372,9 +397,9 @@
 </div>
 
 <!-- PAGE 4: CRONOGRAMA -->
-<div class="page print-break" id="page-4">
+<div class="page" id="page-4">
     <div class="header-stripe"></div>
-    <div class="content flex flex-col justify-between" style="min-height: 270mm;">
+    <div class="content flex flex-col justify-between">
         <div>
             <div class="prevent-break mb-6" id="cronograma-container">
                 <h3 class="text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold">Cronograma de Ejecución (Días Hábiles)</h3>

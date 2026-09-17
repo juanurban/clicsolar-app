@@ -235,6 +235,30 @@ async function ensureMysqlSchema(p) {
       CROSS JOIN configuracion c
       WHERE c.empresa_id = 1 AND e.id > 1
     `);
+
+    // 4. Reparar datos por empresa si estuvieron sobreescritos en el pasado
+    const [allEmps] = await p.query('SELECT id, nombre, nit FROM empresas');
+    for (const emp of allEmps) {
+      if (emp.id === 1 && emp.nombre) {
+        await p.query('UPDATE configuracion SET valor = ? WHERE empresa_id = 1 AND clave IN ("empresa_nombre", "empresa_nombre_corto") AND valor LIKE "%DRU%"', [emp.nombre]);
+      }
+      if (emp.nombre) {
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre", ?) ON DUPLICATE KEY UPDATE valor = ?',
+          [emp.id, emp.nombre, emp.nombre]
+        );
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre_corto", ?) ON DUPLICATE KEY UPDATE valor = ?',
+          [emp.id, emp.nombre, emp.nombre]
+        );
+      }
+      if (emp.nit !== undefined && emp.nit !== null) {
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nit", ?) ON DUPLICATE KEY UPDATE valor = ?',
+          [emp.id, emp.nit, emp.nit]
+        );
+      }
+    }
   } catch (err) {
     console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);
   }
