@@ -50,7 +50,7 @@ app.use('/api', async (req, res, next) => {
   // El renderizador headless no comparte las cookies del navegador. Sólo se
   // permite saltar la sesión con un token HMAC de corta duración generado por
   // la propia descarga PDF y únicamente para consultar una cotización.
-  const pdfMatch = req.method === 'GET' && req.path.match(/^\/cotizaciones\/(\d+)$/);
+  const pdfMatch = req.method === 'GET' && req.path.match(/^\/cotizaciones\/(\d+)(?:\/pdf-download)?$/);
   if (pdfMatch && verifyPdfToken(pdfMatch[1], req.query.pdf_token)) {
     try {
       const [cots] = await require('./db').execute(`

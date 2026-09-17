@@ -12,8 +12,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet"/>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
     if (window.Chart) {
         window.pdfRender = new URLSearchParams(window.location.search).get('pdf') === '1';
@@ -1365,59 +1363,34 @@
             btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
         }
 
-        const noPrintElements = document.querySelectorAll('.no-print');
-        noPrintElements.forEach(el => el.style.display = 'none');
-
         try {
-            if (!window.jspdf || !window.html2canvas) {
-                throw new Error("Librerías PDF cargando, intente en un segundo.");
+            // La descarga usa exactamente el mismo renderizador Puppeteer que
+            // valida la propuesta. Así se evita que html2canvas/jsPDF recorte
+            // la tabla o produzca un documento distinto a la vista previa.
+            const pdfToken = new URLSearchParams(window.location.search).get('pdf_token');
+            const tokenQuery = pdfToken ? `?pdf_token=${encodeURIComponent(pdfToken)}` : '';
+            const response = await fetch(`/api/cotizaciones/${encodeURIComponent(cotizacionId)}/pdf-download${tokenQuery}`, {
+                credentials: 'same-origin'
+            });
+            if (!response.ok) {
+                let detail = 'No se pudo descargar el PDF';
+                try { detail = (await response.json()).detail || detail; } catch (_) {}
+                throw new Error(detail);
             }
 
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4',
-                compress: true
-            });
-
-            const pages = Array.from(document.querySelectorAll('.page')).filter(el => {
-                const style = window.getComputedStyle(el);
-                return style.display !== 'none' && style.visibility !== 'hidden';
-            });
-
-            for (let i = 0; i < pages.length; i++) {
-                const pageEl = pages[i];
-
-                const canvas = await html2canvas(pageEl, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    windowWidth: 1200
-                });
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-                if (i > 0) {
-                    pdf.addPage('a4', 'portrait');
-                }
-
-                pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-            }
-
-            const codigoPropuesta = document.getElementById('prop-codigo')?.innerText || cotizacionId;
-            const nombreArchivo = `Propuesta_${codigoPropuesta}.pdf`;
-
-            pdf.save(nombreArchivo);
-
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Propuesta_${document.getElementById('prop-codigo')?.innerText || cotizacionId}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (e) {
-            console.error("Error al generar el PDF con html2canvas/jsPDF:", e);
-            alert("Ocurrió un error al generar el PDF. Se procederá con la ventana de impresión.");
-            window.print();
+            console.error('Error al descargar el PDF:', e);
+            alert(`No se pudo descargar el PDF: ${e.message}`);
         } finally {
-            noPrintElements.forEach(el => el.style.display = 'flex');
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
