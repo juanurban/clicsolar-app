@@ -53,8 +53,14 @@ app.use('/api', async (req, res, next) => {
   const pdfMatch = req.method === 'GET' && req.path.match(/^\/cotizaciones\/(\d+)$/);
   if (pdfMatch && verifyPdfToken(pdfMatch[1], req.query.pdf_token)) {
     try {
-      const [cots] = await require('./db').execute('SELECT empresa_id FROM cotizaciones WHERE id = ?', [pdfMatch[1]]);
-      const cotEmpresaId = cots.length ? cots[0].empresa_id : 1;
+      const [cots] = await require('./db').execute(`
+        SELECT c.empresa_id, cl.empresa_id AS cliente_empresa_id
+        FROM cotizaciones c LEFT JOIN clientes cl ON cl.id = c.cliente_id
+        WHERE c.id = ?
+      `, [pdfMatch[1]]);
+      const cotEmpresaId = cots.length
+        ? (Number(cots[0].empresa_id) || Number(cots[0].cliente_empresa_id) || 1)
+        : 1;
       req.user = { empresa_id: cotEmpresaId, es_superadmin: true, pdf_render: true };
     } catch {
       req.user = { empresa_id: 1, es_superadmin: true, pdf_render: true };

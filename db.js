@@ -8,6 +8,14 @@
  */
 const path = require('path');
 const fs = require('fs');
+const {
+  LOGO_PLANTAS,
+  PLANTAS_ASESOR_POR_DEFECTO,
+  PLANTAS_TERMINOS_POR_DEFECTO,
+  esEmpresaPlantas,
+  esConfiguracionPropiaEmpresa,
+  parecePerfilDru
+} = require('./utils/empresaConfig');
 
 const USE_SQLITE = !process.env.DB_HOST || process.env.USE_SQLITE === 'true';
 const SQLITE_PATH = process.env.SQLITE_PATH || path.join(__dirname, 'sunquote.db');
@@ -224,42 +232,76 @@ async function ensureMysqlSchema(p) {
       console.log('✅ MySQL: Clave primaria (empresa_id, clave) establecida con éxito');
     }
 
-    // 3. Asegurar que todas las empresas tengan filas de configuración copiadas de la empresa base
-    await p.query(`
-      INSERT IGNORE INTO configuracion (empresa_id, clave, valor, tipo, descripcion)
-      SELECT e.id, c.clave,
-             IF(c.clave = 'empresa_nombre' OR c.clave = 'empresa_nombre_corto', e.nombre,
-             IF(c.clave = 'empresa_nit', e.nit, c.valor)),
-             c.tipo, c.descripcion
-      FROM empresas e
-      CROSS JOIN configuracion c
-      WHERE c.empresa_id = 1 AND e.id > 1
-    `);
-
-    // 4. Reparar y asegurar la independencia de datos de Empresa 1 (Plantas Solares) y Empresa 2 (DRU)
-    try {
-      await p.query('UPDATE empresas SET nombre = "Plantas Solares de Colombia" WHERE id = 1');
-      await p.query('UPDATE empresas SET nombre = "DRU SOLUCIONES SAS" WHERE id = 2');
-
-      await p.query('UPDATE configuracion SET valor = "Plantas Solares de Colombia" WHERE empresa_id = 1 AND clave IN ("empresa_nombre", "empresa_nombre_corto")');
-      await p.query('UPDATE configuracion SET valor = "Calle 93 #14-20 Oficina 501, Bogotá D.C." WHERE empresa_id = 1 AND clave = "empresa_direccion" AND valor LIKE "%KRA 28%"');
-      await p.query('UPDATE configuracion SET valor = "info@plantassolaresdecolombia.com" WHERE empresa_id = 1 AND clave = "empresa_correo" AND valor LIKE "%drincon%"');
-      await p.query('UPDATE configuracion SET valor = "+57 601 345 6789" WHERE empresa_id = 1 AND clave = "empresa_telefono" AND valor = "3203880918"');
-      await p.query('UPDATE configuracion SET valor = "/static/img/logo.svg" WHERE empresa_id = 1 AND clave = "empresa_logo" AND valor LIKE "%logo%" AND valor NOT LIKE "%logo.svg%"');
-
-      const [druConfig] = await p.query('SELECT COUNT(*) as c FROM configuracion WHERE empresa_id = 2');
-      if (druConfig[0].c === 0) {
-        await p.query(`
-          INSERT IGNORE INTO configuracion (empresa_id, clave, valor, tipo, descripcion)
-          SELECT 2, clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = 1
-        `);
+    // 3. Asegurar que cada empresa tenga sólo parámetros generales heredados.
+    // La identidad, logo, asesor, términos y diseños permanecen aislados.
+    const [companies] = await p.query('SELECT id, nombre, nit FROM empresas ORDER BY id');
+    const [baseCompany] = await p.query('SELECT id FROM empresas ORDER BY id LIMIT 1');
+    const baseCompanyId = baseCompany[0]?.id;
+    if (baseCompanyId) {
+      const [baseConfig] = await p.query(
+        'SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = ?',
+        [baseCompanyId]
+      );
+      const sharedConfig = baseConfig.filter(item => !esConfiguracionPropiaEmpresa(item.clave));
+      for (const company of companies) {
+        for (const item of sharedConfig) {
+          await p.query(
+            'INSERT IGNORE INTO configuracion (empresa_id, clave, valor, tipo, descripcion) VALUES (?, ?, ?, ?, ?)',
+            [company.id, item.clave, item.valor, item.tipo || 'string', item.descripcion || '']
+          );
+        }
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [company.id, company.nombre]
+        );
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre_corto", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [company.id, company.nombre]
+        );
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nit", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [company.id, company.nit || '']
+        );
       }
-      await p.query('UPDATE configuracion SET valor = "DRU SOLUCIONES SAS" WHERE empresa_id = 2 AND clave IN ("empresa_nombre", "empresa_nombre_corto")');
-      await p.query('UPDATE configuracion SET valor = "KRA 28 # 68-15" WHERE empresa_id = 2 AND clave = "empresa_direccion"');
-      await p.query('UPDATE configuracion SET valor = "3203880918" WHERE empresa_id = 2 AND clave = "empresa_telefono"');
-      await p.query('UPDATE configuracion SET valor = "drincon4.97r@gmail.com" WHERE empresa_id = 2 AND clave = "empresa_correo"');
-    } catch (e) {
-      console.error('Error reparando datos de empresas:', e.message);
+    }
+
+    // Reparar únicamente la contaminación conocida del perfil de Plantas.
+    // No se modifican configuraciones personalizadas de las demás empresas.
+    const plantas = companies.find(company => esEmpresaPlantas(company.nombre));
+    if (plantas) {
+      const [plantasConfig] = await p.query(
+        'SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND clave IN ("asesor_nombre", "asesor_telefono", "asesor_correo", "empresa_logo", "terminos_condiciones")',
+        [plantas.id]
+      );
+      const configMap = new Map(plantasConfig.map(item => [item.clave, item.valor]));
+      const asesorContaminado = [
+        configMap.get('asesor_nombre'),
+        configMap.get('asesor_telefono'),
+        configMap.get('asesor_correo')
+      ].some(parecePerfilDru);
+      if (asesorContaminado) {
+        for (const [clave, valor] of Object.entries(PLANTAS_ASESOR_POR_DEFECTO)) {
+          await p.query(
+            'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+            [plantas.id, clave, valor]
+          );
+        }
+        console.log('🔧 MySQL: asesor de Plantas restaurado y aislado de DRU');
+      }
+      if (parecePerfilDru(configMap.get('terminos_condiciones'))) {
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "terminos_condiciones", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [plantas.id, PLANTAS_TERMINOS_POR_DEFECTO]
+        );
+        console.log('🔧 MySQL: términos de Plantas restaurados y aislados de DRU');
+      }
+      const logoActual = String(configMap.get('empresa_logo') || '');
+      if (!logoActual || logoActual === '/static/img/logo.svg' || /logo[_-]?dru/i.test(logoActual)) {
+        await p.query(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_logo", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [plantas.id, LOGO_PLANTAS]
+        );
+      }
     }
   } catch (err) {
     console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);

@@ -6,6 +6,13 @@ const fs = require('fs');
 const path = require('path');
 const { createPdfToken } = require('../utils/pdfToken');
 const puppeteer = require('puppeteer');
+const {
+  resolverLogo,
+  esEmpresaPlantas,
+  PLANTAS_ASESOR_POR_DEFECTO,
+  PLANTAS_TERMINOS_POR_DEFECTO,
+  parecePerfilDru
+} = require('../utils/empresaConfig');
 
 
 
@@ -308,14 +315,29 @@ router.get('/:id', async (req, res) => {
       SELECT c.*, cl.nombre as cliente_nombre, cl.cedula_nit as cliente_cedula,
       cl.direccion as cliente_direccion, cl.telefono as cliente_telefono,
       cl.correo as cliente_correo, cl.ciudad as cliente_ciudad,
+      cl.empresa_id as cliente_empresa_id,
       cl.operador_red as cliente_operador, cl.tipo_tarifa as cliente_tarifa,
       cl.consumo_mensual_kwh as cliente_consumo, cl.costo_kwh as cliente_costo_kwh,
       cl.hsp as cliente_hsp, cl.historial_consumo as cliente_historial
-      FROM cotizaciones c LEFT JOIN clientes cl ON c.cliente_id = cl.id WHERE c.id = ? AND (c.empresa_id = ? OR ? = 1)
-    `, [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+      FROM cotizaciones c LEFT JOIN clientes cl ON c.cliente_id = cl.id
+      WHERE c.id = ? AND (c.empresa_id = ? OR (c.empresa_id IS NULL AND cl.empresa_id = ?) OR ? = 1)
+    `, [req.params.id, req.user.empresa_id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
 
     if (rows.length === 0) return res.status(404).json({ detail: 'Cotización no encontrada' });
     const cot = rows[0];
+    const empresaDelCliente = Number(cot.cliente_empresa_id) || null;
+    const empresaDeLaCotizacion = Number(cot.empresa_id) || null;
+    const empresaDeLaSesion = Number(req.user?.empresa_id) || null;
+    const empresaResuelta = empresaDeLaCotizacion || empresaDelCliente || empresaDeLaSesion || 1;
+
+    // Las cotizaciones antiguas pueden no tener empresa_id. Se repara usando
+    // la empresa del cliente para que el documento no tome la configuración de
+    // otra compañía por el valor predeterminado 1.
+    if (!empresaDeLaCotizacion && empresaResuelta) {
+      cot.empresa_id = empresaResuelta;
+      await pool.execute('UPDATE cotizaciones SET empresa_id = ? WHERE id = ? AND (empresa_id IS NULL OR empresa_id = 0)', [empresaResuelta, req.params.id]);
+    }
+    delete cot.cliente_empresa_id;
 
     if (cot.cliente_historial) {
       let h = cot.cliente_historial;
@@ -426,15 +448,39 @@ router.get('/:id', async (req, res) => {
     }
 
     // Load company config
-    const empId = cot.empresa_id || 1;
+    // Un administrador siempre ve la identidad de su propia empresa. El
+    // superadmin y el renderizador PDF conservan la empresa de la cotización.
+    const empId = (!req.user?.es_superadmin && !req.user?.pdf_render && empresaDeLaSesion)
+      ? empresaDeLaSesion
+      : empresaResuelta;
+    const [companyRows] = await pool.execute('SELECT nombre FROM empresas WHERE id = ?', [empId]);
+    const companyName = companyRows[0]?.nombre || 'Plantas Solares de Colombia';
     const [configRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND (clave LIKE 'empresa_%' OR clave LIKE 'diseno_%')", [empId]);
     cot.empresa = {};
-    configRows.forEach(r => { cot.empresa[r.clave] = r.valor; });
+    configRows.forEach(r => {
+      cot.empresa[r.clave] = r.clave === 'empresa_logo'
+        ? resolverLogo(r.valor, companyName)
+        : r.valor;
+    });
+    if (!cot.empresa.empresa_logo) cot.empresa.empresa_logo = resolverLogo('', companyName);
 
     // Load advisor & terms config
     const [asesorRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND (clave LIKE 'asesor_%' OR clave = 'firma_asesor' OR clave = 'terminos_condiciones')", [empId]);
     cot.asesor = {};
     asesorRows.forEach(r => { cot.asesor[r.clave] = r.valor; });
+    // Protección adicional para documentos en producción mientras termina la
+    // normalización de una base que pudo haber heredado datos de DRU.
+    if (esEmpresaPlantas(companyName)) {
+      const asesorContaminado = [
+        cot.asesor.asesor_nombre,
+        cot.asesor.asesor_telefono,
+        cot.asesor.asesor_correo
+      ].some(parecePerfilDru);
+      if (asesorContaminado) Object.assign(cot.asesor, PLANTAS_ASESOR_POR_DEFECTO);
+      if (parecePerfilDru(cot.asesor.terminos_condiciones)) {
+        cot.asesor.terminos_condiciones = PLANTAS_TERMINOS_POR_DEFECTO;
+      }
+    }
 
     res.json(cot);
   } catch (error) {

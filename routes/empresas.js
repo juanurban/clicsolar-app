@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const pool = require('../db');
 const { getCurrentUser } = require('./auth');
+const { esConfiguracionPropiaEmpresa } = require('../utils/empresaConfig');
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   return { salt, hash: crypto.createHash('sha256').update(salt + password).digest('hex') };
@@ -57,12 +58,10 @@ router.post('/', async (req, res) => {
     // Cada empresa comienza con su propia configuración editable
     const [baseConfig] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1)');
     for (const conf of baseConfig) {
-      let val = conf.valor;
-      if (conf.clave === 'empresa_nombre' || conf.clave === 'empresa_nombre_corto') val = nombre;
-      if (conf.clave === 'empresa_nit') val = nit || '';
+      if (esConfiguracionPropiaEmpresa(conf.clave)) continue;
       await pool.execute(
         'INSERT INTO configuracion (empresa_id, clave, valor, tipo, descripcion) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
-        [company.insertId, conf.clave, val, conf.tipo || 'string', conf.descripcion || '']
+        [company.insertId, conf.clave, conf.valor, conf.tipo || 'string', conf.descripcion || '']
       );
     }
     await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [company.insertId, 'empresa_nombre', nombre]);

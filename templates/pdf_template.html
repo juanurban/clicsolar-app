@@ -51,7 +51,12 @@
         .content { padding: 6mm 14mm; }
 
         @media print {
-            html, body { margin: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            /* Mantener la raíz tipográfica activa: las clases de Tailwind usan
+               rem y con font-size:0 desaparecían títulos, totales y etiquetas
+               únicamente al imprimir/exportar el PDF. */
+            html { font-size: 16px !important; }
+            html, body { margin: 0 !important; padding: 0 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { font-size: 14px !important; line-height: normal !important; }
             .page {
                 margin: 0 !important;
                 box-shadow: none !important;
@@ -80,18 +85,24 @@
             #page-1 .content { padding: 4mm 14mm !important; }
             #page-1 #diseno-img-container img { max-height: 110px !important; }
             #page-1 .w-full.h-32 { height: 125px !important; }
+            #page-1 #prod-chart-container { height: 190px !important; margin-bottom: 1rem !important; }
             #page-1 #eq-container { margin-bottom: 0.5rem !important; }
+            #page-1.supply-proposal #company-header { gap: 8px !important; }
+            #page-1.supply-proposal #company-header > div:first-child { min-width: 0 !important; }
+            #page-1.supply-proposal #company-header h1 { font-size: 20px !important; line-height: 1.15 !important; white-space: nowrap; }
+            #page-1.supply-proposal #company-header .text-right h2 { font-size: 15px !important; line-height: 1.2 !important; white-space: nowrap; }
 
             /* Ajustes compactos Página 3 */
             #page-3 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
-            #page-3 .flex.flex-col.gap-4 { gap: 1.5mm !important; margin-bottom: 2mm !important; }
-            #page-3 .flex.flex-col.gap-4 > div { padding: 2mm !important; }
-            #page-3 .relative[style*="height:160px"] { height: 95px !important; }
-            #page-3 .flex.justify-around { margin-top: 1mm !important; padding-top: 1mm !important; font-size: 7.5px !important; }
+            #page-3 .flex.flex-col.gap-4 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5mm !important; margin-bottom: 2mm !important; }
+            #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
+            #page-3 .relative[style*="height:160px"] { height: 150px !important; }
+            #page-3 .flex.justify-around { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1mm !important; margin-top: 2mm !important; padding-top: 1.5mm !important; font-size: 8px !important; line-height: 1.15 !important; text-align: center; }
+            #page-3 .flex.justify-around > span { min-width: 0 !important; }
             #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
             #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
             #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
-            #page-3 table td, #page-3 table th { padding: 1px 2px !important; font-size: 6.5px !important; line-height: 1.05 !important; }
+            #page-3 table td, #page-3 table th { padding: 1px 2px !important; font-size: 6.3px !important; line-height: 1.02 !important; }
 
             /* Ajustes compactos Página 4 */
             #page-4 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
@@ -147,7 +158,7 @@
     <div class="content">
         
         <!-- Header -->
-            <div class="flex justify-between items-start border-b border-dark pb-4 mb-5">
+            <div class="flex justify-between items-start border-b border-dark pb-4 mb-5" id="company-header">
                 <div class="flex items-center gap-3">
                     <img src="/static/img/logo.svg" alt="Logo" class="h-12 w-auto header-logo">
                     <div>
@@ -459,7 +470,13 @@
             
             // Header & Empresa
             const logoUrl = data.empresa?.empresa_logo || '/static/img/logo.svg';
-            document.querySelector('.header-logo').src = logoUrl;
+            const headerLogo = document.querySelector('.header-logo');
+            headerLogo.src = logoUrl;
+            headerLogo.onerror = () => {
+                headerLogo.onerror = null;
+                const esPlantas = /plantas solares/i.test(data.empresa?.empresa_nombre || '');
+                headerLogo.src = esPlantas ? '/static/uploads/file_logopsc.svg' : '/static/img/logo.svg';
+            };
             document.getElementById('emp-nombre').innerText = data.empresa?.empresa_nombre || 'Plantas Solares de Colombia';
             document.getElementById('emp-dir').innerText = data.empresa?.empresa_direccion || '';
             document.getElementById('emp-tel').innerText = data.empresa?.empresa_telefono || '';
@@ -545,6 +562,7 @@
             }
             const esSuministro = (itemsData && typeof itemsData === 'object' && itemsData.tipo_propuesta === 'suministro');
             if (esSuministro) {
+                document.getElementById('page-1').classList.add('supply-proposal');
                 document.querySelector('.text-right h2').innerText = 'PROPUESTA DE SUMINISTRO';
                 document.getElementById('solucion-heading').querySelector('h3').innerText = 'SUMINISTRO DE PRODUCTOS Y SERVICIOS';
                 document.getElementById('perfil-energetico-section').style.display = 'none';
@@ -1013,6 +1031,23 @@
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
 
+        const drawChartLabel = (context, text, x, y, color, align = 'right') => {
+            context.save();
+            context.font = 'bold 7px Inter, sans-serif';
+            const metrics = context.measureText(text);
+            const paddingX = 3;
+            const boxWidth = metrics.width + paddingX * 2;
+            const boxHeight = 11;
+            const boxX = align === 'right' ? x - boxWidth : (align === 'center' ? x - boxWidth / 2 : x);
+            const boxY = y - boxHeight + 2;
+            context.fillStyle = 'rgba(255,255,255,0.94)';
+            context.fillRect(boxX, boxY, boxWidth, boxHeight);
+            context.fillStyle = color;
+            context.textAlign = align;
+            context.fillText(text, align === 'right' ? x - paddingX : (align === 'left' ? x + paddingX : x), y);
+            context.restore();
+        };
+
         const {
             acumuladoField = 'ahorro_acumulado_s1',
             barColor = 'rgba(255, 200, 0, 0.5)',
@@ -1052,13 +1087,12 @@
                 ctx2.stroke();
                 ctx2.restore();
 
-                // Label
-                ctx2.save();
-                ctx2.fillStyle = invLineColor;
-                ctx2.font = 'bold 7px Inter, sans-serif';
-                ctx2.textAlign = 'right';
-                ctx2.fillText('Inversión: ' + formatCurrency(totalInv), xScale.right - 4, yPixel - 3);
-                ctx2.restore();
+                // Etiqueta separada visualmente de la línea y de los valores.
+                // La inversión suele quedar cerca de la base de la escala. La
+                // etiqueta se fija en una franja superior para no tapar los
+                // valores del eje X ni la leyenda del gráfico.
+                const targetLabelY = yScale.top + 13;
+                drawChartLabel(ctx2, 'Inversión: ' + abreviarNumero(totalInv), xScale.right - 3, targetLabelY, invLineColor, 'right');
 
                 // ROI marker
                 const roiAnio = Math.round(roiAnos);
@@ -1077,12 +1111,8 @@
                         ctx2.stroke();
                         ctx2.restore();
 
-                        ctx2.save();
-                        ctx2.fillStyle = roiTextColor;
-                        ctx2.font = 'bold 7px Inter, sans-serif';
-                        ctx2.textAlign = 'center';
-                        ctx2.fillText('✓ ROI ' + roiAnos.toFixed(1) + ' años', roiX, roiY - 10);
-                        ctx2.restore();
+                        const roiLabelY = yScale.top + 26;
+                        drawChartLabel(ctx2, 'ROI ' + roiAnos.toFixed(1) + ' años', roiX, roiLabelY, roiTextColor, 'center');
                     }
                 }
             }
@@ -1095,7 +1125,7 @@
                 labels: years,
                 datasets: [
                     {
-                        label: 'Ahorro Autoconsumo',
+                        label: 'Autoconsumo',
                         data: valorAuto,
                         backgroundColor: 'rgba(76, 175, 80, 0.65)',
                         borderColor: '#4caf50',
@@ -1105,7 +1135,7 @@
                         order: 2
                     },
                     {
-                        label: 'Venta Excedentes (30%)',
+                        label: 'Excedentes 30%',
                         data: valorExc,
                         backgroundColor: 'rgba(2, 132, 199, 0.65)',
                         borderColor: '#0284c7',
@@ -1115,7 +1145,7 @@
                         order: 2
                     },
                     {
-                        label: 'Acumulado Total',
+                        label: 'Acumulado',
                         type: 'line',
                         data: acumulado,
                         borderColor: lineColor,
@@ -1141,8 +1171,8 @@
                         labels: {
                             boxWidth: 10,
                             boxHeight: 10,
-                            padding: 8,
-                            font: { size: 8, family: 'Inter, sans-serif' },
+                            padding: 4,
+                            font: { size: 6.5, family: 'Inter, sans-serif' },
                             usePointStyle: true
                         }
                     },
@@ -1162,14 +1192,20 @@
                         title: { display: false },
                         ticks: {
                             font: { size: 8, family: 'Inter, sans-serif' },
-                            callback: function(v) { return '$' + Math.round(v/1000) + 'k'; }
+                            callback: function(v) {
+                                const value = Number(v) || 0;
+                                if (Math.abs(value) >= 1000000000) return '$' + (value / 1000000000).toFixed(1) + 'B';
+                                if (Math.abs(value) >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M';
+                                if (Math.abs(value) >= 1000) return '$' + Math.round(value / 1000) + 'k';
+                                return '$' + Math.round(value);
+                            }
                         }
                     },
                     x: {
                         grid: { display: false },
                         ticks: {
                             font: { size: 7, family: 'Inter, sans-serif' },
-                            maxTicksLimit: 13,
+                            maxTicksLimit: 7,
                             maxRotation: 0
                         }
                     }
