@@ -236,28 +236,30 @@ async function ensureMysqlSchema(p) {
       WHERE c.empresa_id = 1 AND e.id > 1
     `);
 
-    // 4. Reparar datos por empresa si estuvieron sobreescritos en el pasado
-    const [allEmps] = await p.query('SELECT id, nombre, nit FROM empresas');
-    for (const emp of allEmps) {
-      if (emp.id === 1 && emp.nombre) {
-        await p.query('UPDATE configuracion SET valor = ? WHERE empresa_id = 1 AND clave IN ("empresa_nombre", "empresa_nombre_corto") AND valor LIKE "%DRU%"', [emp.nombre]);
+    // 4. Reparar y asegurar la independencia de datos de Empresa 1 (Plantas Solares) y Empresa 2 (DRU)
+    try {
+      await p.query('UPDATE empresas SET nombre = "Plantas Solares de Colombia" WHERE id = 1');
+      await p.query('UPDATE empresas SET nombre = "DRU SOLUCIONES SAS" WHERE id = 2');
+
+      await p.query('UPDATE configuracion SET valor = "Plantas Solares de Colombia" WHERE empresa_id = 1 AND clave IN ("empresa_nombre", "empresa_nombre_corto")');
+      await p.query('UPDATE configuracion SET valor = "Calle 93 #14-20 Oficina 501, Bogotá D.C." WHERE empresa_id = 1 AND clave = "empresa_direccion" AND valor LIKE "%KRA 28%"');
+      await p.query('UPDATE configuracion SET valor = "info@plantassolaresdecolombia.com" WHERE empresa_id = 1 AND clave = "empresa_correo" AND valor LIKE "%drincon%"');
+      await p.query('UPDATE configuracion SET valor = "+57 601 345 6789" WHERE empresa_id = 1 AND clave = "empresa_telefono" AND valor = "3203880918"');
+      await p.query('UPDATE configuracion SET valor = "/static/img/logo.svg" WHERE empresa_id = 1 AND clave = "empresa_logo" AND valor LIKE "%logo%" AND valor NOT LIKE "%logo.svg%"');
+
+      const [druConfig] = await p.query('SELECT COUNT(*) as c FROM configuracion WHERE empresa_id = 2');
+      if (druConfig[0].c === 0) {
+        await p.query(`
+          INSERT IGNORE INTO configuracion (empresa_id, clave, valor, tipo, descripcion)
+          SELECT 2, clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = 1
+        `);
       }
-      if (emp.nombre) {
-        await p.query(
-          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre", ?) ON DUPLICATE KEY UPDATE valor = ?',
-          [emp.id, emp.nombre, emp.nombre]
-        );
-        await p.query(
-          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre_corto", ?) ON DUPLICATE KEY UPDATE valor = ?',
-          [emp.id, emp.nombre, emp.nombre]
-        );
-      }
-      if (emp.nit !== undefined && emp.nit !== null) {
-        await p.query(
-          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nit", ?) ON DUPLICATE KEY UPDATE valor = ?',
-          [emp.id, emp.nit, emp.nit]
-        );
-      }
+      await p.query('UPDATE configuracion SET valor = "DRU SOLUCIONES SAS" WHERE empresa_id = 2 AND clave IN ("empresa_nombre", "empresa_nombre_corto")');
+      await p.query('UPDATE configuracion SET valor = "KRA 28 # 68-15" WHERE empresa_id = 2 AND clave = "empresa_direccion"');
+      await p.query('UPDATE configuracion SET valor = "3203880918" WHERE empresa_id = 2 AND clave = "empresa_telefono"');
+      await p.query('UPDATE configuracion SET valor = "drincon4.97r@gmail.com" WHERE empresa_id = 2 AND clave = "empresa_correo"');
+    } catch (e) {
+      console.error('Error reparando datos de empresas:', e.message);
     }
   } catch (err) {
     console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);

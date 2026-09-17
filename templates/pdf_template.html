@@ -49,7 +49,7 @@
         .content { padding: 6mm 14mm; }
 
         @media print {
-            html, body { margin: 0 !important; padding: 0 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; background: none !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .page {
                 margin: 0 !important;
                 box-shadow: none !important;
@@ -59,10 +59,16 @@
                 max-height: 295mm !important;
                 overflow: hidden !important;
                 position: relative !important;
+                font-size: 14px !important;
+                line-height: normal !important;
                 page-break-after: always !important;
                 break-after: page !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
+            }
+            .page:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
             }
             .no-print { display: none !important; }
             .print-break { page-break-before: auto !important; }
