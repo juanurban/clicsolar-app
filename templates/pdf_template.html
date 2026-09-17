@@ -12,6 +12,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet"/>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <!-- Respaldo para hostings compartidos sin Chromium: genera el PDF en el navegador. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
     if (window.Chart) {
         window.pdfRender = new URLSearchParams(window.location.search).get('pdf') === '1';
@@ -47,6 +50,23 @@
         }
 
         .content { padding: 6mm 14mm; }
+
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+            font-feature-settings: 'liga';
+        }
 
         @media print {
             /* Mantener la raíz tipográfica activa: las clases de Tailwind usan
@@ -137,6 +157,65 @@
         }
 
         .kpi-box { background: #f8f8f8; border-left: 3px solid #ffc800; border-radius: 3px; }
+
+        /* El mismo encuadre compacto de impresión para el respaldo html2canvas/jsPDF. */
+        html.local-pdf-render { font-size: 16px !important; }
+        html.local-pdf-render body {
+            background: #fff !important;
+            color: #131313 !important;
+            font-size: 14px !important;
+            line-height: normal !important;
+        }
+        html.local-pdf-render .no-print { display: none !important; }
+        /* html2canvas no siempre interpreta las ligaduras de Material Symbols;
+           ocultamos el texto técnico del icono para no contaminar las etiquetas. */
+        html.local-pdf-render .material-symbols-outlined { display: none !important; }
+        html.local-pdf-render .page {
+            width: 210mm !important;
+            height: 295mm !important;
+            max-height: 295mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+            page-break-after: always !important;
+            break-after: page !important;
+        }
+        html.local-pdf-render .page:last-child { page-break-after: avoid !important; break-after: avoid !important; }
+        html.local-pdf-render #page-1 .content { padding: 4mm 14mm !important; }
+        html.local-pdf-render #page-1 #diseno-img-container img { max-height: 110px !important; }
+        html.local-pdf-render #page-1 #prod-chart-container { height: 190px !important; margin-bottom: 1rem !important; }
+        html.local-pdf-render #page-1 #eq-container { margin-bottom: 0.5rem !important; }
+        html.local-pdf-render #page-1.supply-proposal #company-header { gap: 8px !important; }
+        html.local-pdf-render #page-1.supply-proposal #company-header > div:first-child { min-width: 0 !important; }
+        html.local-pdf-render #page-1.supply-proposal #company-header h1 { font-size: 20px !important; line-height: 1.15 !important; white-space: nowrap; }
+        html.local-pdf-render #page-1.supply-proposal #company-header .text-right h2 { font-size: 15px !important; line-height: 1.2 !important; white-space: nowrap; }
+        html.local-pdf-render #page-3 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
+        html.local-pdf-render #page-3 .flex.flex-col.gap-4 {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 2.5mm !important;
+            margin-bottom: 2mm !important;
+        }
+        html.local-pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
+        html.local-pdf-render #page-3 .relative[style*="height:160px"] { height: 150px !important; }
+        html.local-pdf-render #page-3 .flex.justify-around {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 1mm !important;
+            margin-top: 2mm !important;
+            padding-top: 1.5mm !important;
+            font-size: 8px !important;
+            line-height: 1.15 !important;
+            text-align: center !important;
+        }
+        html.local-pdf-render #page-3 .flex.justify-around > span { min-width: 0 !important; }
+        html.local-pdf-render #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
+        html.local-pdf-render #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
+        html.local-pdf-render #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
+        html.local-pdf-render #page-3 table td,
+        html.local-pdf-render #page-3 table th { padding: 1px 2px !important; font-size: 6.3px !important; line-height: 1.02 !important; }
+        html.local-pdf-render #page-4 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
+        html.local-pdf-render #page-4 .flex.justify-between.items-end { margin-top: 1rem !important; margin-bottom: 0.5rem !important; }
     </style>
 </head>
 <body>
@@ -1355,6 +1434,79 @@
         tbody.innerHTML = html;
     }
 
+    async function prepararImagenesParaPDFLocal(proxiedImages) {
+        const images = Array.from(document.images);
+        images.forEach(image => {
+            const source = image.currentSrc || image.getAttribute('src') || '';
+            if (!source) return;
+            try {
+                const url = new URL(source, window.location.href);
+                if (url.origin === window.location.origin || !['http:', 'https:'].includes(url.protocol)) return;
+                proxiedImages.push({ image, source: image.getAttribute('src') || source, srcset: image.getAttribute('srcset') });
+                image.removeAttribute('srcset');
+                image.src = `/api/imagen-proxy?url=${encodeURIComponent(url.href)}`;
+            } catch (_) {}
+        });
+
+        await Promise.all(images.map(image => new Promise(resolve => {
+            if (image.complete) return resolve();
+            image.addEventListener('load', resolve, { once: true });
+            image.addEventListener('error', resolve, { once: true });
+            setTimeout(resolve, 15000);
+        })));
+    }
+
+    async function generarPDFLocalmente() {
+        const jsPDF = window.jspdf && window.jspdf.jsPDF;
+        if (!jsPDF || !window.html2canvas) {
+            throw new Error('El generador local de PDF no está disponible en este navegador');
+        }
+
+        const root = document.documentElement;
+        const proxiedImages = [];
+        root.classList.add('local-pdf-render');
+        try {
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            if (document.fonts && document.fonts.ready) await document.fonts.ready;
+            await prepararImagenesParaPDFLocal(proxiedImages);
+
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+            const pages = Array.from(document.querySelectorAll('.page')).filter(page => {
+                const styles = getComputedStyle(page);
+                return styles.display !== 'none' && styles.visibility !== 'hidden';
+            });
+
+            for (let index = 0; index < pages.length; index++) {
+                const page = pages[index];
+                const canvas = await window.html2canvas(page, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: false,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    width: page.offsetWidth,
+                    height: page.offsetHeight,
+                    windowWidth: page.offsetWidth,
+                    windowHeight: page.offsetHeight,
+                    scrollX: 0,
+                    scrollY: 0
+                });
+
+                if (index > 0) pdf.addPage('a4', 'portrait');
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+            }
+
+            const codigo = document.getElementById('prop-codigo')?.innerText || cotizacionId;
+            pdf.save(`Propuesta_${codigo}.pdf`);
+        } finally {
+            proxiedImages.forEach(({ image, source, srcset }) => {
+                image.src = source;
+                if (srcset) image.setAttribute('srcset', srcset);
+            });
+            root.classList.remove('local-pdf-render');
+        }
+    }
+
     async function descargarPDF() {
         const btn = (typeof event !== 'undefined' && event && event.target) ? event.target.closest('button') : null;
         const origHtml = btn ? btn.innerHTML : '';
@@ -1364,9 +1516,9 @@
         }
 
         try {
-            // La descarga usa exactamente el mismo renderizador Puppeteer que
-            // valida la propuesta. Así se evita que html2canvas/jsPDF recorte
-            // la tabla o produzca un documento distinto a la vista previa.
+            // Primero se solicita el PDF del servidor, que conserva el diseño
+            // exacto. Hostinger compartido puede no tener Chromium disponible;
+            // en ese caso el respaldo local usa esta misma plantilla ya ajustada.
             const pdfToken = new URLSearchParams(window.location.search).get('pdf_token');
             const tokenQuery = pdfToken ? `?pdf_token=${encodeURIComponent(pdfToken)}` : '';
             const response = await fetch(`/api/cotizaciones/${encodeURIComponent(cotizacionId)}/pdf-download${tokenQuery}`, {
@@ -1388,8 +1540,14 @@
             link.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch (e) {
-            console.error('Error al descargar el PDF:', e);
-            alert(`No se pudo descargar el PDF: ${e.message}`);
+            console.error('Error al descargar el PDF del servidor:', e);
+            try {
+                await generarPDFLocalmente();
+            } catch (fallbackError) {
+                console.error('Error al generar el PDF local:', fallbackError);
+                alert(`No se pudo descargar el PDF: ${fallbackError.message || e.message}`);
+                window.print();
+            }
         } finally {
             if (btn) {
                 btn.disabled = false;

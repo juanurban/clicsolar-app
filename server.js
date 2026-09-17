@@ -78,6 +78,86 @@ app.use('/api', async (req, res, next) => {
   }
 });
 
+// Proxy seguro para que el respaldo PDF del navegador pueda incluir imágenes
+// de productos alojadas en otros dominios que no habilitan CORS.
+app.get('/api/imagen-proxy', async (req, res) => {
+  const rawUrl = String(req.query.url || '').trim();
+  let targetUrl;
+
+  const esDestinoPublico = (url) => {
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return !(
+      hostname === 'localhost' ||
+      hostname.endsWith('.local') ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      /^127\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^169\.254\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+    );
+  };
+
+  try {
+    targetUrl = new URL(rawUrl);
+    if (!['http:', 'https:'].includes(targetUrl.protocol) || !esDestinoPublico(targetUrl)) {
+      return res.status(400).json({ detail: 'URL de imagen no permitida' });
+    }
+
+    let upstream;
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        upstream = await fetch(targetUrl, {
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: { Accept: 'image/*', 'User-Agent': 'ClicSolar PDF image proxy' }
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (![301, 302, 303, 307, 308].includes(upstream.status)) break;
+      const location = upstream.headers.get('location');
+      if (!location) break;
+      targetUrl = new URL(location, targetUrl);
+      if (!['http:', 'https:'].includes(targetUrl.protocol) || !esDestinoPublico(targetUrl)) {
+        return res.status(400).json({ detail: 'Redirección de imagen no permitida' });
+      }
+    }
+
+    if (!upstream || !upstream.ok) {
+      return res.status(502).json({ detail: 'No se pudo cargar la imagen del producto' });
+    }
+
+    const contentType = (upstream.headers.get('content-type') || '').split(';')[0].toLowerCase();
+    if (!contentType.startsWith('image/')) {
+      return res.status(415).json({ detail: 'El recurso remoto no es una imagen' });
+    }
+
+    const contentLength = Number(upstream.headers.get('content-length') || 0);
+    if (contentLength > 8 * 1024 * 1024) {
+      return res.status(413).json({ detail: 'La imagen supera el tamaño permitido' });
+    }
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    if (buffer.length > 8 * 1024 * 1024) {
+      return res.status(413).json({ detail: 'La imagen supera el tamaño permitido' });
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.end(buffer);
+  } catch (error) {
+    console.error('Error en proxy de imagen:', error.message);
+    if (!res.headersSent) res.status(502).json({ detail: 'No se pudo cargar la imagen del producto' });
+  }
+});
+
 // Usuarios, Perfiles, Permisos (all under /api)
 const usuariosRouter = require('./routes/usuarios');
 app.use('/api/usuarios', usuariosRouter);
