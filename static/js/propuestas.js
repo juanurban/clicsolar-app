@@ -115,7 +115,7 @@ async function fetchPropuestas() {
                                 <td>${getStatusBadge(c.estado)}</td>
                                 <td class="text-right">
                                     <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                                        <button onclick="window.open('/pdf/${c.id}?print=1', '_blank')" class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-primary" title="Ver / Descargar PDF">
+                                        <button onclick="window.open('/pdf/${c.id}', '_blank')" class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-primary" title="Ver / Descargar PDF">
                                             <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
                                         </button>
                                         <button onclick="editarPropuesta(${c.id})" class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-primary" title="Editar">

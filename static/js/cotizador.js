@@ -1758,26 +1758,8 @@ async function guardarYDescargarPDF() {
     const id = App.guardandoPdfId;
     if (!id) return;
     App.guardandoPdfId = null;
-    setTimeout(async () => {
-        try {
-            const res = await fetch(`/api/cotizaciones/${id}/pdf-download`);
-            const contentType = res.headers.get('content-type') || '';
-            if (res.ok && contentType.toLowerCase().includes('application/pdf')) {
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `propuesta_${id}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showToast('PDF descargado exitosamente', 'success');
-                return;
-            }
-        } catch {}
-        // Si el servidor no dispone de Puppeteer (ej. Hostinger), abrir la plantilla con auto-impresión para guardar en PDF con el diseño exacto
-        window.open(`/pdf/${id}?print=1`, '_blank');
+    setTimeout(() => {
+        window.open(`/pdf/${id}?download=1`, '_blank');
     }, 500);
 }
 
