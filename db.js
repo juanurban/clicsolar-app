@@ -97,6 +97,33 @@ function ensureSqliteProjectSchema(database) {
   `);
   database.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_unico_superadmin ON usuarios(es_superadmin) WHERE es_superadmin = 1');
 
+  const configSql = database.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='configuracion'").get()?.sql || '';
+  if (!configSql.includes('PRIMARY KEY (empresa_id, clave)')) {
+    const firstEmpId = database.prepare('SELECT id FROM empresas ORDER BY id LIMIT 1').get()?.id || 1;
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS configuracion_new (
+        empresa_id INTEGER NOT NULL DEFAULT 1,
+        clave TEXT NOT NULL,
+        valor TEXT,
+        tipo TEXT DEFAULT 'string',
+        descripcion TEXT,
+        PRIMARY KEY (empresa_id, clave)
+      );
+    `);
+    const hasConfigTable = database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='configuracion'").get();
+    if (hasConfigTable) {
+      const configCols = database.pragma('table_info(configuracion)');
+      const hasEmpCol = configCols.some((c) => c.name === 'empresa_id');
+      if (hasEmpCol) {
+        database.exec(`INSERT OR IGNORE INTO configuracion_new (empresa_id, clave, valor, tipo, descripcion) SELECT COALESCE(empresa_id, ${firstEmpId}), clave, valor, tipo, descripcion FROM configuracion;`);
+      } else {
+        database.exec(`INSERT OR IGNORE INTO configuracion_new (empresa_id, clave, valor, tipo, descripcion) SELECT ${firstEmpId}, clave, valor, tipo, descripcion FROM configuracion;`);
+      }
+      database.exec('DROP TABLE configuracion;');
+    }
+    database.exec('ALTER TABLE configuracion_new RENAME TO configuracion;');
+  }
+
   const clientColumns = database.pragma('table_info(clientes)');
   if (!clientColumns.some((column) => column.name === 'departamento')) {
     database.exec("ALTER TABLE clientes ADD COLUMN departamento TEXT DEFAULT ''");
@@ -168,6 +195,26 @@ function ensureSqliteProjectSchema(database) {
   `);
 }
 
+async function ensureMysqlSchema(p) {
+  try {
+    const [columns] = await p.query(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configuracion' AND COLUMN_NAME = 'empresa_id'
+    `);
+    if (columns.length === 0) {
+      console.log('🔧 Aplicando migración MySQL en producción: configuracion.empresa_id...');
+      const [firstEmp] = await p.query('SELECT id FROM empresas ORDER BY id LIMIT 1');
+      const firstEmpId = firstEmp.length ? firstEmp[0].id : 1;
+      await p.query('ALTER TABLE configuracion ADD COLUMN empresa_id INT NOT NULL DEFAULT 1');
+      await p.query('UPDATE configuracion SET empresa_id = ? WHERE empresa_id IS NULL OR empresa_id = 0', [firstEmpId]);
+      await p.query('ALTER TABLE configuracion DROP PRIMARY KEY, ADD PRIMARY KEY (empresa_id, clave)');
+      console.log('✅ Migración MySQL para configuracion aplicada con éxito en producción');
+    }
+  } catch (err) {
+    console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);
+  }
+}
+
 if (USE_SQLITE) {
   // ══════════════════════════════════════════
   //  SQLITE (Desarrollo local)
@@ -217,6 +264,8 @@ if (USE_SQLITE) {
     queueLimit: 0,
     charset: 'utf8mb4'
   });
+
+  ensureMysqlSchema(pool).catch((err) => console.error('Error migración MySQL:', err.message));
 
   console.log(`📦 Using MySQL database: ${process.env.DB_HOST}/${process.env.DB_NAME}`);
 }

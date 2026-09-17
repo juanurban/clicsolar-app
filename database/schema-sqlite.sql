@@ -98,10 +98,12 @@ CREATE TABLE IF NOT EXISTS cotizaciones (
 );
 
 CREATE TABLE IF NOT EXISTS configuracion (
-    clave TEXT PRIMARY KEY,
+    empresa_id INTEGER NOT NULL DEFAULT 1,
+    clave TEXT NOT NULL,
     valor TEXT,
     tipo TEXT DEFAULT 'string',
-    descripcion TEXT
+    descripcion TEXT,
+    PRIMARY KEY (empresa_id, clave)
 );
 
 CREATE TABLE IF NOT EXISTS perfiles (

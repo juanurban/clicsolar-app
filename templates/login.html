@@ -256,10 +256,10 @@
     // Load branding
     (async () => {
         try {
-            const res = await fetch('/api/configuracion');
+            const res = await fetch('/api/configuracion/public');
             const data = await res.json();
-            const logo = data.empresa_logo?.valor;
-            const nombre = data.empresa_nombre?.valor;
+            const logo = data.empresa_logo;
+            const nombre = data.empresa_nombre;
             if (logo) document.getElementById('login-logo').src = logo;
             if (nombre) {
                 document.getElementById('login-brand').textContent = nombre;

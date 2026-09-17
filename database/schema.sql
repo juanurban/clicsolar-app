@@ -106,10 +106,12 @@ CREATE TABLE IF NOT EXISTS cotizaciones (
 
 -- Tabla de configuración
 CREATE TABLE IF NOT EXISTS configuracion (
-    clave VARCHAR(100) PRIMARY KEY,
+    empresa_id INT NOT NULL DEFAULT 1,
+    clave VARCHAR(100) NOT NULL,
     valor TEXT,
     tipo VARCHAR(50) DEFAULT 'string',
-    descripcion TEXT
+    descripcion TEXT,
+    PRIMARY KEY (empresa_id, clave)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla de perfiles

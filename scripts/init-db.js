@@ -95,7 +95,7 @@ console.log(`✅ ${clientes.length} clientes insertados`);
 
 // Configuraciones
 const insertConfig = db.prepare(`
-  INSERT INTO configuracion (clave, valor, tipo, descripcion) VALUES (?, ?, ?, ?)
+  INSERT INTO configuracion (empresa_id, clave, valor, tipo, descripcion) VALUES (1, ?, ?, ?, ?)
 `);
 
 const configs = [

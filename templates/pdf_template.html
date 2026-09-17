@@ -960,6 +960,9 @@
             // Render Chart
             renderProdCurve(data.potencia_kwp, data.cliente_hsp);
 
+            // Mark rendering finished for headless Puppeteer
+            window.pdfRenderFinished = true;
+
             // Print automatically after 1s if ?print=1
             if (window.location.search.includes('print=1')) {
                 setTimeout(() => window.print(), 1000);
@@ -1285,17 +1288,18 @@
 
     async function descargarPDF() {
         const btn = event.target.closest('button');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando...';
+        const origHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando...';
+        }
         try {
             const res = await fetch(`/api/cotizaciones/${cotizacionId}/pdf-download`);
-            if (!res.ok) {
-                const detail = await res.json().catch(() => null);
-                throw new Error(detail?.detail || 'Error al generar PDF');
-            }
             const contentType = res.headers.get('content-type') || '';
-            if (!contentType.toLowerCase().includes('application/pdf')) {
-                throw new Error('El servidor no devolvió un PDF válido');
+            if (!res.ok || !contentType.toLowerCase().includes('application/pdf')) {
+                if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+                window.print();
+                return;
             }
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
@@ -1307,10 +1311,14 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } catch (e) {
-            alert('Error generando PDF: ' + e.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+            window.print();
+            return;
         }
-        btn.disabled = false;
-        btn.innerHTML = '<span class="material-symbols-outlined">download</span> Descargar PDF';
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
     }
 
     window.onload = init;

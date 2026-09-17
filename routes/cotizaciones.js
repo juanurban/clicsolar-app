@@ -10,8 +10,8 @@ const puppeteer = require('puppeteer');
 
 
 // ── Helper: Get config value ──
-async function getConfigValue(clave, defaultVal = null) {
-  const [rows] = await pool.execute('SELECT valor, tipo FROM configuracion WHERE clave = ?', [clave]);
+async function getConfigValue(clave, defaultVal = null, empresaId = 1) {
+  const [rows] = await pool.execute('SELECT valor, tipo FROM configuracion WHERE clave = ? AND empresa_id = ?', [clave, empresaId]);
   if (rows.length === 0) return defaultVal;
   const { valor, tipo } = rows[0];
   if (tipo === 'number') { const n = parseFloat(valor); return isNaN(n) ? defaultVal : n; }
@@ -426,12 +426,13 @@ router.get('/:id', async (req, res) => {
     }
 
     // Load company config
-    const [configRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'empresa_%' OR clave LIKE 'diseno_%'");
+    const empId = cot.empresa_id || 1;
+    const [configRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND (clave LIKE 'empresa_%' OR clave LIKE 'diseno_%')", [empId]);
     cot.empresa = {};
     configRows.forEach(r => { cot.empresa[r.clave] = r.valor; });
 
     // Load advisor & terms config
-    const [asesorRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'asesor_%' OR clave = 'firma_asesor' OR clave = 'terminos_condiciones'");
+    const [asesorRows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND (clave LIKE 'asesor_%' OR clave = 'firma_asesor' OR clave = 'terminos_condiciones')", [empId]);
     cot.asesor = {};
     asesorRows.forEach(r => { cot.asesor[r.clave] = r.valor; });
 
@@ -464,7 +465,7 @@ async function generateLegacyPDF(req, res) {
     const itemData = parseJson(cotizacion.items_json, {});
     const items = Array.isArray(itemData) ? itemData : (itemData.items || []);
     const proyeccion = parseJson(cotizacion.proyeccion_25_json, []);
-    const configRows = await pool.execute("SELECT clave, valor FROM configuracion WHERE clave LIKE 'empresa_%'");
+    const configRows = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND clave LIKE 'empresa_%'", [cotizacion.empresa_id || 1]);
     const config = (configRows[0] || []).reduce((acc, row) => { acc[row.clave] = row.valor; return acc; }, {});
     const money = value => `$ ${Math.round(Number(value) || 0).toLocaleString('es-CO')}`;
     const number = (value, decimals = 1) => (Number(value) || 0).toLocaleString('es-CO', { maximumFractionDigits: decimals });
@@ -564,11 +565,20 @@ router.get('/:id/pdf-download', async (req, res) => {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     });
     const page = await browser.newPage();
-    await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 3000));
+    await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 35000 });
+    await page.evaluate(async () => {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      let count = 0;
+      while (!window.pdfRenderFinished && count < 40) {
+        await new Promise(r => setTimeout(r, 100));
+        count++;
+      }
+    });
+    await new Promise(r => setTimeout(r, 1500));
     const pdfBuffer = Buffer.from(await page.pdf({
       format: 'A4',
       printBackground: true,
+      preferCSSPageSize: true,
       margins: { top: 0, right: 0, bottom: 0, left: 0 }
     }));
     await browser.close();
@@ -600,8 +610,9 @@ router.post('/', async (req, res) => {
 
     let cronograma = d.cronograma_json || '[]';
     if (cronograma === '[]') {
-      const pagoAnticipo = await getConfigValue('pago_anticipo_pct', 60);
-      const pagoEntrega = await getConfigValue('pago_contraentrega_pct', 40);
+      const empId = req.user.es_superadmin ? (d.empresa_id || req.user.empresa_id || 1) : (req.user.empresa_id || 1);
+      const pagoAnticipo = await getConfigValue('pago_anticipo_pct', 60, empId);
+      const pagoEntrega = await getConfigValue('pago_contraentrega_pct', 40, empId);
       cronograma = JSON.stringify([
         { semana: 1, actividad: 'Firma de contrato y anticipo', hito_pago: `${Math.trunc(pagoAnticipo)}% anticipo`, completado: false },
         { semana: 1, actividad: 'Compra de equipos y materiales', hito_pago: '', completado: false },

@@ -18,10 +18,26 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ── Get All Configuration ──
+// ── Public Configuration (branding para login) ──
+router.get('/public', async (req, res) => {
+  try {
+    const [rows] = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1) AND (clave LIKE 'empresa_%' OR clave LIKE 'diseno_%')");
+    const result = {};
+    rows.forEach(item => {
+      result[item.clave] = item.valor;
+    });
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ detail: 'Error del servidor' });
+  }
+});
+
+// ── Get All Configuration (per empresa) ──
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM configuracion ORDER BY clave');
+    const empresaId = req.user?.empresa_id || 1;
+    const [rows] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = ? ORDER BY clave', [empresaId]);
     const result = {};
     rows.forEach(item => {
       result[item.clave] = { valor: item.valor, tipo: item.tipo, descripcion: item.descripcion };
@@ -33,12 +49,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ── Update Configuration ──
+// ── Update Configuration (per empresa) ──
 router.put('/', async (req, res) => {
   try {
+    const empresaId = req.user?.empresa_id || 1;
     const { configuracion } = req.body;
     for (const [clave, valor] of Object.entries(configuracion)) {
-      await pool.execute('INSERT INTO configuracion (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [clave, String(valor)]);
+      await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [empresaId, clave, String(valor)]);
     }
     res.json({ message: 'Configuración actualizada exitosamente' });
   } catch (error) {

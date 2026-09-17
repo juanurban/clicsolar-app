@@ -54,6 +54,21 @@ router.post('/', async (req, res) => {
       await pool.execute(`INSERT INTO equipos (categoria, marca, modelo, descripcion, potencia_wp, potencia_kw, capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, iva, imagen_url, empresa_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [...Object.values(item), company.insertId]);
     }
+    // Cada empresa comienza con su propia configuración editable
+    const [baseConfig] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1)');
+    for (const conf of baseConfig) {
+      let val = conf.valor;
+      if (conf.clave === 'empresa_nombre' || conf.clave === 'empresa_nombre_corto') val = nombre;
+      if (conf.clave === 'empresa_nit') val = nit || '';
+      await pool.execute(
+        'INSERT INTO configuracion (empresa_id, clave, valor, tipo, descripcion) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+        [company.insertId, conf.clave, val, conf.tipo || 'string', conf.descripcion || '']
+      );
+    }
+    await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [company.insertId, 'empresa_nombre', nombre]);
+    await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [company.insertId, 'empresa_nombre_corto', nombre]);
+    await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [company.insertId, 'empresa_nit', nit || '']);
+
     res.status(201).json({ id: company.insertId, message: 'Empresa y administrador creados' });
   } catch (error) { console.error(error); res.status(500).json({ detail: 'Error del servidor' }); }
 });
@@ -65,6 +80,12 @@ router.put('/:id', async (req, res) => {
     if (!existing.length) return res.status(404).json({ detail: 'Empresa no encontrada' });
     const { nombre, nit, activo } = req.body;
     await pool.execute('UPDATE empresas SET nombre = COALESCE(?, nombre), nit = COALESCE(?, nit), activo = COALESCE(?, activo), updated_at = NOW() WHERE id = ?', [nombre, nit, activo, req.params.id]);
+    if (nombre !== undefined && nombre !== null) {
+      await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [req.params.id, 'empresa_nombre', nombre]);
+    }
+    if (nit !== undefined && nit !== null) {
+      await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [req.params.id, 'empresa_nit', nit]);
+    }
     res.json({ message: 'Empresa actualizada' });
   } catch (error) { console.error(error); res.status(500).json({ detail: 'Error del servidor' }); }
 });

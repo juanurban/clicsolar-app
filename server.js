@@ -46,13 +46,19 @@ app.use('/api/configuracion', require('./routes/configuracion'));
 // Every non-authenticated API call is scoped to the signed-in company.
 app.use('/api', async (req, res, next) => {
   if (req.path === '/auth' || req.path.startsWith('/auth/') || req.path === '/login' || req.path.startsWith('/login/') || req.path === '/logout' || req.path.startsWith('/logout/')) return next();
-  if (req.path === '/configuracion' || req.path.startsWith('/configuracion/')) return next();
+  if (req.path === '/configuracion/public') return next();
   // El renderizador headless no comparte las cookies del navegador. Sólo se
   // permite saltar la sesión con un token HMAC de corta duración generado por
   // la propia descarga PDF y únicamente para consultar una cotización.
   const pdfMatch = req.method === 'GET' && req.path.match(/^\/cotizaciones\/(\d+)$/);
   if (pdfMatch && verifyPdfToken(pdfMatch[1], req.query.pdf_token)) {
-    req.user = { empresa_id: 0, es_superadmin: true, pdf_render: true };
+    try {
+      const [cots] = await require('./db').execute('SELECT empresa_id FROM cotizaciones WHERE id = ?', [pdfMatch[1]]);
+      const cotEmpresaId = cots.length ? cots[0].empresa_id : 1;
+      req.user = { empresa_id: cotEmpresaId, es_superadmin: true, pdf_render: true };
+    } catch {
+      req.user = { empresa_id: 1, es_superadmin: true, pdf_render: true };
+    }
     return next();
   }
   try {
