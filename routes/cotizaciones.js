@@ -3,87 +3,11 @@ const router = express.Router();
 const pool = require('../db');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { execFile, spawn } = require('child_process');
-const { promisify } = require('util');
-const execFileAsync = promisify(execFile);
 const { createPdfToken } = require('../utils/pdfToken');
+const puppeteer = require('puppeteer');
 
-// Chrome puede escribir el PDF y mantener abierto el proceso headless unos
-// segundos más. Resolvemos en cuanto el archivo queda completo y cerramos
-// Chrome para no bloquear la descarga ni acumular procesos en local.
-function renderPdfWithChrome(chromePath, args, outputPath, timeoutMs = 30000) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(chromePath, args, { stdio: ['ignore', 'ignore', 'ignore'] });
-    let finished = false;
-    let previousSize = 0;
-    let stableSince = 0;
-    const startedAt = Date.now();
 
-    const finish = (error) => {
-      if (finished) return;
-      finished = true;
-      clearInterval(poll);
-      clearTimeout(timeout);
-      if (child.exitCode === null) child.kill('SIGTERM');
-      if (error) reject(error);
-      else resolve();
-    };
-
-    const poll = setInterval(() => {
-      try {
-        const stat = fs.statSync(outputPath);
-        if (stat.size > 5 && stat.size === previousSize) {
-          if (!stableSince) stableSince = Date.now();
-          if (Date.now() - stableSince >= 500) return finish();
-        } else {
-          previousSize = stat.size;
-          stableSince = 0;
-        }
-      } catch (_) {
-        // El archivo todavía no está disponible.
-      }
-      if (Date.now() - startedAt > timeoutMs) {
-        finish(new Error('Tiempo agotado al generar el PDF'));
-      }
-    }, 100);
-
-    const timeout = setTimeout(() => finish(new Error('Tiempo agotado al generar el PDF')), timeoutMs);
-    child.once('error', finish);
-    child.once('close', (code) => {
-      if (code !== 0 && !fs.existsSync(outputPath)) {
-        finish(new Error(`Chrome terminó con código ${code}`));
-      }
-    });
-  });
-}
-
-// ── Chrome auto-detection ──
-function findChrome() {
-    if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
-    const candidates = [
-        '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
-        '/usr/bin/chromium', '/usr/bin/chromium-browser',
-        '/usr/lib/chromium/chromium', '/opt/google/chrome/google-chrome',
-        '/snap/bin/google-chrome',
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/Applications/Chromium.app/Contents/MacOS/Chromium',
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    ];
-    for (const p of candidates) {
-        if (fs.existsSync(p)) return p;
-    }
-    const pathDirs = (process.env.PATH || '').split(':');
-    for (const dir of pathDirs) {
-        for (const name of ['google-chrome', 'chromium', 'chromium-browser', 'chrome']) {
-            const fullPath = path.join(dir, name);
-            if (fs.existsSync(fullPath)) return fullPath;
-        }
-    }
-    return null;
-}
 
 // ── Helper: Get config value ──
 async function getConfigValue(clave, defaultVal = null) {
@@ -625,49 +549,40 @@ async function generateLegacyPDF(req, res) {
   }
 }
 
-// ── Download PDF (Chrome exact rendering, legacy fallback) ──
+// ── Download PDF (Puppeteer exact rendering, legacy fallback) ──
 router.get('/:id/pdf-download', async (req, res) => {
-  const chromePath = findChrome();
-  if (!chromePath) return generateLegacyPDF(req, res);
-
-  let tempDir;
   try {
     const [rows] = await pool.execute('SELECT id FROM cotizaciones WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ detail: 'Cotización no encontrada' });
 
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sunquote-pdf-'));
-    const outputPath = path.join(tempDir, `propuesta_${req.params.id}.pdf`);
     const pdfToken = createPdfToken(req.params.id);
     const previewUrl = `${req.protocol}://${req.get('host')}/pdf/${encodeURIComponent(req.params.id)}?pdf=1&pdf_token=${encodeURIComponent(pdfToken)}`;
-    await renderPdfWithChrome(chromePath, [
-      '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage',
-      '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-      '--disable-component-update', '--disable-extensions',
-      '--no-pdf-header-footer', '--run-all-compositor-stages-before-draw',
-      '--virtual-time-budget=10000', `--print-to-pdf=${outputPath}`,
-      `--user-data-dir=${path.join(tempDir, 'profile')}`, previewUrl
-    ], outputPath, 30000);
 
-    const pdf = fs.readFileSync(outputPath);
-    if (pdf.subarray(0, 5).toString() !== '%PDF-') {
+    const browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    });
+    const page = await browser.newPage();
+    await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
+    const pdfBuffer = Buffer.from(await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margins: { top: 0, right: 0, bottom: 0, left: 0 }
+    }));
+    await browser.close();
+
+    if (!pdfBuffer || pdfBuffer.toString().slice(0, 5) !== '%PDF-') {
       throw new Error('El renderizador no produjo un PDF válido');
     }
     res.status(200);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="propuesta_${req.params.id}.pdf"`);
-    res.setHeader('Content-Length', pdf.length);
-    res.end(pdf);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.end(pdfBuffer);
   } catch (error) {
-    console.error('Error generando PDF desde vista previa:', error.message);
+    console.error('Error generando PDF:', error.message);
     if (!res.headersSent) return generateLegacyPDF(req, res);
-  } finally {
-    if (tempDir) {
-      try {
-        fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-      } catch (cleanupError) {
-        console.warn('No se pudo limpiar temporalmente el PDF:', cleanupError.message);
-      }
-    }
   }
 });
 
