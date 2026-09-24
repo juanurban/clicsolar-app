@@ -53,6 +53,41 @@ function calcularRoiDesdeProyeccion(cotizacion) {
   };
 }
 
+// Algunas propuestas antiguas se guardaron con producción cero aunque aún
+// conservan el panel, la cantidad de paneles y la HSP del cliente. En ese
+// caso podemos reconstruir la producción con la misma eficiencia por defecto
+// usada por /dimensionar (82 %) y reparar el análisis financiero al abrirla.
+function calcularProduccionDesdeCotizacion(cotizacion) {
+  const produccionMensual = Number(cotizacion.produccion_mensual_kwh) || 0;
+  if (produccionMensual > 0) return null;
+
+  const produccionDiariaGuardada = Number(cotizacion.produccion_diaria_kwh) || 0;
+  if (produccionDiariaGuardada > 0) {
+    return {
+      diaria: Math.round(produccionDiariaGuardada * 100) / 100,
+      mensual: Math.round(produccionDiariaGuardada * 30 * 100) / 100
+    };
+  }
+
+  const panelWp = Number(cotizacion.panel?.potencia_wp) || 0;
+  const potenciaKwp = Number(cotizacion.potencia_kwp) || 0;
+  const numPaneles = Number(cotizacion.num_paneles) > 0
+    ? Number(cotizacion.num_paneles)
+    : panelWp > 0 && potenciaKwp > 0
+      ? Math.ceil(potenciaKwp * 1000 / panelWp)
+      : 0;
+  const hsp = Number(cotizacion.cliente_hsp) > 0 ? Number(cotizacion.cliente_hsp) : 4.2;
+  const eficiencia = 0.82;
+
+  if (panelWp <= 0 || numPaneles <= 0 || hsp <= 0) return null;
+
+  const diaria = Math.round(numPaneles * panelWp * hsp * eficiencia / 1000 * 100) / 100;
+  return {
+    diaria,
+    mensual: Math.round(diaria * 30 * 100) / 100
+  };
+}
+
 // ── Helper: Generate next code ──
 async function generateCodigo() {
   const [rows] = await pool.execute('SELECT MAX(id) as max_id FROM cotizaciones');
@@ -426,10 +461,30 @@ router.get('/:id', async (req, res) => {
     // and ensures the financial table uses the current client tariff.
     const storedProjection = cot.proyeccion_25_json;
     const storedTariff = storedProjection?.[0]?.precio_kwh;
-    if (Array.isArray(storedProjection) && storedProjection.length && !Number(storedTariff) && Number(cot.cliente_costo_kwh) > 0) {
+    const tarifaCliente = Number(cot.cliente_costo_kwh) || 0;
+    const tarifaGuardada = Number(storedTariff) || 0;
+    const produccionReparada = calcularProduccionDesdeCotizacion(cot);
+    if (produccionReparada) {
+      cot.produccion_diaria_kwh = produccionReparada.diaria;
+      cot.produccion_mensual_kwh = produccionReparada.mensual;
+      await pool.execute(
+        'UPDATE cotizaciones SET produccion_diaria_kwh=?, produccion_mensual_kwh=? WHERE id=?',
+        [cot.produccion_diaria_kwh, cot.produccion_mensual_kwh, req.params.id]
+      );
+    }
+
+    // Si la producción quedó guardada en cero, la proyección completa también
+    // queda en cero y el retorno termina mostrándose como 83,3 años (999 meses).
+    // Reconstruimos las 25 anualidades usando la producción recuperada y la
+    // tarifa actual del cliente. Esto también funciona si la proyección estaba
+    // vacía o tenía una tarifa antigua.
+    const necesitaReconstruirProyeccion = Boolean(produccionReparada) || !tarifaGuardada;
+    const hayDatosParaReconstruir = Boolean(produccionReparada)
+      || (Array.isArray(storedProjection) && storedProjection.length > 0);
+    if (hayDatosParaReconstruir && necesitaReconstruirProyeccion && (tarifaCliente > 0 || tarifaGuardada > 0)) {
       const production = Number(cot.produccion_mensual_kwh) || 0;
       const consumption = Number(cot.cliente_consumo) || 0;
-      const tariff = Number(cot.cliente_costo_kwh) || 0;
+      const tariff = tarifaCliente || tarifaGuardada;
       const pctAuto = Math.min(100, Math.max(0, Number(cot.pct_autoconsumo) || 100));
       const autoRatio = production > 0 ? (Math.min(production, consumption) / production) : 1;
       const ratioAuto = pctAuto < 100 ? pctAuto / 100 : autoRatio;

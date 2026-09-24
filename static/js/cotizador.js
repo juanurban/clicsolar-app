@@ -868,12 +868,14 @@ function recalcularPotenciaPico() {
     let hasPanels = false;
     
     stateCotizador.items.forEach(item => {
-        if (item.categoria === 'panel' || item.categoria === 'Paneles Solares') {
+        const categoria = String(item.categoria || '').trim().toLowerCase();
+        if (categoria === 'panel' || categoria === 'paneles solares') {
             hasPanels = true;
-            totalPaneles += item.cantidad;
+            const cantidad = parseFloat(item.cantidad) || 0;
+            totalPaneles += cantidad;
             const panelObj = stateCotizador.paneles.find(p => p.id === item.equipo_id);
             if (panelObj && panelObj.potencia_wp) {
-                potenciaTotalWp += (item.cantidad * panelObj.potencia_wp);
+                potenciaTotalWp += (cantidad * parseFloat(panelObj.potencia_wp));
             }
         }
     });
@@ -883,7 +885,26 @@ function recalcularPotenciaPico() {
         // Solo actualizamos la potencia pico si el cálculo da un valor válido
         if (potenciaTotalWp > 0) {
             stateCotizador.dimensionamiento.potencia_kwp = parseFloat((potenciaTotalWp / 1000).toFixed(2));
+
+            // Mantener producción y ahorro sincronizados con la cantidad o el
+            // panel elegido en el paso técnico. Antes sólo se actualizaba la
+            // potencia pico y el análisis podía terminar guardando producción
+            // mensual en cero.
+            const cliente = stateCotizador.clienteSelected || {};
+            const hsp = parseFloat(stateCotizador.dimensionamiento.hsp)
+                || parseFloat(cliente.hsp)
+                || 4.2;
+            const eficiencia = parseFloat(stateCotizador.dimensionamiento.eficiencia_usada) || 0.82;
+            const produccionDiaria = Math.round(potenciaTotalWp * hsp * eficiencia / 1000 * 100) / 100;
+            stateCotizador.dimensionamiento.hsp = hsp;
+            stateCotizador.dimensionamiento.eficiencia_usada = eficiencia;
+            stateCotizador.dimensionamiento.produccion_diaria_kwh = produccionDiaria;
+            stateCotizador.dimensionamiento.produccion_mensual_kwh = Math.round(produccionDiaria * 30 * 100) / 100;
         }
+    } else {
+        stateCotizador.dimensionamiento.num_paneles = 0;
+        stateCotizador.dimensionamiento.produccion_diaria_kwh = 0;
+        stateCotizador.dimensionamiento.produccion_mensual_kwh = 0;
     }
 }
 
@@ -902,6 +923,7 @@ async function prepareAndGoToStep3() {
 }
 
 async function calculateFinances() {
+    recalcularPotenciaPico();
     const d = stateCotizador.dimensionamiento;
     const c = stateCotizador.clienteSelected;
     const conf = stateCotizador.config;
@@ -1682,6 +1704,7 @@ function addCronogramaRow() {
 }
 
 async function guardarCotizacion(estado, openPdf = false) {
+    recalcularPotenciaPico();
     const c = stateCotizador.clienteSelected;
     const d = stateCotizador.dimensionamiento;
     const f = stateCotizador.financiero;
