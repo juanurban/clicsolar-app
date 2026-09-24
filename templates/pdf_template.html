@@ -62,6 +62,9 @@
             gap: 2.5mm !important;
             margin-bottom: 2mm !important;
         }
+        html.pdf-render #page-3 .flex.flex-col.gap-4.single-chart {
+            grid-template-columns: minmax(0, 1fr) !important;
+        }
         html.pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
         html.pdf-render #page-3 .relative[style*="height:160px"] { height: 150px !important; }
         html.pdf-render #page-3 .flex.justify-around {
@@ -131,7 +134,7 @@
 
             /* Ajustes compactos Página 1 */
             #page-1 .content { padding: 4mm 14mm !important; }
-            #page-1 #diseno-img-container img { max-height: 110px !important; }
+            #page-1 #diseno-img-container img { max-height: 210px !important; }
             #page-1 .w-full.h-32 { height: 125px !important; }
             #page-1 #prod-chart-container { height: 190px !important; margin-bottom: 1rem !important; }
             #page-1 #eq-container { margin-bottom: 0.5rem !important; }
@@ -143,6 +146,7 @@
             /* Ajustes compactos Página 3 */
             #page-3 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
             #page-3 .flex.flex-col.gap-4 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5mm !important; margin-bottom: 2mm !important; }
+            #page-3 .flex.flex-col.gap-4.single-chart { grid-template-columns: minmax(0, 1fr) !important; }
             #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
             #page-3 .relative[style*="height:160px"] { height: 150px !important; }
             #page-3 .flex.justify-around { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1mm !important; margin-top: 2mm !important; padding-top: 1.5mm !important; font-size: 8px !important; line-height: 1.15 !important; text-align: center; }
@@ -212,7 +216,7 @@
         }
         html.local-pdf-render .page:last-child { page-break-after: avoid !important; break-after: avoid !important; }
         html.local-pdf-render #page-1 .content { padding: 4mm 14mm !important; }
-        html.local-pdf-render #page-1 #diseno-img-container img { max-height: 110px !important; }
+        html.local-pdf-render #page-1 #diseno-img-container img { max-height: 210px !important; }
         html.local-pdf-render #page-1 #prod-chart-container { height: 190px !important; margin-bottom: 1rem !important; }
         html.local-pdf-render #page-1 #eq-container { margin-bottom: 0.5rem !important; }
         html.local-pdf-render #page-1.supply-proposal #company-header { gap: 8px !important; }
@@ -225,6 +229,9 @@
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 2.5mm !important;
             margin-bottom: 2mm !important;
+        }
+        html.local-pdf-render #page-3 .flex.flex-col.gap-4.single-chart {
+            grid-template-columns: minmax(0, 1fr) !important;
         }
         html.local-pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
         html.local-pdf-render #page-3 .relative[style*="height:160px"] { height: 150px !important; }
@@ -840,6 +847,8 @@
                     });
                 } else {
                     document.getElementById('ley1715-card').style.display = 'none';
+                    const paybackCards = document.querySelector('#page-3 .flex.flex-col.gap-4');
+                    if (paybackCards) paybackCards.classList.add('single-chart');
                 }
             }
             document.getElementById('pc-inv').innerText = formatCurrency(data.total_inversion);
