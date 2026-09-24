@@ -25,6 +25,34 @@ async function getConfigValue(clave, defaultVal = null, empresaId = 1) {
   return valor;
 }
 
+// Algunas cotizaciones antiguas guardaron 999 meses cuando el ahorro mensual
+// llegó vacío durante el primer cálculo. Si la proyección sí contiene ahorro,
+// usamos esa información para reparar el retorno sin alterar sus valores.
+function calcularRoiDesdeProyeccion(cotizacion) {
+  const proyeccion = Array.isArray(cotizacion.proyeccion_25_json)
+    ? cotizacion.proyeccion_25_json
+    : [];
+  const primeraAnualidad = proyeccion[0] || {};
+  const valorEnergiaAnual = Number(primeraAnualidad.valor_energia)
+    || (Number(primeraAnualidad.valor_autoconsumo) || 0)
+      + (Number(primeraAnualidad.valor_excedentes) || 0);
+  const ahorroMensualGuardado = Number(cotizacion.ahorro_mensual) || 0;
+  const ahorroMensual = ahorroMensualGuardado > 0
+    ? ahorroMensualGuardado
+    : valorEnergiaAnual > 0 ? Math.round(valorEnergiaAnual / 12) : 0;
+  const inversion = Number(cotizacion.total_inversion) || 0;
+  if (ahorroMensual <= 0 || inversion <= 0) return null;
+
+  const tasaDeduccion = Number(cotizacion.deduccion_renta_pct) || 50;
+  const beneficioFiscal = inversion * (tasaDeduccion / 100) * 0.33;
+  return {
+    ahorroMensual,
+    ahorroAnual: ahorroMensual * 12,
+    roiSinIncentivosMeses: Math.round(inversion / ahorroMensual * 10) / 10,
+    roiConIncentivosMeses: Math.round((inversion - beneficioFiscal) / ahorroMensual * 10) / 10
+  };
+}
+
 // ── Helper: Generate next code ──
 async function generateCodigo() {
   const [rows] = await pool.execute('SELECT MAX(id) as max_id FROM cotizaciones');
@@ -445,6 +473,25 @@ router.get('/:id', async (req, res) => {
         'UPDATE cotizaciones SET ahorro_mensual=?, ahorro_anual=?, roi_sin_incentivos_meses=?, roi_con_incentivos_meses=?, proyeccion_25_json=? WHERE id=?',
         [cot.ahorro_mensual, cot.ahorro_anual, cot.roi_sin_incentivos_meses, cot.roi_con_incentivos_meses, JSON.stringify(rebuilt), req.params.id]
       );
+    }
+
+    // Reparar el sentinel 999 meses cuando la proyección guardada ya contiene
+    // energía valorizada. Esto corrige propuestas existentes sin obligar a
+    // editarlas y evita mostrar falsamente retornos de 83 años.
+    const roiActualSin = Number(cot.roi_sin_incentivos_meses);
+    const roiActualCon = Number(cot.roi_con_incentivos_meses);
+    if (roiActualSin >= 999 || roiActualCon >= 999) {
+      const roiReparado = calcularRoiDesdeProyeccion(cot);
+      if (roiReparado) {
+        cot.ahorro_mensual = roiReparado.ahorroMensual;
+        cot.ahorro_anual = roiReparado.ahorroAnual;
+        cot.roi_sin_incentivos_meses = roiReparado.roiSinIncentivosMeses;
+        cot.roi_con_incentivos_meses = roiReparado.roiConIncentivosMeses;
+        await pool.execute(
+          'UPDATE cotizaciones SET ahorro_mensual=?, ahorro_anual=?, roi_sin_incentivos_meses=?, roi_con_incentivos_meses=? WHERE id=?',
+          [cot.ahorro_mensual, cot.ahorro_anual, cot.roi_sin_incentivos_meses, cot.roi_con_incentivos_meses, req.params.id]
+        );
+      }
     }
 
     // Load company config

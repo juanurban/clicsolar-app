@@ -16,8 +16,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
+    window.pdfRender = new URLSearchParams(window.location.search).get('pdf') === '1';
+    if (window.pdfRender) document.documentElement.classList.add('pdf-render');
     if (window.Chart) {
-        window.pdfRender = new URLSearchParams(window.location.search).get('pdf') === '1';
         Chart.defaults.devicePixelRatio = window.pdfRender ? 1 : 3;
     }
     </script>
@@ -50,6 +51,35 @@
         }
 
         .content { padding: 6mm 14mm; }
+
+        /* El PDF se inicializa con la misma cuadrícula final de la página 3.
+           Así Chart.js calcula cada canvas con el ancho de su tarjeta y no
+           conserva el ancho de la vista apilada del navegador. */
+        html.pdf-render #page-3 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
+        html.pdf-render #page-3 .flex.flex-col.gap-4 {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 2.5mm !important;
+            margin-bottom: 2mm !important;
+        }
+        html.pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
+        html.pdf-render #page-3 .relative[style*="height:160px"] { height: 150px !important; }
+        html.pdf-render #page-3 .flex.justify-around {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 1mm !important;
+            margin-top: 2mm !important;
+            padding-top: 1.5mm !important;
+            font-size: 8px !important;
+            line-height: 1.15 !important;
+            text-align: center !important;
+        }
+        html.pdf-render #page-3 .flex.justify-around > span { min-width: 0 !important; }
+        html.pdf-render #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
+        html.pdf-render #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
+        html.pdf-render #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
+        html.pdf-render #page-3 table td,
+        html.pdf-render #page-3 table th { padding: 1px 2px !important; font-size: 6.3px !important; line-height: 1.02 !important; }
 
         .material-symbols-outlined {
             font-family: 'Material Symbols Outlined';
