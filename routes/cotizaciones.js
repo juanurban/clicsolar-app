@@ -683,7 +683,11 @@ async function generateLegacyPDF(req, res) {
       doc.text(`Energía acumulada estimada: ${number(proyeccion.reduce((sum, row) => sum + (Number(row.energia_kwh) || 0), 0), 0)} kWh`);
       doc.text(`Ahorro acumulado al año 25: ${money(last.ahorro_acumulado_s1 || last.ahorro_acumulado_s2)}`);
     }
-    const terminosKeys = Object.keys(config).filter(k => /terminos|condiciones|notas/i.test(k));\nlet terminos = '';\nif (terminosKeys.length > 0) { terminos = config[terminosKeys[0]]; }\nelse { terminos = cotizacion.notas || ''; }\nif (terminos.trim()) { section('Notas'); doc.font('Helvetica').fontSize(9).text(text(terminos)); }
+    const terminosKeys = Object.keys(config).filter(k => /terminos|condiciones|notas/i.test(k));
+    let terminos = '';
+    if (terminosKeys.length > 0) { terminos = config[terminosKeys[0]]; }
+    else { terminos = cotizacion.notas || ''; }
+    if (terminos.trim()) { section('Notas'); doc.font('Helvetica').fontSize(9).text(text(terminos)); }
     doc.moveDown(1.5).fontSize(8).fillColor(gray).text('Documento generado por Plantas Solares de Colombia. Valores sujetos a verificación técnica y comercial.', { align: 'center' });
 
     const range = doc.bufferedPageRange();
