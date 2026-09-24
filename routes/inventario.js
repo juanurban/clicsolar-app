@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db');
@@ -11,7 +12,10 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => cb(null, file.originalname)
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    cb(null, `equipo_${crypto.randomUUID()}${extension}`);
+  }
 });
 const upload = multer({ storage });
 
@@ -19,8 +23,20 @@ const upload = multer({ storage });
 router.get('/', async (req, res) => {
   try {
     const { categoria, buscar, activo } = req.query;
-    let query = 'SELECT * FROM equipos WHERE (empresa_id = ? OR ? = 1)';
-    const params = [req.user.empresa_id, req.user.es_superadmin ? 1 : 0];
+    let empresaId = Number(req.query.empresa_id) || Number(req.user.empresa_id) || 0;
+    if (!empresaId && req.user.es_superadmin) {
+      const [firstCompany] = await pool.execute('SELECT id FROM empresas ORDER BY id LIMIT 1');
+      empresaId = Number(firstCompany[0]?.id) || 1;
+    }
+    if (!empresaId) return res.status(400).json({ detail: 'No se pudo determinar la empresa del inventario' });
+
+    // El superadmin puede consultar una empresa concreta, pero nunca se
+    // mezclan catálogos de varias empresas en la misma lista.
+    if (!req.user.es_superadmin && empresaId !== Number(req.user.empresa_id)) {
+      return res.status(403).json({ detail: 'No tienes acceso a este inventario' });
+    }
+    let query = 'SELECT * FROM equipos WHERE empresa_id = ?';
+    const params = [empresaId];
 
     if (categoria) { query += ' AND categoria = ?'; params.push(categoria); }
     if (buscar) {

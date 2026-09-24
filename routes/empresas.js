@@ -49,12 +49,7 @@ router.post('/', async (req, res) => {
       'INSERT INTO usuarios (username, password_hash, password_salt, nombre_completo, correo, perfil_id, empresa_id, es_superadmin, activo) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)',
       [admin.username, hash, salt, admin.nombre_completo, admin.correo || '', profiles[0].id, company.insertId]
     );
-    // Cada empresa comienza con su propio catálogo editable, sin compartir inventario.
-    const [baseEquipment] = await pool.execute('SELECT categoria, marca, modelo, descripcion, potencia_wp, potencia_kw, capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, iva, imagen_url FROM equipos WHERE empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1)');
-    for (const item of baseEquipment) {
-      await pool.execute(`INSERT INTO equipos (categoria, marca, modelo, descripcion, potencia_wp, potencia_kw, capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, iva, imagen_url, empresa_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [...Object.values(item), company.insertId]);
-    }
+    // Inventario global: los equipos y servicios son únicos en la base de datos.
     // Cada empresa comienza con su propia configuración editable
     const [baseConfig] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = (SELECT id FROM empresas ORDER BY id LIMIT 1)');
     for (const conf of baseConfig) {

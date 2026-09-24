@@ -316,6 +316,16 @@ async function saveConfiguracion(e) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = Object.fromEntries(fd.entries());
+    // El input oculto puede no haber recibido el último cambio si el usuario
+    // guardó mientras aún editaba la nueva fila. Leer siempre el DOM evita
+    // perder términos recién agregados.
+    const filasTerminos = Array.from(document.querySelectorAll('#terminos-list > div'));
+    if (filasTerminos.length) {
+        data.terminos_condiciones = JSON.stringify(filasTerminos.map(fila => ({
+            texto: fila.querySelector('textarea')?.value || '',
+            aplica: fila.querySelector('select')?.value || 'ambos'
+        })).filter(item => item.texto.trim()));
+    }
     
     try {
         await API.put('/configuracion', { configuracion: data });

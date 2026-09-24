@@ -364,7 +364,7 @@
                 </div>
                 <div class="font-bold text-sm" id="eq-pan-marca">-</div>
                 <div class="text-[10px] text-gray uppercase" id="eq-pan-mod">-</div>
-            </div>
+                <img id="eq-pan-img" class="w-full h-24 object-contain mt-2" style="max-height:80px;">\n            </div>
             <div class="border border-gray/20 rounded p-3">
                 <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
                     <span class="material-symbols-outlined text-dark text-sm">electric_meter</span> Inversor
@@ -372,7 +372,7 @@
                 <div class="font-bold text-sm" id="eq-inv-marca">-</div>
                 <div class="text-[10px] text-gray uppercase" id="eq-inv-mod">-</div>
             </div>
-            <div class="border border-gray/20 rounded p-3" id="eq-bateria-box" style="display:none;">
+                <img id="eq-inv-img" class="w-full h-24 object-contain mt-2" style="max-height:80px;">\n            <div class="border border-gray/20 rounded p-3" id="eq-bateria-box" style="display:none;">
                 <div class="font-bold uppercase text-primary mb-1 flex items-center gap-1 text-xs">
                     <span class="material-symbols-outlined text-dark text-sm">battery_charging_full</span> Batería
                 </div>
@@ -758,6 +758,19 @@
             if(data.inversor) {
                 document.getElementById('eq-inv-marca').innerText = data.inversor.marca?.toUpperCase() || '-';
                 document.getElementById('eq-inv-mod').innerText = `${data.inversor.modelo?.toUpperCase() || '-'} (${data.inversor.potencia_kw}kW)`;
+            }
+
+
+            // Panel image
+            const panImg = document.getElementById('eq-pan-img');
+            if (data.panel?.imagen_url) {
+                panImg.src = data.panel.imagen_url;
+            }
+
+            // Inversor image
+            const invImg = document.getElementById('eq-inv-img');
+            if (data.inversor?.imagen_url) {
+                invImg.src = data.inversor.imagen_url;
             }
 
             // Tarjeta de Batería

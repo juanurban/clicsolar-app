@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db');
@@ -10,7 +11,8 @@ const {
   esEmpresaPlantas,
   PLANTAS_ASESOR_POR_DEFECTO,
   PLANTAS_TERMINOS_POR_DEFECTO,
-  parecePerfilDru
+  parecePerfilDru,
+  resolverTerminosPlantas
 } = require('../utils/empresaConfig');
 
 // Configure multer for config uploads
@@ -21,7 +23,8 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => {
     const prefix = req.body.prefix || 'file';
-    cb(null, `${prefix}_${file.originalname}`);
+    const extension = path.extname(file.originalname).toLowerCase();
+    cb(null, `${prefix}_${crypto.randomUUID()}${extension}`);
   }
 });
 const upload = multer({ storage });
@@ -98,10 +101,10 @@ router.get('/', async (req, res) => {
           result[clave] = { ...(result[clave] || {}), valor, tipo: result[clave]?.tipo || 'string' };
         }
       }
-      if (parecePerfilDru(result.terminos_condiciones?.valor)) {
+      if (result.terminos_condiciones?.valor) {
         result.terminos_condiciones = {
           ...(result.terminos_condiciones || {}),
-          valor: PLANTAS_TERMINOS_POR_DEFECTO,
+          valor: resolverTerminosPlantas(result.terminos_condiciones.valor),
           tipo: result.terminos_condiciones?.tipo || 'string'
         };
       }

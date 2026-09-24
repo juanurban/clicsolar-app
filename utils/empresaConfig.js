@@ -85,6 +85,29 @@ function parecePerfilDru(valor) {
   return /dru|diego|rincon|drincon|3203880918/i.test(String(valor || ''));
 }
 
+function resolverTerminosPlantas(valor) {
+  const raw = String(valor || '').trim();
+  if (!raw) return PLANTAS_TERMINOS_POR_DEFECTO;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    return parecePerfilDru(raw) ? PLANTAS_TERMINOS_POR_DEFECTO : raw;
+  }
+  if (!Array.isArray(parsed)) return raw;
+
+  const textoDe = item => typeof item === 'string' ? item : item?.texto || '';
+  const limpios = parsed.filter(item => !parecePerfilDru(textoDe(item)));
+  if (limpios.length === parsed.length) return raw;
+
+  const defaults = JSON.parse(PLANTAS_TERMINOS_POR_DEFECTO);
+  const existentes = new Set(limpios.map(item => String(textoDe(item)).trim().toLowerCase()));
+  return JSON.stringify([
+    ...defaults.filter(item => !existentes.has(String(item).trim().toLowerCase())),
+    ...limpios
+  ]);
+}
+
 module.exports = {
   LOGO_PLANTAS,
   LOGO_GENERICO,
@@ -93,5 +116,6 @@ module.exports = {
   esEmpresaPlantas,
   esConfiguracionPropiaEmpresa,
   resolverLogo,
-  parecePerfilDru
+  parecePerfilDru,
+  resolverTerminosPlantas
 };

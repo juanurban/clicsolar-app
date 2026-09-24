@@ -6,11 +6,26 @@ let stateInventario = {
     categoria: 'panel',
     data: [],
     buscar: '',
-    selectedIds: []
+    selectedIds: [],
+    empresas: [],
+    empresaId: null
 };
 
 async function renderInventario() {
     const content = document.getElementById('app-content');
+    if (App.user?.es_superadmin && stateInventario.empresas.length === 0) {
+        try {
+            stateInventario.empresas = await API.get('/empresas');
+            stateInventario.empresaId = Number(App.user.empresa_id) || stateInventario.empresas[0]?.id || null;
+        } catch (_) {
+            stateInventario.empresas = [];
+        }
+    }
+    const empresaSelector = App.user?.es_superadmin && stateInventario.empresas.length
+        ? `<select id="inventario-empresa" class="sq-input min-w-56" onchange="cambiarEmpresaInventario(this.value)">
+            ${stateInventario.empresas.map(empresa => `<option value="${empresa.id}" ${Number(empresa.id) === Number(stateInventario.empresaId) ? 'selected' : ''}>${empresa.nombre}</option>`).join('')}
+           </select>`
+        : '';
     content.innerHTML = `
         <div class="flex flex-col w-full p-4 lg:p-12 gap-8 fade-in max-w-7xl mx-auto">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -41,6 +56,7 @@ async function renderInventario() {
                     <button class="sq-tab" onclick="switchInvCat('servicio')">Servicios</button>
                 </div>
                 <div class="relative w-full lg:flex-1 lg:max-w-md ml-auto flex items-center gap-3">
+                    ${empresaSelector}
                     <div class="flex items-center gap-2 mr-2 bg-surface-container-high px-3 py-2 rounded-lg">
                         <input type="checkbox" id="select-all-equipos" class="w-4 h-4 accent-primary cursor-pointer" onchange="toggleSelectAllEquipos(this.checked)" title="Seleccionar todos">
                         <label for="select-all-equipos" class="text-xs text-on-surface-variant cursor-pointer font-label-bold uppercase tracking-wider whitespace-nowrap">Todos</label>
@@ -66,6 +82,13 @@ async function renderInventario() {
     await fetchEquipos();
 }
 
+function cambiarEmpresaInventario(empresaId) {
+    stateInventario.empresaId = Number(empresaId) || null;
+    stateInventario.selectedIds = [];
+    updateBulkDeleteUI();
+    fetchEquipos();
+}
+
 function switchInvCat(cat) {
     stateInventario.categoria = cat;
     stateInventario.selectedIds = [];
@@ -88,7 +111,8 @@ async function fetchEquipos() {
     grid.innerHTML = `<div class="col-span-full py-12 flex justify-center"><div class="sq-spinner"></div></div>`;
     
     try {
-        const res = await API.get(`/equipos?categoria=${stateInventario.categoria}&buscar=${encodeURIComponent(stateInventario.buscar)}`);
+        const empresaQuery = stateInventario.empresaId ? `&empresa_id=${stateInventario.empresaId}` : '';
+        const res = await API.get(`/equipos?categoria=${stateInventario.categoria}&buscar=${encodeURIComponent(stateInventario.buscar)}${empresaQuery}`);
         stateInventario.data = res.data;
         
         // Clean up selectedIds in case some items were deleted or filtered out

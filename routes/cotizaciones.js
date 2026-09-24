@@ -613,7 +613,7 @@ async function generateLegacyPDF(req, res) {
     const itemData = parseJson(cotizacion.items_json, {});
     const items = Array.isArray(itemData) ? itemData : (itemData.items || []);
     const proyeccion = parseJson(cotizacion.proyeccion_25_json, []);
-    const configRows = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND clave LIKE 'empresa_%'", [cotizacion.empresa_id || 1]);
+    const configRows = await pool.execute("SELECT clave, valor FROM configuracion WHERE empresa_id = ? AND (clave LIKE 'empresa_%' OR clave LIKE 'terminos%' OR clave = 'terminos_condiciones')", [cotizacion.empresa_id || 1]);
     const config = (configRows[0] || []).reduce((acc, row) => { acc[row.clave] = row.valor; return acc; }, {});
     const money = value => `$ ${Math.round(Number(value) || 0).toLocaleString('es-CO')}`;
     const number = (value, decimals = 1) => (Number(value) || 0).toLocaleString('es-CO', { maximumFractionDigits: decimals });
@@ -683,7 +683,7 @@ async function generateLegacyPDF(req, res) {
       doc.text(`Energía acumulada estimada: ${number(proyeccion.reduce((sum, row) => sum + (Number(row.energia_kwh) || 0), 0), 0)} kWh`);
       doc.text(`Ahorro acumulado al año 25: ${money(last.ahorro_acumulado_s1 || last.ahorro_acumulado_s2)}`);
     }
-    if (cotizacion.notas) { section('Notas'); doc.font('Helvetica').fontSize(9).text(text(cotizacion.notas)); }
+    const terminosKeys = Object.keys(config).filter(k => /terminos|condiciones|notas/i.test(k));\nlet terminos = '';\nif (terminosKeys.length > 0) { terminos = config[terminosKeys[0]]; }\nelse { terminos = cotizacion.notas || ''; }\nif (terminos.trim()) { section('Notas'); doc.font('Helvetica').fontSize(9).text(text(terminos)); }
     doc.moveDown(1.5).fontSize(8).fillColor(gray).text('Documento generado por Plantas Solares de Colombia. Valores sujetos a verificación técnica y comercial.', { align: 'center' });
 
     const range = doc.bufferedPageRange();
