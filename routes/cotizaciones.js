@@ -10,8 +10,8 @@ const {
   resolverLogo,
   esEmpresaPlantas,
   PLANTAS_ASESOR_POR_DEFECTO,
-  PLANTAS_TERMINOS_POR_DEFECTO,
-  parecePerfilDru
+  parecePerfilDru,
+  resolverTerminosPlantas
 } = require('../utils/empresaConfig');
 
 
@@ -579,8 +579,11 @@ router.get('/:id', async (req, res) => {
         cot.asesor.asesor_correo
       ].some(parecePerfilDru);
       if (asesorContaminado) Object.assign(cot.asesor, PLANTAS_ASESOR_POR_DEFECTO);
+      // Misma limpieza que el editor: se descartan sólo los items heredados
+      // de DRU y se conservan los términos propios de la empresa. Reemplazar
+      // el JSON completo borra silenciosamente términos nuevos en el PDF.
       if (parecePerfilDru(cot.asesor.terminos_condiciones)) {
-        cot.asesor.terminos_condiciones = PLANTAS_TERMINOS_POR_DEFECTO;
+        cot.asesor.terminos_condiciones = resolverTerminosPlantas(cot.asesor.terminos_condiciones);
       }
     }
 

@@ -24,6 +24,7 @@ window.renderTerminos = function() {
         list.innerHTML += `
             <div class="flex items-start gap-2 bg-surface-container rounded-lg p-3 group">
                 <span class="text-primary font-bold mt-1">${i+1}.</span>
+                ${t.aplica !== 'ambos' ? `<span class="text-xs font-semibold mt-1 whitespace-nowrap" style="color:#b45309;" title="Este término no aparecerá en la otra modalidad">${t.aplica === 'solar' ? 'Solo solar' : 'Solo suministro'}</span>` : ''}
                 <textarea class="sq-input flex-1 min-h-[60px] text-sm resize-y" onchange="updateTermino(${i}, this.value)">${t.texto}</textarea>
                 <select class="sq-input w-44 text-xs" onchange="updateTerminoAplica(${i}, this.value)" title="Dónde aplica">
                     <option value="ambos" ${t.aplica === 'ambos' ? 'selected' : ''}>Ambas modalidades</option>
