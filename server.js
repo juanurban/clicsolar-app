@@ -2,12 +2,22 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const { execSync } = require('child_process');
 require('dotenv').config();
 
 const app = express();
 const authRouter = require('./routes/auth');
 const { verifyPdfToken } = require('./utils/pdfToken');
 const PORT = process.env.PORT || 8000;
+
+// Hash del commit desplegado, visible en /health para verificar el despliegue de Hostinger
+const VERSION_GIT = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return process.env.GIT_COMMIT || 'desconocida';
+  }
+})();
 
 // Trust proxy (behind Nginx/Apache/cPanel)
 if (process.env.NODE_ENV === 'production') {
@@ -26,7 +36,7 @@ app.use(cookieParser());
 app.get('/health', async (req, res) => {
   try {
     await require('./db').execute('SELECT 1');
-    res.json({ status: 'ok', service: 'plantas-solares-colombia' });
+    res.json({ status: 'ok', service: 'plantas-solares-colombia', version: VERSION_GIT });
   } catch (error) {
     res.status(503).json({ status: 'error', detail: 'Base de datos no disponible' });
   }
