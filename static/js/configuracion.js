@@ -67,7 +67,21 @@ async function renderConfiguracion() {
     content.innerHTML = `<div class="flex items-center justify-center h-[60vh]"><div class="sq-spinner"></div></div>`;
 
     try {
-        const res = await API.get('/configuracion');
+        // El superadmin no tiene empresa propia (empresa_id NULL): sin un
+        // selector, sus ediciones se guardaban siempre en la empresa 1 y los
+        // términos de las demás empresas nunca cambiaban. Ahora puede elegir
+        // la empresa que va a administrar.
+        const esSuper = !!App.user?.es_superadmin;
+        let empresas = [];
+        if (esSuper) {
+            try { empresas = await API.get('/empresas'); } catch (e) { empresas = []; }
+        }
+        const empresaDefault = empresas.length
+            ? Math.min(...empresas.map(e => Number(e.id)))
+            : 1;
+        const empresaSel = esSuper ? (Number(App.configEmpresaId) || empresaDefault) : null;
+        if (esSuper) App.configEmpresaId = empresaSel;
+        const res = await API.get('/configuracion' + (empresaSel ? `?empresa_id=${empresaSel}` : ''));
         
         // Helper to extract value safely
         const v = (key) => res[key] ? res[key].valor : '';
@@ -78,12 +92,30 @@ async function renderConfiguracion() {
             if (!Array.isArray(terminosList)) terminosList = [];
         } catch { terminosList = []; }
 
+        const selectorEmpresaHtml = esSuper ? `
+                <div class="bg-primary/5 border-2 border-primary/30 p-6 lg:p-8 rounded-xl flex flex-col md:flex-row md:items-center gap-4">
+                    <div class="flex items-center gap-4 flex-1">
+                        <div class="p-3 bg-surface-container-high rounded-lg text-primary">
+                            <span class="material-symbols-outlined">business</span>
+                        </div>
+                        <div>
+                            <h2 class="font-headline-md text-headline-md text-on-surface">Configuración de empresa</h2>
+                            <p class="text-sm text-on-surface-variant">Estás editando los datos, branding y términos de la empresa seleccionada. Los cambios sólo afectan a esa empresa.</p>
+                        </div>
+                    </div>
+                    <select class="sq-input w-full md:w-80 font-label-bold" onchange="cambiarEmpresaConfiguracion(this.value)">
+                        ${empresas.map(e => `<option value="${e.id}" ${Number(e.id) === empresaSel ? 'selected' : ''}>${e.nombre}</option>`).join('')}
+                    </select>
+                </div>` : '';
+
         const html = `
             <div class="flex flex-col w-full p-4 lg:p-12 gap-8 fade-in max-w-6xl mx-auto">
                 <div class="flex flex-col gap-3">
                     <span class="font-label-bold text-label-bold text-primary tracking-widest uppercase">Ajustes del Sistema</span>
                     <h1 class="font-display-lg text-display-lg text-on-surface">Configuración Global</h1>
                 </div>
+
+                ${selectorEmpresaHtml}
 
                 <form id="config-form" onsubmit="saveConfiguracion(event)">
                     
@@ -313,6 +345,11 @@ async function renderConfiguracion() {
     }
 }
 
+window.cambiarEmpresaConfiguracion = function(valor) {
+    App.configEmpresaId = Number(valor) || null;
+    renderConfiguracion();
+}
+
 async function saveConfiguracion(e) {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -329,7 +366,12 @@ async function saveConfiguracion(e) {
     }
     
     try {
-        await API.put('/configuracion', { configuracion: data });
+        const payload = { configuracion: data };
+        // El superadmin debe indicar explícitamente la empresa a actualizar.
+        if (App.user?.es_superadmin && App.configEmpresaId) {
+            payload.empresa_id = Number(App.configEmpresaId);
+        }
+        await API.put('/configuracion', payload);
         await updateBranding();
         showToast('Configuración guardada exitosamente', 'success');
     } catch (err) {

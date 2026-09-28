@@ -9,6 +9,8 @@ const App = {
     config: {},
     user: null,
     permisos: [],
+    // Empresa seleccionada por el superadmin en la página de Configuración.
+    configEmpresaId: null,
     // Cambiar si el frontend y backend se alojan en servidores distintos (Ej. Render)
     API_BASE_URL: '', // Dejar vacío para despliegues en el mismo dominio o VPS
 };

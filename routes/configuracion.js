@@ -29,6 +29,20 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// ── Empresa objetivo de la configuración ──
+// El superadmin puede gestionar la configuración de cualquier empresa
+// enviando empresa_id (query en GET, cuerpo en PUT). Un administrador
+// normal siempre lee y escribe la de su propia empresa: el parámetro se
+// ignora por completo para evitar escritura entre tenants.
+async function resolverEmpresaObjetivo(req) {
+  const solicitada = Number(req.query.empresa_id || (req.body && req.body.empresa_id) || 0);
+  if (req.user?.es_superadmin && solicitada > 0) {
+    const [rows] = await pool.execute('SELECT id FROM empresas WHERE id = ?', [solicitada]);
+    if (rows.length) return rows[0].id;
+  }
+  return req.user?.empresa_id || 1;
+}
+
 // ── Public Configuration (branding para login) ──
 router.get('/public', async (req, res) => {
   try {
@@ -52,7 +66,7 @@ router.get('/public', async (req, res) => {
 // ── Get All Configuration (per empresa) ──
 router.get('/', async (req, res) => {
   try {
-    const empresaId = req.user?.empresa_id || 1;
+    const empresaId = await resolverEmpresaObjetivo(req);
     let [rows] = await pool.execute('SELECT clave, valor, tipo, descripcion FROM configuracion WHERE empresa_id = ? ORDER BY clave', [empresaId]);
 
     const [companyRows] = await pool.execute('SELECT id, nombre, nit FROM empresas WHERE id = ?', [empresaId]);
@@ -122,9 +136,10 @@ router.get('/', async (req, res) => {
 // ── Update Configuration (per empresa) ──
 router.put('/', async (req, res) => {
   try {
-    const empresaId = req.user?.empresa_id || 1;
+    const empresaId = await resolverEmpresaObjetivo(req);
     const { configuracion } = req.body;
     for (const [clave, valor] of Object.entries(configuracion)) {
+      if (clave === 'empresa_id') continue; // no es una clave de configuración
       await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [empresaId, clave, String(valor)]);
     }
     res.json({ message: 'Configuración actualizada exitosamente' });
