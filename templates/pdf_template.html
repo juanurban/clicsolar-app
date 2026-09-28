@@ -1020,9 +1020,16 @@
                     try {
                         const terminosRaw = JSON.parse(data.asesor.terminos_condiciones);
                         const terminos = (Array.isArray(terminosRaw) ? terminosRaw : []).map(t => {
-                            if (typeof t !== 'string') return t || { texto: '', aplica: 'ambos' };
-                            const soloSolar = /panel|bater[ií]a|generaci[oó]n|RETIE|operador de red|legalizaci[oó]n/i.test(t);
-                            return { texto: t, aplica: soloSolar ? 'solar' : 'ambos' };
+                            if (typeof t === 'string') {
+                                const soloSolar = /panel|bater[ií]a|generaci[oó]n|RETIE|operador de red|legalizaci[oó]n/i.test(t);
+                                return { texto: t, aplica: soloSolar ? 'solar' : 'ambos' };
+                            }
+                            // Igual que el editor de configuración: cualquier
+                            // valor no reconocido (datos heredados) se trata
+                            // como 'ambos' en lugar de ocultar el término en
+                            // las dos modalidades.
+                            const aplica = ['ambos', 'solar', 'suministro'].includes(t && t.aplica) ? t.aplica : 'ambos';
+                            return { texto: (t && t.texto) || '', aplica };
                         });
                         if (Array.isArray(terminos) && terminos.length > 0) {
                             const ul = document.getElementById('terminos-list-pdf');
@@ -1039,6 +1046,11 @@
                                 }
                             });
                             document.getElementById('terminos-container').classList.remove('hidden');
+                            // Si la empresa agrega más términos de los que caben
+                            // en la página 4, se reduce el cuerpo de letra o se
+                            // mueven a una página de continuación para que ninguno
+                            // quede recortado por el overflow:hidden del lienzo.
+                            try { asegurarTerminosVisiblesEnPDF(); } catch (e) { console.error('Ajuste de términos:', e); }
                         }
                     } catch(e) {}
                 }
@@ -1606,6 +1618,95 @@
                 btn.innerHTML = origHtml;
             }
         }
+    }
+
+    // ── Términos y condiciones: garantía de visibilidad completa ──
+    // Las .page tienen altura fija (295mm) con overflow:hidden, así que al
+    // agregar términos (p. ej. el item 10) el excedente se recortaba sin
+    // señal visible en pantalla ni en el PDF exportado. Primero se reduce la
+    // fuente de la lista y, si aun así no cabe, se crean páginas de
+    // continuación con la numeración de pies de página actualizada. El
+    // resultado funciona igual para Puppeteer, html2canvas y window.print,
+    // porque todos recorren los elementos .page ya corregidos.
+    function renumerarPaginas() {
+        const visibles = Array.from(document.querySelectorAll('.page')).filter(page => {
+            const styles = getComputedStyle(page);
+            return styles.display !== 'none' && styles.visibility !== 'hidden';
+        });
+        visibles.forEach((page, index) => {
+            page.querySelectorAll('span').forEach(span => {
+                if (/P\u00E1gina\s*\d+\s*de\s*\d+/i.test(span.textContent)) {
+                    span.textContent = `P\u00E1gina ${index + 1} de ${visibles.length}`;
+                }
+            });
+        });
+    }
+
+    function crearPaginaContinuacionTerminos(fontSizePx) {
+        const nombre = document.getElementById('f-emp-nombre4')?.textContent || 'Plantas Solares de Colombia';
+        const web = document.getElementById('f-emp-web4')?.textContent || '';
+        const pagina = document.createElement('div');
+        pagina.className = 'page terminos-continuacion';
+        pagina.innerHTML = `
+            <div class="header-stripe"></div>
+            <div class="content flex flex-col justify-between">
+                <div class="prevent-break">
+                    <h3 class="text-[9px] border-b border-gray/30 pb-0.5 mb-1 text-dark font-bold uppercase">T\u00E9rminos y Condiciones (continuaci\u00F3n)</h3>
+                    <ul class="list-disc pl-3 text-gray leading-tight" style="font-size:${fontSizePx}px;"></ul>
+                </div>
+                <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
+                    <span>${nombre}</span>
+                    <span class="flex-1 text-center">${web}</span>
+                    <span>P\u00E1gina 5 de 5</span>
+                </div>
+            </div>`;
+        return pagina;
+    }
+
+    function asegurarTerminosVisiblesEnPDF() {
+        const page4 = document.getElementById('page-4');
+        const cont = document.getElementById('terminos-container');
+        const ul = document.getElementById('terminos-list-pdf');
+        if (!page4 || !cont || !ul || cont.classList.contains('hidden') || !ul.firstElementChild) return;
+
+        // 1) Reducir el cuerpo de letra de la lista hasta que la página 4 quepa.
+        let fontSize = 7;
+        while (page4.scrollHeight > page4.clientHeight + 1 && fontSize > 5) {
+            fontSize -= 0.5;
+            ul.style.fontSize = fontSize + 'px';
+        }
+        if (page4.scrollHeight <= page4.clientHeight + 1) return;
+
+        // 2) Mover los últimos términos a páginas de continuación encadenadas.
+        let fuentePage = page4;
+        let fuenteUl = ul;
+        let destinoPage = null;
+        let destinoUl = null;
+        while (fuentePage.scrollHeight > fuentePage.clientHeight + 1 && fuenteUl.firstElementChild) {
+            if (!destinoUl) {
+                destinoPage = crearPaginaContinuacionTerminos(fontSize);
+                fuentePage.parentNode.insertBefore(destinoPage, fuentePage.nextSibling);
+                destinoUl = destinoPage.querySelector('ul');
+            }
+            destinoUl.insertBefore(fuenteUl.lastElementChild, destinoUl.firstChild);
+            if (fuentePage.scrollHeight <= fuentePage.clientHeight + 1) {
+                // La fuente ya cabe; si la continuación desborda, pasa a ser fuente.
+                fuentePage = destinoPage;
+                fuenteUl = destinoUl;
+                destinoPage = null;
+                destinoUl = null;
+            }
+        }
+        if (!ul.firstElementChild) cont.classList.add('hidden');
+        renumerarPaginas();
+    }
+
+    // Reajustar cuando las tipografías terminen de cargar, porque el alto del
+    // texto puede cambiar respecto a la medida inicial.
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+            try { asegurarTerminosVisiblesEnPDF(); } catch (e) {}
+        }).catch(() => {});
     }
 
     window.onload = init;
