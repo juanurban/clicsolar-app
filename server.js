@@ -50,9 +50,6 @@ app.use('/static', express.static(path.join(__dirname, 'static')));
 app.use('/api/auth', authRouter);
 app.use('/api/empresas', require('./routes/empresas'));
 
-// Configuración (branding - público para login)
-app.use('/api/configuracion', require('./routes/configuracion'));
-
 // Every non-authenticated API call is scoped to the signed-in company.
 app.use('/api', async (req, res, next) => {
   if (req.path === '/auth' || req.path.startsWith('/auth/') || req.path === '/login' || req.path.startsWith('/login/') || req.path === '/logout' || req.path.startsWith('/logout/')) return next();
@@ -167,6 +164,12 @@ app.get('/api/imagen-proxy', async (req, res) => {
     if (!res.headersSent) res.status(502).json({ detail: 'No se pudo cargar la imagen del producto' });
   }
 });
+
+// Configuración (branding por empresa). Va DESPUÉS del middleware de auth
+// para que req.user exista: antes montarse aquí, la ruta no conocía la sesión
+// y leía/escribía siempre la empresa 1 (incluido PUT sin autenticar).
+// El endpoint público /configuracion/public está excluido en el middleware.
+app.use('/api/configuracion', require('./routes/configuracion'));
 
 // Usuarios, Perfiles, Permisos (all under /api)
 const usuariosRouter = require('./routes/usuarios');
