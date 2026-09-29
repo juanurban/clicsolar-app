@@ -88,10 +88,14 @@ router.get('/', async (req, res) => {
         'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
         [empresaId, 'empresa_nombre', company.nombre]
       );
-      await pool.execute(
-        'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
-        [empresaId, 'empresa_nombre_corto', company.nombre]
-      );
+      // El nombre corto es propio de cada empresa (editable en Configuración):
+      // sólo se siembra con el nombre oficial si aún no existe, nunca se pisa.
+      if (!rows.some(item => item.clave === 'empresa_nombre_corto')) {
+        await pool.execute(
+          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          [empresaId, 'empresa_nombre_corto', company.nombre]
+        );
+      }
       await pool.execute(
         'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
         [empresaId, 'empresa_nit', company.nit || '']
