@@ -59,30 +59,31 @@
         html.pdf-render #page-3 .flex.flex-col.gap-4 {
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 2.5mm !important;
-            margin-bottom: 2mm !important;
+            gap: 3mm !important;
+            margin-bottom: 3.5mm !important;
         }
         html.pdf-render #page-3 .flex.flex-col.gap-4.single-chart {
             grid-template-columns: minmax(0, 1fr) !important;
         }
-        html.pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
-        html.pdf-render #page-3 .relative[style*="height:160px"] { height: 150px !important; }
+        html.pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 3mm !important; }
+        html.pdf-render #page-3 .relative[style*="height:160px"] { height: 250px !important; }
         html.pdf-render #page-3 .flex.justify-around {
             display: grid !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm !important;
-            margin-top: 2mm !important;
-            padding-top: 1.5mm !important;
-            font-size: 8px !important;
-            line-height: 1.15 !important;
+            gap: 1.5mm !important;
+            margin-top: 2.5mm !important;
+            padding-top: 2mm !important;
+            font-size: 9.5px !important;
+            line-height: 1.2 !important;
             text-align: center !important;
         }
         html.pdf-render #page-3 .flex.justify-around > span { min-width: 0 !important; }
-        html.pdf-render #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
-        html.pdf-render #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
-        html.pdf-render #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
+        html.pdf-render #page-3 .flex.justify-center { margin-bottom: 3.5mm !important; }
+        html.pdf-render #page-3 .flex.justify-center > div { padding-top: 3mm !important; padding-bottom: 3mm !important; }
+        html.pdf-render #page-3 #f-ahorro-25 { font-size: 30px !important; line-height: 1.1 !important; }
+        html.pdf-render #page-3 .mt-4.border { margin-top: 3.5mm !important; padding: 4px !important; }
         html.pdf-render #page-3 table td,
-        html.pdf-render #page-3 table th { padding: 1px 2px !important; font-size: 6.3px !important; line-height: 1.02 !important; }
+        html.pdf-render #page-3 table th { padding: 3.5px 3px !important; font-size: 8.5px !important; line-height: 1.15 !important; }
 
         .material-symbols-outlined {
             font-family: 'Material Symbols Outlined';
@@ -143,18 +144,19 @@
             #page-1.supply-proposal #company-header h1 { font-size: 20px !important; line-height: 1.15 !important; white-space: nowrap; }
             #page-1.supply-proposal #company-header .text-right h2 { font-size: 15px !important; line-height: 1.2 !important; white-space: nowrap; }
 
-            /* Ajustes compactos Página 3 */
+            /* Ajustes Página 3 (reparto vertical: gráficas grandes y tabla legible) */
             #page-3 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
-            #page-3 .flex.flex-col.gap-4 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.5mm !important; margin-bottom: 2mm !important; }
+            #page-3 .flex.flex-col.gap-4 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm !important; margin-bottom: 3.5mm !important; }
             #page-3 .flex.flex-col.gap-4.single-chart { grid-template-columns: minmax(0, 1fr) !important; }
-            #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
-            #page-3 .relative[style*="height:160px"] { height: 150px !important; }
-            #page-3 .flex.justify-around { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1mm !important; margin-top: 2mm !important; padding-top: 1.5mm !important; font-size: 8px !important; line-height: 1.15 !important; text-align: center; }
+            #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 3mm !important; }
+            #page-3 .relative[style*="height:160px"] { height: 250px !important; }
+            #page-3 .flex.justify-around { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5mm !important; margin-top: 2.5mm !important; padding-top: 2mm !important; font-size: 9.5px !important; line-height: 1.2 !important; text-align: center; }
             #page-3 .flex.justify-around > span { min-width: 0 !important; }
-            #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
-            #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
-            #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
-            #page-3 table td, #page-3 table th { padding: 1px 2px !important; font-size: 6.3px !important; line-height: 1.02 !important; }
+            #page-3 .flex.justify-center { margin-bottom: 3.5mm !important; }
+            #page-3 .flex.justify-center > div { padding-top: 3mm !important; padding-bottom: 3mm !important; }
+            #page-3 #f-ahorro-25 { font-size: 30px !important; line-height: 1.1 !important; }
+            #page-3 .mt-4.border { margin-top: 3.5mm !important; padding: 4px !important; }
+            #page-3 table td, #page-3 table th { padding: 3.5px 3px !important; font-size: 8.5px !important; line-height: 1.15 !important; }
 
             /* Ajustes compactos Página 4 */
             #page-4 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
@@ -227,30 +229,31 @@
         html.local-pdf-render #page-3 .flex.flex-col.gap-4 {
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 2.5mm !important;
-            margin-bottom: 2mm !important;
+            gap: 3mm !important;
+            margin-bottom: 3.5mm !important;
         }
         html.local-pdf-render #page-3 .flex.flex-col.gap-4.single-chart {
             grid-template-columns: minmax(0, 1fr) !important;
         }
-        html.local-pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 2mm !important; }
-        html.local-pdf-render #page-3 .relative[style*="height:160px"] { height: 150px !important; }
+        html.local-pdf-render #page-3 .flex.flex-col.gap-4 > div { min-width: 0 !important; padding: 3mm !important; }
+        html.local-pdf-render #page-3 .relative[style*="height:160px"] { height: 250px !important; }
         html.local-pdf-render #page-3 .flex.justify-around {
             display: grid !important;
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm !important;
-            margin-top: 2mm !important;
-            padding-top: 1.5mm !important;
-            font-size: 8px !important;
-            line-height: 1.15 !important;
+            gap: 1.5mm !important;
+            margin-top: 2.5mm !important;
+            padding-top: 2mm !important;
+            font-size: 9.5px !important;
+            line-height: 1.2 !important;
             text-align: center !important;
         }
         html.local-pdf-render #page-3 .flex.justify-around > span { min-width: 0 !important; }
-        html.local-pdf-render #page-3 .flex.justify-center { margin-bottom: 2mm !important; }
-        html.local-pdf-render #page-3 .flex.justify-center > div { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
-        html.local-pdf-render #page-3 .mt-4.border { margin-top: 1.5mm !important; padding: 2px !important; }
+        html.local-pdf-render #page-3 .flex.justify-center { margin-bottom: 3.5mm !important; }
+        html.local-pdf-render #page-3 .flex.justify-center > div { padding-top: 3mm !important; padding-bottom: 3mm !important; }
+        html.local-pdf-render #page-3 #f-ahorro-25 { font-size: 30px !important; line-height: 1.1 !important; }
+        html.local-pdf-render #page-3 .mt-4.border { margin-top: 3.5mm !important; padding: 4px !important; }
         html.local-pdf-render #page-3 table td,
-        html.local-pdf-render #page-3 table th { padding: 1px 2px !important; font-size: 6.3px !important; line-height: 1.02 !important; }
+        html.local-pdf-render #page-3 table th { padding: 3.5px 3px !important; font-size: 8.5px !important; line-height: 1.15 !important; }
         html.local-pdf-render #page-4 .content { min-height: 0 !important; padding: 4mm 14mm !important; }
         html.local-pdf-render #page-4 .flex.justify-between.items-end { margin-top: 1rem !important; margin-bottom: 0.5rem !important; }
     </style>
