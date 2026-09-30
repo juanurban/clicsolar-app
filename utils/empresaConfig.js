@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { PERSIST_DIR } = require('./uploadStorage');
 
 const projectRoot = path.join(__dirname, '..');
 const LOGO_PLANTAS = '/static/uploads/file_logopsc.svg';
@@ -59,7 +60,14 @@ function recursoDisponible(url) {
   if (!valor) return false;
   if (/^https?:\/\//i.test(valor)) return true;
   if (!valor.startsWith('/')) return false;
-  return fs.existsSync(path.join(projectRoot, valor.slice(1)));
+  if (fs.existsSync(path.join(projectRoot, valor.slice(1)))) return true;
+  // Las subidas recientes viven en el almacén persistente (fuera del repo):
+  // /static/uploads/<ruta> corresponde a <PERSIST_DIR>/uploads/<ruta>.
+  const PREFIJO = '/static/uploads/';
+  if (valor.startsWith(PREFIJO)) {
+    return fs.existsSync(path.join(PERSIST_DIR, 'uploads', valor.slice(PREFIJO.length)));
+  }
+  return false;
 }
 
 function resolverLogo(valor, nombreEmpresa) {
