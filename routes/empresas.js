@@ -21,10 +21,14 @@ router.get('/', async (req, res) => {
     if (!await requireSuperadmin(req, res)) return;
     const [rows] = await pool.execute(`
       SELECT e.*, COUNT(DISTINCT u.id) AS usuarios_count,
-             COUNT(DISTINCT c.id) AS clientes_count
+             COUNT(DISTINCT c.id) AS clientes_count,
+             COUNT(DISTINCT cot.id) AS cotizaciones_count,
+             COUNT(DISTINCT p.id) AS proyectos_count
       FROM empresas e
       LEFT JOIN usuarios u ON u.empresa_id = e.id
       LEFT JOIN clientes c ON c.empresa_id = e.id
+      LEFT JOIN cotizaciones cot ON cot.empresa_id = e.id
+      LEFT JOIN proyectos p ON p.empresa_id = e.id
       GROUP BY e.id ORDER BY e.id DESC
     `);
     res.json(rows);
@@ -81,6 +85,38 @@ router.put('/:id', async (req, res) => {
       await pool.execute('INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [req.params.id, 'empresa_nit', nit]);
     }
     res.json({ message: 'Empresa actualizada' });
+  } catch (error) { console.error(error); res.status(500).json({ detail: 'Error del servidor' }); }
+});
+
+// Eliminación: sólo permitida si la empresa no tiene datos de negocio
+// (clientes, cotizaciones, proyectos o perfiles energéticos). Con datos,
+// la opción correcta es desactivarla, para no perder historial.
+router.delete('/:id', async (req, res) => {
+  try {
+    if (!await requireSuperadmin(req, res)) return;
+    const id = Number(req.params.id);
+    const [existing] = await pool.execute('SELECT id, nombre FROM empresas WHERE id = ?', [id]);
+    if (!existing.length) return res.status(404).json({ detail: 'Empresa no encontrada' });
+    const [counts] = await pool.execute(`
+      SELECT
+        (SELECT COUNT(*) FROM clientes WHERE empresa_id = ?) AS clientes,
+        (SELECT COUNT(*) FROM cotizaciones WHERE empresa_id = ?) AS cotizaciones,
+        (SELECT COUNT(*) FROM proyectos WHERE empresa_id = ?) AS proyectos,
+        (SELECT COUNT(*) FROM perfiles_energeticos WHERE empresa_id = ?) AS perfiles
+    `, [id, id, id, id]);
+    const c = counts[0] || {};
+    if (c.clientes || c.cotizaciones || c.proyectos || c.perfiles) {
+      return res.status(400).json({
+        detail: `No se puede eliminar "${existing[0].nombre}": tiene ${c.clientes || 0} cliente(s), ${c.cotizaciones || 0} cotización(es), ${c.proyectos || 0} proyecto(s) y ${c.perfiles || 0} perfil(es) energético(s). Desactívela en su lugar para ocultarla del uso diario.`
+      });
+    }
+    // Sin datos de negocio: se eliminan sus usuarios (las sesiones caen por
+    // clave foránea ON DELETE CASCADE) y su configuración propia.
+    await pool.execute('DELETE FROM sesiones WHERE usuario_id IN (SELECT id FROM usuarios WHERE empresa_id = ?)', [id]);
+    await pool.execute('DELETE FROM usuarios WHERE empresa_id = ?', [id]);
+    await pool.execute('DELETE FROM configuracion WHERE empresa_id = ?', [id]);
+    await pool.execute('DELETE FROM empresas WHERE id = ?', [id]);
+    res.json({ message: 'Empresa eliminada' });
   } catch (error) { console.error(error); res.status(500).json({ detail: 'Error del servidor' }); }
 });
 
