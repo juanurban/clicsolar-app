@@ -43,6 +43,12 @@ app.get('/health', async (req, res) => {
 });
 
 // Static files
+// Los archivos subidos desde la web se sirven primero desde el almacén
+// persistente (fuera del repo, sobrevive a los despliegues de Hostinger);
+// si no están ahí, se sirve lo que hay en el repositorio (assets de catálogo
+// commiteados: diseños, logos e imágenes de productos antiguas).
+const { PERSIST_DIR } = require('./utils/uploadStorage');
+app.use('/static/uploads', express.static(path.join(PERSIST_DIR, 'uploads')));
 app.use('/static', express.static(path.join(__dirname, 'static')));
 
 // ── API Routes ──

@@ -5,11 +5,13 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const uploadsDir = path.join(__dirname, '..', 'static', 'uploads', 'clientes');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+// Las fotos de clientes van al almacén persistente (fuera del repo) para
+// sobrevivir a los despliegues automáticos de Hostinger.
+const { uploadsDir } = require('../utils/uploadStorage');
+const uploadPath = uploadsDir('clientes');
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
+  destination: (req, file, cb) => cb(null, uploadPath),
   filename: (req, file, cb) => {
     const crypto = require('crypto');
     const safeName = crypto.randomBytes(4).toString('hex') + '_' + file.originalname;

@@ -7,11 +7,12 @@ const fs = require('fs');
 const pool = require('../db');
 
 // Configure multer for file uploads
-const uploadsDir = path.join(__dirname, '..', 'static', 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+// Van al almacén persistente (fuera del repo) para sobrevivir a los despliegues.
+const { uploadsDir } = require('../utils/uploadStorage');
+const uploadPath = uploadsDir();
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
+  destination: (req, file, cb) => cb(null, uploadPath),
   filename: (req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase();
     cb(null, `equipo_${crypto.randomUUID()}${extension}`);
