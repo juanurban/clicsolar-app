@@ -165,6 +165,10 @@
 
         table.sq-pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         table.sq-pdf-table th { background: #131313; color: #ffc800; padding: 4px 6px; text-align: center; font-size: 10px; text-transform: uppercase; }
+        /* Términos y condiciones: lectura cómoda en pantalla y en el PDF */
+        .terminos-lista { line-height: 1.45; text-align: justify; }
+        .terminos-lista li { margin-bottom: 1.6mm; }
+        .terminos-lista li::marker { font-weight: 700; color: #131313; }
         table.sq-pdf-table td { border-bottom: 1px solid #ccc; padding: 4px 6px; font-size: 10px; }
         table.sq-pdf-table tr:last-child td { border-bottom: 2px solid #131313; }
 
@@ -555,8 +559,8 @@
                 </div>
                 
                 <div class="mt-4 mb-2 prevent-break hidden" id="terminos-container">
-                    <h3 class="text-[9px] border-b border-gray/30 pb-0.5 mb-1 text-dark font-bold uppercase">Términos y Condiciones</h3>
-                    <ul class="list-disc pl-3 text-[7px] text-gray leading-tight" id="terminos-list-pdf"></ul>
+                    <h3 class="text-[11px] border-b border-gray/30 pb-0.5 mb-1.5 text-dark font-bold uppercase">Términos y Condiciones</h3>
+                    <ol class="terminos-lista list-decimal pl-4 text-[9.5px] text-gray" id="terminos-list-pdf"></ol>
                 </div>
             </div>
         </div>
@@ -1032,7 +1036,6 @@
                                 const aplicaAPropuesta = aplica === 'ambos' || (esSuministro && aplica === 'suministro') || (!esSuministro && aplica === 'solar');
                                 if (texto && aplicaAPropuesta) {
                                     const li = document.createElement('li');
-                                    li.className = 'mb-0.5';
                                     li.innerText = texto;
                                     ul.appendChild(li);
                                 }
@@ -1643,8 +1646,8 @@
             <div class="header-stripe"></div>
             <div class="content flex flex-col justify-between">
                 <div class="prevent-break">
-                    <h3 class="text-[9px] border-b border-gray/30 pb-0.5 mb-1 text-dark font-bold uppercase">T\u00E9rminos y Condiciones (continuaci\u00F3n)</h3>
-                    <ul class="list-disc pl-3 text-gray leading-tight" style="font-size:${fontSizePx}px;"></ul>
+                    <h3 class="text-[11px] border-b border-gray/30 pb-0.5 mb-1.5 text-dark font-bold uppercase">T\u00E9rminos y Condiciones (continuaci\u00F3n)</h3>
+                    <ol class="terminos-lista list-decimal pl-4 text-gray" style="font-size:${fontSizePx}px;"></ol>
                 </div>
                 <div class="border-t border-gray/30 pt-1 text-[9px] text-gray flex justify-between">
                     <span>${nombre}</span>
@@ -1662,8 +1665,10 @@
         if (!page4 || !cont || !ul || cont.classList.contains('hidden') || !ul.firstElementChild) return;
 
         // 1) Reducir el cuerpo de letra de la lista hasta que la página 4 quepa.
-        let fontSize = 7;
-        while (page4.scrollHeight > page4.clientHeight + 1 && fontSize > 5) {
+        //    El piso es 7.5px: por debajo de eso el texto deja de ser legible,
+        //    así que el excedente se envía a páginas de continuación.
+        let fontSize = 9.5;
+        while (page4.scrollHeight > page4.clientHeight + 1 && fontSize > 7.5) {
             fontSize -= 0.5;
             ul.style.fontSize = fontSize + 'px';
         }
@@ -1678,7 +1683,7 @@
             if (!destinoUl) {
                 destinoPage = crearPaginaContinuacionTerminos(fontSize);
                 fuentePage.parentNode.insertBefore(destinoPage, fuentePage.nextSibling);
-                destinoUl = destinoPage.querySelector('ul');
+                destinoUl = destinoPage.querySelector('ol');
             }
             destinoUl.insertBefore(fuenteUl.lastElementChild, destinoUl.firstChild);
             if (fuentePage.scrollHeight <= fuentePage.clientHeight + 1) {
@@ -1690,6 +1695,14 @@
             }
         }
         if (!ul.firstElementChild) cont.classList.add('hidden');
+        // Numeración continua de la lista decimal entre la página 4 y sus
+        // continuaciónes (cada <ol> reinicia su contador sin este ajuste).
+        let acumulado = 1;
+        [ul, ...document.querySelectorAll('.terminos-continuacion ol')].forEach(lista => {
+            if (!lista.firstElementChild) return;
+            lista.setAttribute('start', acumulado);
+            acumulado += lista.children.length;
+        });
         renumerarPaginas();
     }
 
