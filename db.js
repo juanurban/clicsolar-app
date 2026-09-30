@@ -254,8 +254,11 @@ async function ensureMysqlSchema(p) {
           'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
           [company.id, company.nombre]
         );
+        // El nombre corto lo edita cada empresa en Configuración: sólo se
+        // siembra para empresas que aún no lo tienen, nunca se pisa al
+        // reiniciar el servidor (antes volvía al nombre completo).
         await p.query(
-          'INSERT INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre_corto", ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)',
+          'INSERT IGNORE INTO configuracion (empresa_id, clave, valor) VALUES (?, "empresa_nombre_corto", ?)',
           [company.id, company.nombre]
         );
         await p.query(
