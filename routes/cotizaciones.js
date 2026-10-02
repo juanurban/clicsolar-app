@@ -664,7 +664,9 @@ async function generateLegacyPDF(req, res) {
     for (const item of items) {
       const name = text(item.nombre || item.descripcion || item.modelo || item.marca || 'Equipo');
       const qty = item.cantidad ?? item.quantity ?? 1;
-      const total = item.total ?? item.subtotal ?? ((item.precio_venta || item.precio || item.price || 0) * qty);
+      // Precio final editado por ítem (paso 2 del cotizador) manda sobre el derivado del costo
+      const pf = Number(item.precio_final) > 0 ? Math.round(Number(item.precio_final)) * qty : null;
+      const total = pf ?? item.total ?? item.subtotal ?? ((item.precio_venta || item.precio || item.price || 0) * qty);
       doc.text(name.slice(0, 72), 48, doc.y, { width: 240, continued: true });
       doc.text(number(qty, 0), 288, doc.y, { width: 70, continued: true, align: 'right' });
       doc.text(money(total), 400, doc.y, { width: 147, align: 'right' });

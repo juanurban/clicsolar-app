@@ -801,8 +801,12 @@
             let itemsHtml = '';
             const margen = data.margen_comercial_pct || 30;
             let subtotalIvaItems = 0;
+            let subtotalVentaTotal = 0;
             items.forEach(item => {
-                const precioVenta = Math.round(item.precio_unitario * (1 + margen / 100));
+                // Precio final editado por ítem (paso 2) manda sobre costo+margen
+                const pfItem = Number(item.precio_final);
+                const precioVenta = pfItem > 0 ? Math.round(pfItem) : Math.round(item.precio_unitario * (1 + margen / 100));
+                subtotalVentaTotal += precioVenta * (Number(item.cantidad) || 0);
                 itemsHtml += '<tr>';
                 itemsHtml += `<td class="uppercase font-bold">${item.categoria}</td>`;
                 itemsHtml += `<td class="uppercase">${item.nombre}</td>`;
@@ -821,9 +825,8 @@
             tb.innerHTML = itemsHtml;
 
             const subtotal = parseFloat(data.subtotal) || 0;
-            const pct = parseFloat(margen) || 0;
-            const montoMargen = Math.round(subtotal * (pct / 100));
-            const subtotalConMargen = subtotal + montoMargen;
+            // Subtotal de venta = suma de precios finales por ítem (coincide con el paso 2)
+            const subtotalConMargen = subtotalVentaTotal || (subtotal + Math.round(subtotal * (parseFloat(margen) || 0) / 100));
             
             // Usar la inversión total calculada y guardada desde el cotizador para evitar discrepancias
             const totalConIva = parseFloat(data.total_inversion) || 0;

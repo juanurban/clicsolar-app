@@ -525,7 +525,8 @@ async function renderStep2(container) {
                             ${(stateCotizador.items || []).map(it => {
                                 const margen = stateCotizador.config.margen || 15;
                                 const hasIva = !!it.iva;
-                                const precioVenta = Math.round(it.precio_unitario * (1 + margen / 100));
+                                const precioVenta = pvItem(it);
+                                const override = Number(it.precio_final) > 0;
                                 
                                 const cat = (it.categoria || '').toLowerCase();
                                 let options = [];
@@ -555,9 +556,15 @@ async function renderStep2(container) {
                                         ${hasIva ? '<span class="inline-block mt-2 text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">IVA</span>' : ''}
                                     </td>
                                     <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-20 text-right inline-block text-sm" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
-                                    <td class="px-6 py-4 text-right text-on-surface-variant">${formatCurrency(it.precio_unitario)}</td>
-                                    <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(precioVenta)}</td>
-                                    <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(it.subtotal * (1 + margen / 100))}</td>
+                                    <td class="px-6 py-4 text-right text-on-surface-variant align-top">${formatCurrency(it.precio_unitario)}</td>
+                                    <td class="px-6 py-4 text-right align-top">
+                                        <div class="flex items-center justify-end gap-1">
+                                            <input type="number" class="sq-input w-28 text-right inline-block text-sm ${override ? 'border-primary text-primary font-label-bold' : 'text-primary'}" value="${precioVenta}" min="1" step="1" onchange="setItemPrecioFinal('${it.id}', this.value)" title="${override ? 'Precio final editado. Cambie o borre el valor para volver al margen' : 'Precio sugerido = costo + margen ' + margen + '%. Puede escribir uno diferente'}">
+                                            ${override ? `<button onclick="setItemPrecioFinal('${it.id}', '')" class="text-on-surface-variant hover:text-primary transition-colors" title="Restaurar precio con margen del ${margen}%"><span class="material-symbols-outlined text-[16px]">restart_alt</span></button>` : ''}
+                                        </div>
+                                        ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
+                                    </td>
+                                    <td class="px-6 py-4 text-right text-primary font-label-bold align-top">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
                                     <td class="px-6 py-4 text-center">
                                         <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1">
                                             <span class="material-symbols-outlined text-[18px]">close</span>
@@ -568,9 +575,9 @@ async function renderStep2(container) {
                         </tbody>
                         <tfoot class="bg-surface-container-highest font-label-bold">
                             <tr>
-                                <td colspan="4" class="px-6 py-5 text-right">SUBTOTAL (Costo + Margen ${stateCotizador.config.margen || 15}%)</td>
+                                <td colspan="4" class="px-6 py-5 text-right">SUBTOTAL VENTA ${(stateCotizador.items || []).some(i => Number(i.precio_final) > 0) ? '(con precios finales editados)' : '(Costo + Margen ' + (stateCotizador.config.margen || 15) + '%)'}</td>
                                 <td></td>
-                                <td class="px-6 py-5 text-right text-lg text-primary">${formatCurrency((stateCotizador.items || []).reduce((s, i) => s + i.subtotal * (1 + (stateCotizador.config.margen || 15) / 100), 0))}</td>
+                                <td class="px-6 py-5 text-right text-lg text-primary">${formatCurrency((stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0))}</td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -597,7 +604,7 @@ function renderStep2Suministro(container) {
     ];
     const opciones = grupos.map(([label, prefijo, lista]) => lista.length ? `<optgroup label="${label}">${lista.map(e => `<option value="${prefijo}-${e.id}">${e.marca ? e.marca + ' ' : ''}${e.modelo}</option>`).join('')}</optgroup>` : '').join('');
     const margen = stateCotizador.config.margen || 0;
-    const total = (stateCotizador.items || []).reduce((s, i) => s + i.subtotal * (1 + margen / 100), 0);
+    const total = (stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-8">
             <div><h2 class="font-headline-md text-on-surface">Productos y servicios</h2><p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p></div>
@@ -609,8 +616,25 @@ function renderStep2Suministro(container) {
             <div class="bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20">
                 <div class="p-5 bg-surface-container-highest"><h3 class="font-headline-md text-on-surface">Detalle de la propuesta</h3></div>
                 <div class="overflow-x-auto"><table class="w-full min-w-[850px] text-left"><thead class="text-xs uppercase text-on-surface-variant bg-surface-container"><tr><th class="px-6 py-4">Categoría</th><th class="px-6 py-4">Ítem</th><th class="px-6 py-4 text-right">Cantidad</th><th class="px-6 py-4 text-right">Precio venta</th><th class="px-6 py-4 text-right">Subtotal</th><th class="px-6 py-4"></th></tr></thead><tbody>
-                    ${(stateCotizador.items || []).map(it => `<tr class="border-b border-outline-variant/10"><td class="px-6 py-4 capitalize">${it.categoria}</td><td class="px-6 py-4 font-label-bold">${it.nombre}${it.iva ? '<span class="ml-2 text-[10px] text-primary">IVA</span>' : ''}</td><td class="px-6 py-4 text-right"><input type="number" class="sq-input w-24 text-right inline-block" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td><td class="px-6 py-4 text-right text-primary">${formatCurrency(it.precio_unitario * (1 + margen / 100))}</td><td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(it.subtotal * (1 + margen / 100))}</td><td class="px-6 py-4 text-center"><button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error"><span class="material-symbols-outlined">close</span></button></td></tr>`).join('')}
-                </tbody><tfoot><tr><td colspan="4" class="px-6 py-5 text-right font-label-bold">Subtotal con margen (${margen}%)</td><td class="px-6 py-5 text-right text-lg text-primary font-label-bold">${formatCurrency(total)}</td><td></td></tr></tfoot></table></div>
+                    ${(stateCotizador.items || []).map(it => {
+                        const precioVenta = pvItem(it);
+                        const override = Number(it.precio_final) > 0;
+                        return `<tr class="border-b border-outline-variant/10">
+                            <td class="px-6 py-4 capitalize">${it.categoria}</td>
+                            <td class="px-6 py-4 font-label-bold">${it.nombre}${it.iva ? '<span class="ml-2 text-[10px] text-primary">IVA</span>' : ''}</td>
+                            <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-24 text-right inline-block" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
+                            <td class="px-6 py-4 text-right">
+                                <div class="flex items-center justify-end gap-1">
+                                    <input type="number" class="sq-input w-28 text-right inline-block text-sm ${override ? 'border-primary text-primary font-label-bold' : 'text-primary'}" value="${precioVenta}" min="1" step="1" onchange="setItemPrecioFinal('${it.id}', this.value)" title="${override ? 'Precio final editado. Cambie o borre el valor para volver al margen' : 'Precio sugerido = costo + margen ' + margen + '%. Puede escribir uno diferente'}">
+                                    ${override ? `<button onclick="setItemPrecioFinal('${it.id}', '')" class="text-on-surface-variant hover:text-primary transition-colors" title="Restaurar precio con margen del ${margen}%"><span class="material-symbols-outlined text-[16px]">restart_alt</span></button>` : ''}
+                                </div>
+                                ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
+                            </td>
+                            <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
+                            <td class="px-6 py-4 text-center"><button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error"><span class="material-symbols-outlined">close</span></button></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody><tfoot><tr><td colspan="4" class="px-6 py-5 text-right font-label-bold">Subtotal venta ${(stateCotizador.items || []).some(i => Number(i.precio_final) > 0) ? '(con precios finales editados)' : '(con margen ' + margen + '%)'}</td><td class="px-6 py-5 text-right text-lg text-primary font-label-bold">${formatCurrency(total)}</td><td></td></tr></tfoot></table></div>
             </div>
             <div class="flex justify-between"><button onclick="goToStep(1)" class="sq-btn sq-btn-ghost">Atrás</button><button onclick="prepareAndGoToStep3()" class="sq-btn sq-btn-primary">Continuar al Financiero <span class="material-symbols-outlined">arrow_forward</span></button></div>
         </div>`;
@@ -826,6 +850,29 @@ function updateItemQty(id, val) {
     renderStep();
 }
 
+// ═══ Precio de venta unitario ═══
+// Si el ítem tiene precio_final (editado en el paso 2), ese manda;
+// si no, se deriva del costo del inventario + margen comercial global.
+function pvItem(it) {
+    const pf = Number(it.precio_final);
+    if (pf > 0) return Math.round(pf);
+    const margen = stateCotizador.config.margen || 0;
+    return Math.round((Number(it.precio_unitario) || 0) * (1 + margen / 100));
+}
+
+function setItemPrecioFinal(id, val) {
+    const item = stateCotizador.items.find(i => i.id === id);
+    if (!item) return;
+    const n = parseFloat(val);
+    if (isNaN(n) || n <= 0) {
+        item.precio_final = null;
+        showToast('Precio restaurado: costo + margen', 'info');
+    } else {
+        item.precio_final = Math.round(n);
+    }
+    renderStep();
+}
+
 function changeItemEquipo(itemId, newEquipoId) {
     const item = stateCotizador.items.find(i => i.id === itemId);
     if (!item) return;
@@ -844,6 +891,7 @@ function changeItemEquipo(itemId, newEquipoId) {
         item.precio_unitario = newEq.costo;
         item.iva = !!newEq.iva;
         item.subtotal = item.cantidad * newEq.costo;
+        item.precio_final = null; // el costo cambió: se descarta el precio final editado
         
         recalcularPotenciaPico();
         renderStep();
@@ -930,10 +978,12 @@ async function calculateFinances() {
 
     if (stateCotizador.tipoPropuesta === 'suministro') {
         const subtotal = stateCotizador.items.reduce((sum, item) => sum + item.subtotal, 0);
-        const montoMargen = Math.round(subtotal * (conf.margen / 100));
-        const subtotalConMargen = subtotal + montoMargen;
-        const subtotalIva = stateCotizador.items.filter(item => !!item.iva).reduce((sum, item) => sum + item.subtotal, 0);
-        const montoIva = Math.round(subtotalIva * (1 + conf.margen / 100) * 0.19);
+        // Total de venta respetando precios finales editados por ítem
+        const subtotalVenta = stateCotizador.items.reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
+        const montoMargen = subtotalVenta - subtotal;
+        const subtotalConMargen = subtotalVenta;
+        const subtotalIvaVenta = stateCotizador.items.filter(item => !!item.iva).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
+        const montoIva = Math.round(subtotalIvaVenta * 0.19);
         const totalConIva = subtotalConMargen + montoIva;
         stateCotizador.financiero = {
             subtotal, margen: conf.margen, montoMargen, subtotalConMargen, montoIva,
@@ -955,14 +1005,14 @@ async function calculateFinances() {
 
     // Calculate Subtotal (cost of all items)
     const subtotal = stateCotizador.items.reduce((sum, item) => sum + item.subtotal, 0);
-    // Margen applied to subtotal
-    const margenMultiplier = 1 + (conf.margen / 100);
-    const montoMargen = Math.round(subtotal * (conf.margen / 100));
-    const subtotalConMargen = subtotal + montoMargen;
+    // Total de venta respetando precios finales editados por ítem
+    const subtotalVenta = stateCotizador.items.reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
+    const montoMargen = subtotalVenta - subtotal;
+    const subtotalConMargen = subtotalVenta;
     // IVA on items that have IVA
     const iva_items = stateCotizador.items.filter(i => !!i.iva);
-    const subtotalIva = iva_items.reduce((s, i) => s + i.subtotal, 0);
-    const montoIva = Math.round(subtotalIva * (1 + conf.margen / 100) * 0.19);
+    const subtotalIvaVenta = iva_items.reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
+    const montoIva = Math.round(subtotalIvaVenta * 0.19);
     const totalConIva = subtotalConMargen + montoIva;
 
     // Call API with totalConIva as the investment
