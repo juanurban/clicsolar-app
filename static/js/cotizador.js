@@ -14,6 +14,7 @@ let stateCotizador = {
     materiales: [],
     productos: [],
     servicios: [],
+    equiposEmpresaId: null,
     dimensionamiento: null,
     financiero: null,
     items: [], // Desglose
@@ -24,6 +25,28 @@ let stateCotizador = {
 
 let chartInstance = null;
 let proyeccionCharts = {};
+
+// Carga las listas de inventario del cotizador. Deben pertenecer a la empresa
+// del cliente seleccionado: sin esto, el superadmin siempre veía el catálogo de
+// la primera empresa y un producto eliminado en otra empresa "seguía disponible".
+async function cargarListasEquipos(empresaId) {
+    const scope = (App.user?.es_superadmin && empresaId) ? `&empresa_id=${empresaId}` : '';
+    const [resPa, resIn, resBa, resMat, resSer, resProd] = await Promise.all([
+        API.get(`/equipos?categoria=panel&activo=1${scope}`),
+        API.get(`/equipos?categoria=inversor&activo=1${scope}`),
+        API.get(`/equipos?categoria=bateria&activo=1${scope}`),
+        API.get(`/equipos?categoria=estructura&activo=1${scope}`),
+        API.get(`/equipos?categoria=servicio&activo=1${scope}`),
+        API.get(`/equipos?categoria=producto&activo=1${scope}`)
+    ]);
+    stateCotizador.paneles = resPa.data;
+    stateCotizador.inversores = resIn.data;
+    stateCotizador.baterias = resBa.data;
+    stateCotizador.materiales = resMat.data;
+    stateCotizador.servicios = resSer.data;
+    stateCotizador.productos = resProd.data;
+    stateCotizador.equiposEmpresaId = empresaId || null;
+}
 
 async function renderCotizador() {
     const content = document.getElementById('app-content');
@@ -65,24 +88,13 @@ async function renderCotizador() {
 
     // Load initial data
     try {
-        const [resCl, resPa, resIn, resBa, resConf, resMat, resSer, resProd] = await Promise.all([
+        const [resCl, resConf] = await Promise.all([
             API.get('/clientes?limit=100'),
-            API.get('/equipos?categoria=panel&activo=1'),
-            API.get('/equipos?categoria=inversor&activo=1'),
-            API.get('/equipos?categoria=bateria&activo=1'),
             API.get('/configuracion'),
-            API.get('/equipos?categoria=estructura&activo=1'),
-            API.get('/equipos?categoria=servicio&activo=1'),
-            API.get('/equipos?categoria=producto&activo=1')
+            cargarListasEquipos(null)
         ]);
 
         stateCotizador.clientes = resCl.data;
-        stateCotizador.paneles = resPa.data;
-        stateCotizador.inversores = resIn.data;
-        stateCotizador.baterias = resBa.data;
-        stateCotizador.materiales = resMat.data;
-        stateCotizador.servicios = resSer.data;
-        stateCotizador.productos = resProd.data;
 
         // Apply config
         if (resConf.margen_comercial) stateCotizador.config.margen = parseFloat(resConf.margen_comercial.valor);
@@ -99,10 +111,14 @@ async function renderCotizador() {
             App.editCotizacionId = null;
 
             stateCotizador.clienteSelected = typeof ed.cliente_id === 'object' ? ed.cliente_id : resCl.data.find(c => c.id === ed.cliente_id);
+            // El inventario visible debe ser el de la empresa del cliente de la propuesta
+            if (stateCotizador.clienteSelected?.empresa_id && stateCotizador.clienteSelected.empresa_id !== stateCotizador.equiposEmpresaId) {
+                await cargarListasEquipos(stateCotizador.clienteSelected.empresa_id);
+            }
             stateCotizador.step = 4;
             stateCotizador.dimensionamiento = {
-                panel: ed.panel || resPa.data.find(p => p.id === ed.panel_id),
-                inversor_sugerido: ed.inversor || resIn.data.find(i => i.id === ed.inversor_id),
+                panel: ed.panel || stateCotizador.paneles.find(p => p.id === ed.panel_id),
+                inversor_sugerido: ed.inversor || stateCotizador.inversores.find(i => i.id === ed.inversor_id),
                 potencia_kwp: ed.potencia_kwp,
                 num_paneles: ed.num_paneles,
                 produccion_diaria_kwh: ed.produccion_diaria_kwh,
@@ -167,6 +183,9 @@ async function renderCotizador() {
                 stateCotizador.clienteSelected = c;
                 stateCotizador.step = 2;
                 App.selectedClienteId = null; // consume it
+                if (c.empresa_id && c.empresa_id !== stateCotizador.equiposEmpresaId) {
+                    await cargarListasEquipos(c.empresa_id);
+                }
             }
         }
 
@@ -295,6 +314,10 @@ async function selectCliente(id) {
         stateCotizador.dimensionamiento = null;
         stateCotizador.items = [];
         stateCotizador.removedAutoItems = [];
+        // Inventario de la empresa del cliente (evita mostrar equipos de otra empresa)
+        if (App.user?.es_superadmin && cliente.empresa_id && cliente.empresa_id !== stateCotizador.equiposEmpresaId) {
+            await cargarListasEquipos(cliente.empresa_id);
+        }
         if (stateCotizador.tipoPropuesta === 'suministro') {
             stateCotizador.dimensionamiento = { potencia_kwp: 0, num_paneles: 0, produccion_diaria_kwh: 0, produccion_mensual_kwh: 0, area_requerida_m2: 0, peso_total_kg: 0, hsp: 0, consumo_mensual_kwh: 0, consumo_diario_kwh: 0, cobertura_pct: 0 };
         }
@@ -1762,6 +1785,8 @@ async function guardarCotizacion(estado, openPdf = false) {
 
     const payload = {
         cliente_id: c.id,
+        // La empresa de la propuesta es la del cliente (el backend la honra solo si es superadmin)
+        empresa_id: c.empresa_id || undefined,
         estado: estado,
         panel_id: (stateCotizador.items.find(i => i.categoria === 'panel' || i.categoria === 'Paneles Solares') || d.panel || {}).equipo_id || (d.panel ? d.panel.id : null),
         inversor_id: (stateCotizador.items.find(i => i.categoria === 'inversor' || i.categoria === 'Inversores' || i.categoria === 'Inversor') || d.inversor_sugerido || {}).equipo_id || (d.inversor_sugerido ? d.inversor_sugerido.id : null),
