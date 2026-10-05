@@ -2,8 +2,21 @@
  * SunQuote — Inventario Module
  */
 
+const INV_CATEGORIAS = [
+    { valor: 'panel', etiqueta: 'Paneles', icono: 'solar_power' },
+    { valor: 'inversor', etiqueta: 'Inversores', icono: 'electric_meter' },
+    { valor: 'bateria', etiqueta: 'Baterías', icono: 'battery_charging_full' },
+    { valor: 'estructura', etiqueta: 'Materiales', icono: 'construction' },
+    { valor: 'producto', etiqueta: 'Productos', icono: 'inventory_2' },
+    { valor: 'servicio', etiqueta: 'Servicios', icono: 'engineering' }
+];
+
+function etiquetaCategoria(cat) {
+    return INV_CATEGORIAS.find(c => c.valor === cat)?.etiqueta || cat || '';
+}
+
 let stateInventario = {
-    categoria: 'panel',
+    categoria: '', // '' = TODOS
     data: [],
     buscar: '',
     selectedIds: [],
@@ -47,14 +60,10 @@ async function renderInventario() {
             </div>
 
             <div class="flex flex-col lg:flex-row gap-6 items-center bg-surface-container-low p-4 lg:p-6 rounded-xl">
-                <div class="sq-tabs w-full lg:w-auto" id="inv-tabs">
-                    <button class="sq-tab active" onclick="switchInvCat('panel')">Paneles</button>
-                    <button class="sq-tab" onclick="switchInvCat('inversor')">Inversores</button>
-                    <button class="sq-tab" onclick="switchInvCat('bateria')">Baterías</button>
-                    <button class="sq-tab" onclick="switchInvCat('estructura')">Materiales</button>
-                    <button class="sq-tab" onclick="switchInvCat('producto')">Productos</button>
-                    <button class="sq-tab" onclick="switchInvCat('servicio')">Servicios</button>
-                </div>
+                <select id="inv-categoria" class="sq-input w-full lg:w-auto min-w-56" onchange="switchInvCat(this.value)">
+                    <option value="">TODOS</option>
+                    ${INV_CATEGORIAS.map(c => `<option value="${c.valor}" ${c.valor === stateInventario.categoria ? 'selected' : ''}>${c.etiqueta}</option>`).join('')}
+                </select>
                 <div class="relative w-full lg:flex-1 lg:max-w-md ml-auto flex items-center gap-3">
                     ${empresaSelector}
                     <div class="flex items-center gap-2 mr-2 bg-surface-container-high px-3 py-2 rounded-lg">
@@ -90,13 +99,13 @@ function cambiarEmpresaInventario(empresaId) {
 }
 
 function switchInvCat(cat) {
-    stateInventario.categoria = cat;
+    stateInventario.categoria = cat || '';
     stateInventario.selectedIds = [];
     updateBulkDeleteUI();
     const selectAllCb = document.getElementById('select-all-equipos');
     if (selectAllCb) selectAllCb.checked = false;
-    document.querySelectorAll('#inv-tabs .sq-tab').forEach(t => t.classList.remove('active'));
-    document.querySelector(`#inv-tabs button[onclick*="${cat}"]`).classList.add('active');
+    const sel = document.getElementById('inv-categoria');
+    if (sel) sel.value = stateInventario.categoria;
     fetchEquipos();
 }
 
@@ -111,8 +120,10 @@ async function fetchEquipos() {
     grid.innerHTML = `<div class="col-span-full py-12 flex justify-center"><div class="sq-spinner"></div></div>`;
     
     try {
-        const empresaQuery = stateInventario.empresaId ? `&empresa_id=${stateInventario.empresaId}` : '';
-        const res = await API.get(`/equipos?categoria=${stateInventario.categoria}&buscar=${encodeURIComponent(stateInventario.buscar)}${empresaQuery}`);
+        const params = new URLSearchParams({ buscar: stateInventario.buscar });
+        if (stateInventario.categoria) params.set('categoria', stateInventario.categoria);
+        if (stateInventario.empresaId) params.set('empresa_id', stateInventario.empresaId);
+        const res = await API.get(`/equipos?${params.toString()}`);
         stateInventario.data = res.data;
         
         // Clean up selectedIds in case some items were deleted or filtered out
@@ -121,18 +132,9 @@ async function fetchEquipos() {
         updateBulkDeleteUI();
         
         if (res.data.length === 0) {
-            grid.innerHTML = `<div class="col-span-full py-12 text-center text-on-surface-variant">No se encontraron ítems en esta categoría.</div>`;
+            grid.innerHTML = `<div class="col-span-full py-12 text-center text-on-surface-variant">No se encontraron ítems${stateInventario.categoria ? ' en esta categoría' : ''}.</div>`;
             return;
         }
-
-        const icons = {
-            panel: 'solar_power',
-            inversor: 'electric_meter',
-            bateria: 'battery_charging_full',
-            estructura: 'construction',
-            producto: 'inventory_2',
-            servicio: 'engineering'
-        };
 
         const html = res.data.map(e => {
             let specHtml = '';
@@ -141,10 +143,15 @@ async function fetchEquipos() {
             else if (e.categoria === 'bateria') specHtml = `<span class="font-bold text-primary">${e.capacidad_kwh} kWh</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
             else specHtml = `<span class="font-bold text-primary">${e.tipo || '-'}</span> <span class="text-xs text-on-surface-variant">(Unidad: ${e.unidad})</span>`;
 
+            // En la vista TODOS se muestra la categoría de cada ítem para distinguarlos
+            if (!stateInventario.categoria) {
+                specHtml += ` <span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant uppercase tracking-wider whitespace-nowrap">${etiquetaCategoria(e.categoria)}</span>`;
+            }
+
             let imgHtml = e.imagen_url ? 
                 `<img src="${e.imagen_url}" class="w-10 h-10 rounded object-cover border border-outline-variant/30 bg-surface-container-highest flex-shrink-0">` :
                 `<div class="w-10 h-10 bg-surface-container-high rounded border border-outline-variant/30 text-primary flex items-center justify-center flex-shrink-0">
-                    <span class="material-symbols-outlined text-xl">${icons[e.categoria]}</span>
+                    <span class="material-symbols-outlined text-xl">${INV_CATEGORIAS.find(c => c.valor === e.categoria)?.icono || 'inventory_2'}</span>
                 </div>`;
 
             let isSelected = stateInventario.selectedIds.includes(e.id);
@@ -198,7 +205,8 @@ async function fetchEquipos() {
 
 async function openEquipoModal(id = null) {
     let e = {
-        categoria: stateInventario.categoria, marca: '', modelo: '', descripcion: '',
+        // En la vista TODOS no hay categoría de pestaña; 'producto' es la categoría genérica
+        categoria: stateInventario.categoria || 'producto', marca: '', modelo: '', descripcion: '',
         potencia_wp: 0, potencia_kw: 0, capacidad_kwh: 0, tipo: '',
         costo: 0, precio_venta: 0, unidad: 'und', peso_kg: 0, area_m2: 0, activo: 1, imagen_url: '', iva: true
     };
@@ -210,26 +218,6 @@ async function openEquipoModal(id = null) {
             showToast('Error cargando ítem', 'error');
             return;
         }
-    }
-
-    // Dynamic fields based on category
-    let specFields = '';
-    if (e.categoria === 'panel') {
-        specFields = `
-            <div><label class="sq-label">Potencia (Wp)</label><input type="number" step="1" name="potencia_wp" class="sq-input" value="${e.potencia_wp}"></div>
-            <div><label class="sq-label">Área (m²)</label><input type="number" step="0.01" name="area_m2" class="sq-input" value="${e.area_m2}"></div>
-            <div><label class="sq-label">Peso (kg)</label><input type="number" step="0.1" name="peso_kg" class="sq-input" value="${e.peso_kg}"></div>
-        `;
-    } else if (e.categoria === 'inversor') {
-        specFields = `
-            <div><label class="sq-label">Potencia (kW)</label><input type="number" step="0.1" name="potencia_kw" class="sq-input" value="${e.potencia_kw}"></div>
-            <div><label class="sq-label">Peso (kg)</label><input type="number" step="0.1" name="peso_kg" class="sq-input" value="${e.peso_kg}"></div>
-        `;
-    } else if (e.categoria === 'bateria') {
-        specFields = `
-            <div><label class="sq-label">Capacidad (kWh)</label><input type="number" step="0.1" name="capacidad_kwh" class="sq-input" value="${e.capacidad_kwh}"></div>
-            <div><label class="sq-label">Peso (kg)</label><input type="number" step="0.1" name="peso_kg" class="sq-input" value="${e.peso_kg}"></div>
-        `;
     }
 
     const importHtml = !id ? `
@@ -254,11 +242,9 @@ async function openEquipoModal(id = null) {
 
     const modalHtml = `
         <div class="p-8 fade-in">
-            <h2 class="font-headline-md text-headline-md text-on-surface mb-6">${id ? 'Editar' : 'Nuevo'} ${e.categoria}</h2>
+            <h2 id="modal-equipo-titulo" data-accion="${id ? 'Editar' : 'Nuevo'}" class="font-headline-md text-headline-md text-on-surface mb-6">${id ? 'Editar' : 'Nuevo'} ${etiquetaCategoria(e.categoria)}</h2>
             ${importHtml}
             <form id="equipo-form" onsubmit="saveEquipo(event, ${id})">
-                <input type="hidden" name="categoria" id="form-categoria" value="${e.categoria}">
-                
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div class="md:col-span-2 flex items-center gap-4 mb-2">
                         <div id="img-preview-container" class="w-16 h-16 rounded border border-outline-variant/50 bg-surface-container-high flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -283,6 +269,12 @@ async function openEquipoModal(id = null) {
                         <textarea name="descripcion" class="sq-input" rows="2">${e.descripcion}</textarea>
                     </div>
                     <div>
+                        <label class="sq-label">Categoría</label>
+                        <select name="categoria" id="form-categoria" class="sq-input" onchange="cambiarCategoriaModal(this.value)">
+                            ${INV_CATEGORIAS.map(c => `<option value="${c.valor}" ${e.categoria === c.valor ? 'selected' : ''}>${c.etiqueta}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
                         <label class="sq-label">Sub-Tipo (ej. Monocristalino, On-Grid)</label>
                         <input type="text" name="tipo" class="sq-input" value="${e.tipo}">
                     </div>
@@ -291,8 +283,8 @@ async function openEquipoModal(id = null) {
                         <input type="text" name="unidad" class="sq-input" value="${e.unidad}">
                     </div>
                     
-                    <!-- Dinámico -->
-                    ${specFields}
+                    <!-- Campos dinámicos según la categoría seleccionada -->
+                    <div id="modal-spec-fields" class="contents"></div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-outline-variant">
@@ -319,6 +311,43 @@ async function openEquipoModal(id = null) {
         </div>
     `;
     openModal(modalHtml);
+    document.getElementById('modal-spec-fields').innerHTML = specFieldsHtml(e.categoria, e);
+}
+
+// Campos de especificación que muestra el modal según la categoría elegida
+function specFieldsHtml(categoria, vals = {}) {
+    const v = (k) => Number(vals[k]) || 0;
+    if (categoria === 'panel') {
+        return `
+            <div><label class="sq-label">Potencia (Wp)</label><input type="number" step="1" name="potencia_wp" class="sq-input" value="${v('potencia_wp')}"></div>
+            <div><label class="sq-label">Área (m²)</label><input type="number" step="0.01" name="area_m2" class="sq-input" value="${v('area_m2')}"></div>
+            <div><label class="sq-label">Peso (kg)</label><input type="number" step="0.1" name="peso_kg" class="sq-input" value="${v('peso_kg')}"></div>
+        `;
+    } else if (categoria === 'inversor') {
+        return `
+            <div><label class="sq-label">Potencia (kW)</label><input type="number" step="0.1" name="potencia_kw" class="sq-input" value="${v('potencia_kw')}"></div>
+            <div><label class="sq-label">Peso (kg)</label><input type="number" step="0.1" name="peso_kg" class="sq-input" value="${v('peso_kg')}"></div>
+        `;
+    } else if (categoria === 'bateria') {
+        return `
+            <div><label class="sq-label">Capacidad (kWh)</label><input type="number" step="0.1" name="capacidad_kwh" class="sq-input" value="${v('capacidad_kwh')}"></div>
+            <div><label class="sq-label">Peso (kg)</label><input type="number" step="0.1" name="peso_kg" class="sq-input" value="${v('peso_kg')}"></div>
+        `;
+    }
+    return '';
+}
+
+// Al cambiar la categoría en el modal se refrescan los campos dinámicos conservando valores
+function cambiarCategoriaModal(cat) {
+    const form = document.getElementById('equipo-form');
+    const current = {};
+    ['potencia_wp', 'potencia_kw', 'capacidad_kwh', 'peso_kg', 'area_m2'].forEach(k => {
+        const el = form.querySelector(`[name="${k}"]`);
+        if (el) current[k] = parseFloat(el.value) || 0;
+    });
+    document.getElementById('modal-spec-fields').innerHTML = specFieldsHtml(cat, current);
+    const titulo = document.getElementById('modal-equipo-titulo');
+    if (titulo) titulo.textContent = `${titulo.dataset.accion} ${etiquetaCategoria(cat)}`;
 }
 
 async function uploadImage(input) {
@@ -387,8 +416,9 @@ async function saveEquipo(e, id) {
             showToast('Creado', 'success');
         }
         closeModal();
-        // Si se guardó en otra categoría, cambiar a su pestaña para que el usuario lo vea
-        if (data.categoria && data.categoria !== stateInventario.categoria) {
+        // Solo si el filtro actual es una categoría distinta a la del ítem se cambia el
+        // filtro para que el usuario lo vea; con "TODOS" el ítem ya es visible.
+        if (stateInventario.categoria && data.categoria && data.categoria !== stateInventario.categoria) {
             switchInvCat(data.categoria);
         } else {
             fetchEquipos();
@@ -763,10 +793,15 @@ async function confirmarImportacion() {
         const res = await API.post('/equipos/bulk-create', payload);
         showToast(res.message, 'success');
         closeModal();
-        // Mostrar la pestaña de la primera categoría importada para que se vean los ítems
-        const primeraCat = selected.map(p => p.categoria).find(c => c && c !== stateInventario.categoria);
-        if (primeraCat) switchInvCat(primeraCat);
-        else fetchEquipos();
+        // Con un filtro de categoría específico, mover al filtro de la primera categoría
+        // importada para que se vean los ítems; con "TODOS" basta con refrescar la lista.
+        if (stateInventario.categoria) {
+            const primeraCat = selected.map(p => p.categoria).find(c => c && c !== stateInventario.categoria);
+            if (primeraCat) switchInvCat(primeraCat);
+            else fetchEquipos();
+        } else {
+            fetchEquipos();
+        }
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
