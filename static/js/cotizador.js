@@ -515,6 +515,9 @@ async function renderStep2(container) {
                             <optgroup label="Baterías">
                                 ${stateCotizador.baterias.map(b => `<option value="bat-${b.id}">${b.marca} ${b.modelo}</option>`).join('')}
                             </optgroup>
+                            <optgroup label="Productos">
+                                ${stateCotizador.productos.map(p => `<option value="prod-${p.id}">${p.marca} ${p.modelo}</option>`).join('')}
+                            </optgroup>
                             <optgroup label="Materiales">
                                 ${stateCotizador.materiales.map(m => `<option value="mat-${m.id}">${m.modelo}</option>`).join('')}
                             </optgroup>
@@ -557,6 +560,7 @@ async function renderStep2(container) {
                                 else if (cat === 'inversor' || cat === 'inversores') options = stateCotizador.inversores;
                                 else if (cat === 'bateria' || cat === 'baterías') options = stateCotizador.baterias;
                                 else if (cat === 'estructura' || cat === 'materiales') options = stateCotizador.materiales;
+                                else if (cat === 'producto' || cat === 'productos') options = stateCotizador.productos;
                                 else if (cat === 'servicio' || cat === 'servicios') options = stateCotizador.servicios;
                                 
                                 let nombreHtml = it.nombre;
@@ -905,6 +909,7 @@ function changeItemEquipo(itemId, newEquipoId) {
     else if (cat === 'inversor' || cat === 'inversores') options = stateCotizador.inversores;
     else if (cat === 'bateria' || cat === 'baterías') options = stateCotizador.baterias;
     else if (cat === 'estructura' || cat === 'materiales') options = stateCotizador.materiales;
+    else if (cat === 'producto' || cat === 'productos') options = stateCotizador.productos;
     else if (cat === 'servicio' || cat === 'servicios') options = stateCotizador.servicios;
 
     const newEq = options.find(o => o.id === parseInt(newEquipoId));
