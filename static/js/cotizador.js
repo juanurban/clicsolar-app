@@ -640,13 +640,19 @@ function renderStep2Suministro(container) {
         ['Baterías', 'bat', stateCotizador.baterias]
     ];
     const opciones = grupos.map(([label, prefijo, lista]) => lista.length ? `<optgroup label="${label}">${lista.map(e => `<option value="${prefijo}-${e.id}">${e.marca ? e.marca + ' ' : ''}${e.modelo}</option>`).join('')}</optgroup>` : '').join('');
+    const empresaBadge = App.user?.es_superadmin
+        ? `<span class="text-[10px] uppercase tracking-wider text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full whitespace-nowrap">Inventario de: ${empresaNombreCotizador(stateCotizador.equiposEmpresaId)}</span>`
+        : '';
+    const hintSinProductos = stateCotizador.productos.length === 0
+        ? `<p class="text-xs text-amber-600 mt-2">No hay productos activos en el inventario de ${empresaNombreCotizador(stateCotizador.equiposEmpresaId)}. Si el producto está en otra empresa, cotiza con un cliente de esa empresa o crea el producto en esta.</p>`
+        : '';
     const margen = stateCotizador.config.margen || 0;
     const total = (stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-8">
-            <div><h2 class="font-headline-md text-on-surface">Productos y servicios</h2><p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p></div>
+            <div class="flex justify-between items-start gap-4"><div><h2 class="font-headline-md text-on-surface">Productos y servicios</h2><p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p></div>${empresaBadge}</div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-5 items-end p-6 bg-surface-container-low rounded-xl border border-outline-variant/20">
-                <div class="md:col-span-2"><label class="sq-label">Producto o servicio</label><select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select></div>
+                <div class="md:col-span-2"><label class="sq-label">Producto o servicio</label><select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select>${hintSinProductos}</div>
                 <div><label class="sq-label">Cantidad</label><input type="number" id="extra-item-qty" class="sq-input" value="1" min="0.1" step="any"></div>
                 <button onclick="addExtraItem()" class="sq-btn sq-btn-secondary">Añadir ítem</button>
             </div>
