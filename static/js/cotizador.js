@@ -15,6 +15,7 @@ let stateCotizador = {
     productos: [],
     servicios: [],
     equiposEmpresaId: null,
+    empresas: [],
     dimensionamiento: null,
     financiero: null,
     items: [], // Desglose
@@ -46,6 +47,11 @@ async function cargarListasEquipos(empresaId) {
     stateCotizador.servicios = resSer.data;
     stateCotizador.productos = resProd.data;
     stateCotizador.equiposEmpresaId = empresaId || null;
+}
+
+// Nombre de la empresa cuyo inventario está cargado (solo visible para superadmin)
+function empresaNombreCotizador(empresaId) {
+    return stateCotizador.empresas.find(x => Number(x.id) === Number(empresaId))?.nombre || (empresaId ? `Empresa ${empresaId}` : 'Por defecto');
 }
 
 async function renderCotizador() {
@@ -88,12 +94,15 @@ async function renderCotizador() {
 
     // Load initial data
     try {
-        const [resCl, resConf] = await Promise.all([
+        const [resCl, resConf, resEmp] = await Promise.all([
             API.get('/clientes?limit=100'),
             API.get('/configuracion'),
+            App.user?.es_superadmin ? API.get('/empresas') : Promise.resolve({ data: [] }),
             cargarListasEquipos(null)
         ]);
 
+        // /api/empresas devuelve un arreglo directo (no {data: []})
+        if (App.user?.es_superadmin) stateCotizador.empresas = Array.isArray(resEmp) ? resEmp : (resEmp?.data || []);
         stateCotizador.clientes = resCl.data;
 
         // Apply config
@@ -500,6 +509,7 @@ async function renderStep2(container) {
             <div class="bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20">
                 <div class="p-5 lg:p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-highest">
                     <h3 class="font-headline-md text-headline-md text-on-surface">Equipos, Materiales y Servicios</h3>
+                    ${App.user?.es_superadmin ? `<span class="text-[10px] uppercase tracking-wider text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full whitespace-nowrap">Inventario de: ${empresaNombreCotizador(stateCotizador.equiposEmpresaId)}</span>` : ''}
                 </div>
                 <div class="p-5 lg:p-6 grid grid-cols-1 md:grid-cols-4 gap-5 items-end bg-surface-container-low border-b border-outline-variant/20">
                     <div class="md:col-span-2">
@@ -1578,17 +1588,9 @@ function renderStep4(container) {
         });
     }
 
-    // Generate default cronograma if empty
-    if (!stateCotizador.cronograma || stateCotizador.cronograma.length === 0) {
-        if (esSuministro) {
-            const base = addBusinessDays(new Date(), 5);
-            stateCotizador.cronograma = [
-                {fecha_inicio: addBusinessDays(base, 0), fecha_fin: addBusinessDays(base, 1), actividad: 'Confirmación de productos y cantidades', completado: false},
-                {fecha_inicio: addBusinessDays(base, 2), fecha_fin: addBusinessDays(base, 4), actividad: 'Compra y alistamiento del suministro', completado: false},
-                {fecha_inicio: addBusinessDays(base, 5), fecha_fin: addBusinessDays(base, 6), actividad: 'Instalación o puesta en servicio', completado: false},
-                {fecha_inicio: addBusinessDays(base, 7), fecha_fin: addBusinessDays(base, 7), actividad: 'Entrega y recibido a satisfacción', completado: false}
-            ];
-        } else {
+    // Generate default cronograma if empty.
+    // En propuestas de suministro (productos/servicios) NO se carga cronograma.
+    if ((!stateCotizador.cronograma || stateCotizador.cronograma.length === 0) && !esSuministro) {
         // Start 15 business days from today
         const base_date = addBusinessDays(new Date(), 15);
         stateCotizador.cronograma = [
@@ -1600,7 +1602,6 @@ function renderStep4(container) {
             {fecha_inicio: addBusinessDays(base_date, 8), fecha_fin: addBusinessDays(base_date, 8), actividad: 'Pruebas y puesta en marcha', completado: false},
             {fecha_inicio: addBusinessDays(base_date, 9), fecha_fin: addBusinessDays(base_date, 9), actividad: 'Entrega y último pago', completado: false}
         ];
-        }
     }
 
     container.innerHTML = `
@@ -1644,7 +1645,8 @@ function renderStep4(container) {
                 </div>
             </div>
 
-            <!-- Cronograma editable -->
+            ${esSuministro ? '' : `
+            <!-- Cronograma editable (solo propuestas solares; en suministro no se carga) -->
             <div class="bg-surface-container-low p-6 rounded-xl">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="font-headline-md text-on-surface">Cronograma de Ejecución y Pagos</h3>
@@ -1668,7 +1670,7 @@ function renderStep4(container) {
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </div>`}
         </div>
         <div class="px-8 pb-8 flex border-t border-outline-variant/30 pt-6 mt-4">
             <button onclick="goToStep(3)" class="sq-btn sq-btn-ghost">Atrás</button>
@@ -1842,7 +1844,7 @@ async function guardarCotizacion(estado, openPdf = false) {
         }
 
         // Reset state
-        stateCotizador = { step: 1, tipoPropuesta: 'solar', clientes: [], clienteSelected: null, baseConsumo: 'promedio', paneles: stateCotizador.paneles, inversores: stateCotizador.inversores, baterias: stateCotizador.baterias, materiales: stateCotizador.materiales, productos: stateCotizador.productos, servicios: stateCotizador.servicios, dimensionamiento: null, financiero: null, items: [], removedAutoItems: [], cronograma: [], config: stateCotizador.config };
+        stateCotizador = { step: 1, tipoPropuesta: 'solar', clientes: [], clienteSelected: null, baseConsumo: 'promedio', paneles: stateCotizador.paneles, inversores: stateCotizador.inversores, baterias: stateCotizador.baterias, materiales: stateCotizador.materiales, productos: stateCotizador.productos, servicios: stateCotizador.servicios, empresas: stateCotizador.empresas, dimensionamiento: null, financiero: null, items: [], removedAutoItems: [], cronograma: [], config: stateCotizador.config };
 
         const targetId = editId || res.id;
         App.guardandoPdfId = targetId;

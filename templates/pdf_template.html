@@ -683,6 +683,12 @@
                 }
             }
             const esSuministro = (itemsData && typeof itemsData === 'object' && itemsData.tipo_propuesta === 'suministro');
+            // En suministro no se carga cronograma: ocultar la sección si viene vacía
+            // para que no aparezca "Cronograma no disponible" en la portada o página 4.
+            if (esSuministro && (!data.cronograma_json || data.cronograma_json.length === 0)) {
+                const cronogramaVacio = document.getElementById('cronograma-container');
+                if (cronogramaVacio) cronogramaVacio.style.display = 'none';
+            }
             if (esSuministro) {
                 document.getElementById('page-1').classList.add('supply-proposal');
                 document.querySelector('.text-right h2').innerText = 'PROPUESTA DE SUMINISTRO';

@@ -770,19 +770,27 @@ router.post('/', async (req, res) => {
 
     let cronograma = d.cronograma_json || '[]';
     if (cronograma === '[]') {
-      const empId = req.user.es_superadmin ? (d.empresa_id || req.user.empresa_id || 1) : (req.user.empresa_id || 1);
-      const pagoAnticipo = await getConfigValue('pago_anticipo_pct', 60, empId);
-      const pagoEntrega = await getConfigValue('pago_contraentrega_pct', 40, empId);
-      cronograma = JSON.stringify([
-        { semana: 1, actividad: 'Firma de contrato y anticipo', hito_pago: `${Math.trunc(pagoAnticipo)}% anticipo`, completado: false },
-        { semana: 1, actividad: 'Compra de equipos y materiales', hito_pago: '', completado: false },
-        { semana: 2, actividad: 'Diseño eléctrico y memorias de cálculo', hito_pago: '', completado: false },
-        { semana: 2, actividad: 'Trámites ante operador de red', hito_pago: '', completado: false },
-        { semana: 3, actividad: 'Instalación de estructura y paneles', hito_pago: '', completado: false },
-        { semana: 3, actividad: 'Instalación eléctrica e inversor', hito_pago: '', completado: false },
-        { semana: 4, actividad: 'Pruebas, puesta en marcha y certificación', hito_pago: '', completado: false },
-        { semana: 4, actividad: 'Entrega y capacitación', hito_pago: `${Math.trunc(pagoEntrega)}% contra entrega`, completado: false }
-      ]);
+      // En propuestas de suministro (productos/servicios) no se carga cronograma
+      let tipoPropuesta = 'solar';
+      try {
+        const itemsObj = typeof d.items_json === 'string' ? JSON.parse(d.items_json) : d.items_json;
+        tipoPropuesta = itemsObj?.tipo_propuesta || 'solar';
+      } catch (_) { /* si no se puede leer, se asume solar */ }
+      if (tipoPropuesta !== 'suministro') {
+        const empId = req.user.es_superadmin ? (d.empresa_id || req.user.empresa_id || 1) : (req.user.empresa_id || 1);
+        const pagoAnticipo = await getConfigValue('pago_anticipo_pct', 60, empId);
+        const pagoEntrega = await getConfigValue('pago_contraentrega_pct', 40, empId);
+        cronograma = JSON.stringify([
+          { semana: 1, actividad: 'Firma de contrato y anticipo', hito_pago: `${Math.trunc(pagoAnticipo)}% anticipo`, completado: false },
+          { semana: 1, actividad: 'Compra de equipos y materiales', hito_pago: '', completado: false },
+          { semana: 2, actividad: 'Diseño eléctrico y memorias de cálculo', hito_pago: '', completado: false },
+          { semana: 2, actividad: 'Trámites ante operador de red', hito_pago: '', completado: false },
+          { semana: 3, actividad: 'Instalación de estructura y paneles', hito_pago: '', completado: false },
+          { semana: 3, actividad: 'Instalación eléctrica e inversor', hito_pago: '', completado: false },
+          { semana: 4, actividad: 'Pruebas, puesta en marcha y certificación', hito_pago: '', completado: false },
+          { semana: 4, actividad: 'Entrega y capacitación', hito_pago: `${Math.trunc(pagoEntrega)}% contra entrega`, completado: false }
+        ]);
+      }
     }
 
     const [result] = await pool.execute(
