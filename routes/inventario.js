@@ -20,6 +20,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Resuelve la empresa dueña del inventario que se va a crear.
+// Sin esto, los ítems creados por el superadmin quedaban con empresa_id NULL
+// y no aparecían en ningún listado (todos filtran WHERE empresa_id = ?).
+async function resolverEmpresaId(req, explicito) {
+  if (!req.user.es_superadmin) return Number(req.user.empresa_id) || null;
+  let empresaId = Number(explicito) || 0;
+  if (!empresaId) {
+    const [firstCompany] = await pool.execute('SELECT id FROM empresas ORDER BY id LIMIT 1');
+    empresaId = Number(firstCompany[0]?.id) || 0;
+  }
+  return empresaId || null;
+}
+
 // ── List Equipment ──
 router.get('/', async (req, res) => {
   try {
@@ -72,6 +85,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const d = req.body;
+    const empresaId = await resolverEmpresaId(req, d.empresa_id);
     const [result] = await pool.execute(
       `INSERT INTO equipos (categoria, marca, modelo, descripcion, potencia_wp, potencia_kw,
         capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva, empresa_id)
@@ -79,7 +93,7 @@ router.post('/', async (req, res) => {
       [d.categoria, d.marca || '', d.modelo || '', d.descripcion || '', d.potencia_wp || 0,
        d.potencia_kw || 0, d.capacidad_kwh || 0, d.tipo || '', d.costo || 0, d.precio_venta || 0,
        d.utilidad_pct || 0, d.unidad || 'und', d.peso_kg || 0, d.area_m2 || 0,
-       d.activo !== undefined ? d.activo : 1, d.imagen_url || '', d.iva !== undefined ? d.iva : 1, req.user.es_superadmin ? (d.empresa_id || null) : req.user.empresa_id]
+       d.activo !== undefined ? d.activo : 1, d.imagen_url || '', d.iva !== undefined ? d.iva : 1, empresaId]
     );
     res.json({ id: result.insertId, message: 'Equipo creado exitosamente' });
   } catch (error) {
@@ -173,6 +187,7 @@ router.post('/extract-data', upload.single('file'), async (req, res) => {
     const { url, categoria } = req.body;
     let text = '';
     let imageUrl = '';
+    let precioPublicado = null;
 
     if (req.file) {
       if (req.file.mimetype !== 'application/pdf') {
@@ -199,6 +214,33 @@ router.post('/extract-data', upload.single('file'), async (req, res) => {
       ].filter(Boolean).join(' | ');
       const structuredData = $('script[type="application/ld+json"]').map((_, node) => $(node).text()).get().join('\n');
       const tables = $('table, dl, ul, ol').map((_, node) => $(node).text()).get().join(' ');
+
+      // WooCommerce (schema.org) publica el precio exacto en JSON-LD y metadatos:
+      // es mucho más fiable que pedírselo a la IA o parsear el texto visible.
+      const parsePrice = (v) => {
+        const n = Number(String(v ?? '').replace(/[^\d.,-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+        return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+      };
+      try {
+        for (const block of $('script[type="application/ld+json"]').get()) {
+          let json; try { json = JSON.parse($(block).text()); } catch (_) { continue; }
+          const nodos = [];
+          const collect = (x) => { if (Array.isArray(x)) x.forEach(collect); else if (x && typeof x === 'object') { nodos.push(x); Object.values(x).forEach(collect); } };
+          collect(json);
+          for (const nodo of nodos) {
+            const ofertas = [].concat(nodo.offers || [], nodo['@graph'] || [], String(nodo['@type'] || '').includes('Offer') ? [nodo] : []);
+            for (const oferta of ofertas) {
+              const specs = [].concat(oferta?.priceSpecification || []);
+              precioPublicado = precioPublicado || parsePrice(oferta?.price) || parsePrice(specs.find(s => s && s.price)?.price);
+            }
+          }
+        }
+      } catch (_) { /* mejor esfuerzo */ }
+      precioPublicado = precioPublicado
+        || parsePrice($('meta[property="product:price:amount"]').attr('content'))
+        || parsePrice($('meta[property="og:price:amount"]').attr('content'))
+        || parsePrice($('.price .amount, p.price').first().text());
+
       $('script, style, noscript, iframe, svg').remove();
       const bodyText = $('body').text().replace(/\s+/g, ' ').trim();
       text = [metadata, structuredData, tables, bodyText].filter(Boolean).join('\n').replace(/\s+/g, ' ').trim();
@@ -238,6 +280,7 @@ Structure:
   "capacidad_kwh": number (only for batteries, in kWh. E.g. 5.12),
   "peso_kg": number,
   "area_m2": number (only for panels),
+  "costo": number (the product sale price shown on the page, in the displayed currency, without symbols or thousands separators; null if not shown),
   "tipo": "string (e.g., Monocristalino, Híbrido, Litio)"
 }
 
@@ -271,12 +314,14 @@ ${text}
     let parsedData = JSON.parse(responseText);
 
     // Normalizar respuestas numéricas que algunos modelos devuelven como texto.
-    for (const field of ['potencia_wp', 'potencia_kw', 'capacidad_kwh', 'peso_kg', 'area_m2']) {
+    for (const field of ['potencia_wp', 'potencia_kw', 'capacidad_kwh', 'peso_kg', 'area_m2', 'costo']) {
       if (typeof parsedData[field] === 'string') {
         const match = parsedData[field].replace(',', '.').match(/-?\d+(?:\.\d+)?/);
         parsedData[field] = match ? Number(match[0]) : null;
       }
     }
+    // El precio publicado por la tienda (JSON-LD/metadatos) manda sobre el extraído por la IA.
+    if (precioPublicado) parsedData.costo = precioPublicado;
     if (parsedData.potencia_kw > 100) parsedData.potencia_kw /= 1000;
     if (parsedData.potencia_wp > 0 && parsedData.potencia_wp < 10) parsedData.potencia_wp *= 1000;
 
@@ -403,14 +448,15 @@ router.post('/bulk-create', async (req, res) => {
     }
 
     let created = 0;
+    const empresaId = await resolverEmpresaId(req, req.body.empresa_id);
     for (const p of productos) {
       await pool.execute(
         `INSERT INTO equipos (categoria, marca, modelo, descripcion, potencia_wp, potencia_kw,
-          capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva, empresa_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [p.categoria || 'inversor', p.marca || '', p.modelo || '', p.descripcion || '',
          p.potencia_wp || 0, p.potencia_kw || 0, p.capacidad_kwh || 0, p.tipo || '',
-         p.costo || 0, 0, 0, 'und', p.peso_kg || 0, p.area_m2 || 0, 1, '', 1]
+         p.costo || 0, 0, 0, 'und', p.peso_kg || 0, p.area_m2 || 0, 1, '', 1, empresaId]
       );
       created++;
     }

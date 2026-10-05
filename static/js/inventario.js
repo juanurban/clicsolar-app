@@ -380,11 +380,19 @@ async function saveEquipo(e, id) {
             await API.put(`/equipos/${id}`, data);
             showToast('Actualizado', 'success');
         } else {
+            // Sin empresa explícita, el backend asignaba NULL al superadmin y el
+            // ítem quedaba invisible en todos los listados.
+            if (stateInventario.empresaId) data.empresa_id = stateInventario.empresaId;
             await API.post('/equipos', data);
             showToast('Creado', 'success');
         }
         closeModal();
-        fetchEquipos();
+        // Si se guardó en otra categoría, cambiar a su pestaña para que el usuario lo vea
+        if (data.categoria && data.categoria !== stateInventario.categoria) {
+            switchInvCat(data.categoria);
+        } else {
+            fetchEquipos();
+        }
     } catch (error) {
         showToast(error.message, 'error');
     }
@@ -553,6 +561,16 @@ async function extraerDatosIA() {
         if (data.capacidad_kwh && form.querySelector('[name="capacidad_kwh"]')) form.querySelector('[name="capacidad_kwh"]').value = data.capacidad_kwh;
         if (data.peso_kg && form.querySelector('[name="peso_kg"]')) form.querySelector('[name="peso_kg"]').value = data.peso_kg;
         if (data.area_m2 && form.querySelector('[name="area_m2"]')) form.querySelector('[name="area_m2"]').value = data.area_m2;
+
+        // El costo tiene un campo oculto (valor) y uno visible formateado (millas con puntos)
+        if (data.costo && form.querySelector('[name="costo"]')) {
+            const costoNum = Math.round(Number(data.costo)) || 0;
+            if (costoNum > 0) {
+                form.querySelector('[name="costo"]').value = costoNum;
+                const display = document.getElementById('eq-costo-display');
+                if (display) display.value = costoNum.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+            }
+        }
 
         if (data.imagen_url) {
             form.querySelector('[name="imagen_url"]').value = data.imagen_url;
@@ -740,10 +758,15 @@ async function confirmarImportacion() {
     btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Importando...';
 
     try {
-        const res = await API.post('/equipos/bulk-create', { productos: selected });
+        const payload = { productos: selected };
+        if (stateInventario.empresaId) payload.empresa_id = stateInventario.empresaId;
+        const res = await API.post('/equipos/bulk-create', payload);
         showToast(res.message, 'success');
         closeModal();
-        fetchEquipos();
+        // Mostrar la pestaña de la primera categoría importada para que se vean los ítems
+        const primeraCat = selected.map(p => p.categoria).find(c => c && c !== stateInventario.categoria);
+        if (primeraCat) switchInvCat(primeraCat);
+        else fetchEquipos();
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
