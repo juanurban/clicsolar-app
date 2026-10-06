@@ -222,6 +222,23 @@ app.use((req, res) => {
 });
 
 // Start Server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Plantas Solares de Colombia running on port ${PORT}`);
-});
+// Antes de escuchar, consolida duplicados del inventario global (idempotente).
+// Antes del inventario global el mismo producto podía existir una vez por
+// empresa; esta migración deja una sola fila por producto y reasigna las
+// referencias de las cotizaciones.
+(async () => {
+  try {
+    const pool = require('./db');
+    const { deduplicarEquipos } = require('./utils/dedupeEquipos');
+    const resultado = await deduplicarEquipos(pool);
+    if (resultado.eliminados > 0) {
+      console.log(`[dedupe-equipos] Consolidados ${resultado.consolidados} productos, eliminadas ${resultado.eliminados} copias duplicadas.`);
+    }
+  } catch (error) {
+    console.warn('[dedupe-equipos] No se pudo consolidar el inventario:', error.message);
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Plantas Solares de Colombia running on port ${PORT}`);
+  });
+})();
