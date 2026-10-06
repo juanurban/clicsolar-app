@@ -14,8 +14,6 @@ let stateCotizador = {
     materiales: [],
     productos: [],
     servicios: [],
-    equiposEmpresaId: null,
-    empresas: [],
     dimensionamiento: null,
     financiero: null,
     items: [], // Desglose
@@ -27,18 +25,16 @@ let stateCotizador = {
 let chartInstance = null;
 let proyeccionCharts = {};
 
-// Carga las listas de inventario del cotizador. Deben pertenecer a la empresa
-// del cliente seleccionado: sin esto, el superadmin siempre veía el catálogo de
-// la primera empresa y un producto eliminado en otra empresa "seguía disponible".
-async function cargarListasEquipos(empresaId) {
-    const scope = (App.user?.es_superadmin && empresaId) ? `&empresa_id=${empresaId}` : '';
+// Carga las listas de inventario del cotizador. El inventario es GLOBAL:
+// todas las empresas comparten el mismo catálogo, sin segmentación.
+async function cargarListasEquipos() {
     const [resPa, resIn, resBa, resMat, resSer, resProd] = await Promise.all([
-        API.get(`/equipos?categoria=panel&activo=1${scope}`),
-        API.get(`/equipos?categoria=inversor&activo=1${scope}`),
-        API.get(`/equipos?categoria=bateria&activo=1${scope}`),
-        API.get(`/equipos?categoria=estructura&activo=1${scope}`),
-        API.get(`/equipos?categoria=servicio&activo=1${scope}`),
-        API.get(`/equipos?categoria=producto&activo=1${scope}`)
+        API.get('/equipos?categoria=panel&activo=1'),
+        API.get('/equipos?categoria=inversor&activo=1'),
+        API.get('/equipos?categoria=bateria&activo=1'),
+        API.get('/equipos?categoria=estructura&activo=1'),
+        API.get('/equipos?categoria=servicio&activo=1'),
+        API.get('/equipos?categoria=producto&activo=1')
     ]);
     stateCotizador.paneles = resPa.data;
     stateCotizador.inversores = resIn.data;
@@ -46,12 +42,6 @@ async function cargarListasEquipos(empresaId) {
     stateCotizador.materiales = resMat.data;
     stateCotizador.servicios = resSer.data;
     stateCotizador.productos = resProd.data;
-    stateCotizador.equiposEmpresaId = empresaId || null;
-}
-
-// Nombre de la empresa cuyo inventario está cargado (solo visible para superadmin)
-function empresaNombreCotizador(empresaId) {
-    return stateCotizador.empresas.find(x => Number(x.id) === Number(empresaId))?.nombre || (empresaId ? `Empresa ${empresaId}` : 'Por defecto');
 }
 
 async function renderCotizador() {
@@ -94,15 +84,12 @@ async function renderCotizador() {
 
     // Load initial data
     try {
-        const [resCl, resConf, resEmp] = await Promise.all([
+        const [resCl, resConf] = await Promise.all([
             API.get('/clientes?limit=100'),
             API.get('/configuracion'),
-            App.user?.es_superadmin ? API.get('/empresas') : Promise.resolve({ data: [] }),
-            cargarListasEquipos(null)
+            cargarListasEquipos()
         ]);
 
-        // /api/empresas devuelve un arreglo directo (no {data: []})
-        if (App.user?.es_superadmin) stateCotizador.empresas = Array.isArray(resEmp) ? resEmp : (resEmp?.data || []);
         stateCotizador.clientes = resCl.data;
 
         // Apply config
@@ -120,10 +107,6 @@ async function renderCotizador() {
             App.editCotizacionId = null;
 
             stateCotizador.clienteSelected = typeof ed.cliente_id === 'object' ? ed.cliente_id : resCl.data.find(c => c.id === ed.cliente_id);
-            // El inventario visible debe ser el de la empresa del cliente de la propuesta
-            if (stateCotizador.clienteSelected?.empresa_id && stateCotizador.clienteSelected.empresa_id !== stateCotizador.equiposEmpresaId) {
-                await cargarListasEquipos(stateCotizador.clienteSelected.empresa_id);
-            }
             stateCotizador.step = 4;
             stateCotizador.dimensionamiento = {
                 panel: ed.panel || stateCotizador.paneles.find(p => p.id === ed.panel_id),
@@ -192,9 +175,6 @@ async function renderCotizador() {
                 stateCotizador.clienteSelected = c;
                 stateCotizador.step = 2;
                 App.selectedClienteId = null; // consume it
-                if (c.empresa_id && c.empresa_id !== stateCotizador.equiposEmpresaId) {
-                    await cargarListasEquipos(c.empresa_id);
-                }
             }
         }
 
@@ -323,10 +303,6 @@ async function selectCliente(id) {
         stateCotizador.dimensionamiento = null;
         stateCotizador.items = [];
         stateCotizador.removedAutoItems = [];
-        // Inventario de la empresa del cliente (evita mostrar equipos de otra empresa)
-        if (App.user?.es_superadmin && cliente.empresa_id && cliente.empresa_id !== stateCotizador.equiposEmpresaId) {
-            await cargarListasEquipos(cliente.empresa_id);
-        }
         if (stateCotizador.tipoPropuesta === 'suministro') {
             stateCotizador.dimensionamiento = { potencia_kwp: 0, num_paneles: 0, produccion_diaria_kwh: 0, produccion_mensual_kwh: 0, area_requerida_m2: 0, peso_total_kg: 0, hsp: 0, consumo_mensual_kwh: 0, consumo_diario_kwh: 0, cobertura_pct: 0 };
         }
@@ -509,31 +485,30 @@ async function renderStep2(container) {
             <div class="bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20">
                 <div class="p-5 lg:p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-highest">
                     <h3 class="font-headline-md text-headline-md text-on-surface">Equipos, Materiales y Servicios</h3>
-                    ${App.user?.es_superadmin ? `<span class="text-[10px] uppercase tracking-wider text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full whitespace-nowrap">Inventario de: ${empresaNombreCotizador(stateCotizador.equiposEmpresaId)}</span>` : ''}
                 </div>
                 <div class="p-5 lg:p-6 grid grid-cols-1 md:grid-cols-4 gap-5 items-end bg-surface-container-low border-b border-outline-variant/20">
                     <div class="md:col-span-2">
                         <label class="sq-label">Agregar Ítem Extra</label>
                         <select id="extra-item-id" class="sq-input">
                             <option value="">-- Seleccionar --</option>
-                            <optgroup label="Paneles">
+                            ${stateCotizador.paneles.length ? `<optgroup label="Paneles">
                                 ${stateCotizador.paneles.map(p => `<option value="pan-${p.id}">${p.marca} ${p.modelo}</option>`).join('')}
-                            </optgroup>
-                            <optgroup label="Inversores">
+                            </optgroup>` : ''}
+                            ${stateCotizador.inversores.length ? `<optgroup label="Inversores">
                                 ${stateCotizador.inversores.map(i => `<option value="inv-${i.id}">${i.marca} ${i.modelo}</option>`).join('')}
-                            </optgroup>
-                            <optgroup label="Baterías">
+                            </optgroup>` : ''}
+                            ${stateCotizador.baterias.length ? `<optgroup label="Baterías">
                                 ${stateCotizador.baterias.map(b => `<option value="bat-${b.id}">${b.marca} ${b.modelo}</option>`).join('')}
-                            </optgroup>
-                            <optgroup label="Productos">
+                            </optgroup>` : ''}
+                            ${stateCotizador.productos.length ? `<optgroup label="Productos">
                                 ${stateCotizador.productos.map(p => `<option value="prod-${p.id}">${p.marca} ${p.modelo}</option>`).join('')}
-                            </optgroup>
-                            <optgroup label="Materiales">
+                            </optgroup>` : ''}
+                            ${stateCotizador.materiales.length ? `<optgroup label="Materiales">
                                 ${stateCotizador.materiales.map(m => `<option value="mat-${m.id}">${m.modelo}</option>`).join('')}
-                            </optgroup>
-                            <optgroup label="Servicios">
+                            </optgroup>` : ''}
+                            ${stateCotizador.servicios.length ? `<optgroup label="Servicios">
                                 ${stateCotizador.servicios.map(s => `<option value="ser-${s.id}">${s.modelo}</option>`).join('')}
-                            </optgroup>
+                            </optgroup>` : ''}
                         </select>
                     </div>
                     <div>
@@ -640,19 +615,13 @@ function renderStep2Suministro(container) {
         ['Baterías', 'bat', stateCotizador.baterias]
     ];
     const opciones = grupos.map(([label, prefijo, lista]) => lista.length ? `<optgroup label="${label}">${lista.map(e => `<option value="${prefijo}-${e.id}">${e.marca ? e.marca + ' ' : ''}${e.modelo}</option>`).join('')}</optgroup>` : '').join('');
-    const empresaBadge = App.user?.es_superadmin
-        ? `<span class="text-[10px] uppercase tracking-wider text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full whitespace-nowrap">Inventario de: ${empresaNombreCotizador(stateCotizador.equiposEmpresaId)}</span>`
-        : '';
-    const hintSinProductos = stateCotizador.productos.length === 0
-        ? `<p class="text-xs text-amber-600 mt-2">No hay productos activos en el inventario de ${empresaNombreCotizador(stateCotizador.equiposEmpresaId)}. Si el producto está en otra empresa, cotiza con un cliente de esa empresa o crea el producto en esta.</p>`
-        : '';
     const margen = stateCotizador.config.margen || 0;
     const total = (stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-8">
-            <div class="flex justify-between items-start gap-4"><div><h2 class="font-headline-md text-on-surface">Productos y servicios</h2><p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p></div>${empresaBadge}</div>
+            <div class="flex justify-between items-start gap-4"><div><h2 class="font-headline-md text-on-surface">Productos y servicios</h2><p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p></div></div>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-5 items-end p-6 bg-surface-container-low rounded-xl border border-outline-variant/20">
-                <div class="md:col-span-2"><label class="sq-label">Producto o servicio</label><select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select>${hintSinProductos}</div>
+                <div class="md:col-span-2"><label class="sq-label">Producto o servicio</label><select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select></div>
                 <div><label class="sq-label">Cantidad</label><input type="number" id="extra-item-qty" class="sq-input" value="1" min="0.1" step="any"></div>
                 <button onclick="addExtraItem()" class="sq-btn sq-btn-secondary">Añadir ítem</button>
             </div>
@@ -1850,7 +1819,7 @@ async function guardarCotizacion(estado, openPdf = false) {
         }
 
         // Reset state
-        stateCotizador = { step: 1, tipoPropuesta: 'solar', clientes: [], clienteSelected: null, baseConsumo: 'promedio', paneles: stateCotizador.paneles, inversores: stateCotizador.inversores, baterias: stateCotizador.baterias, materiales: stateCotizador.materiales, productos: stateCotizador.productos, servicios: stateCotizador.servicios, empresas: stateCotizador.empresas, dimensionamiento: null, financiero: null, items: [], removedAutoItems: [], cronograma: [], config: stateCotizador.config };
+        stateCotizador = { step: 1, tipoPropuesta: 'solar', clientes: [], clienteSelected: null, baseConsumo: 'promedio', paneles: stateCotizador.paneles, inversores: stateCotizador.inversores, baterias: stateCotizador.baterias, materiales: stateCotizador.materiales, productos: stateCotizador.productos, servicios: stateCotizador.servicios, dimensionamiento: null, financiero: null, items: [], removedAutoItems: [], cronograma: [], config: stateCotizador.config };
 
         const targetId = editId || res.id;
         App.guardandoPdfId = targetId;

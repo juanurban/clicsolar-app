@@ -20,37 +20,15 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Resuelve la empresa dueña del inventario que se va a crear.
-// Sin esto, los ítems creados por el superadmin quedaban con empresa_id NULL
-// y no aparecían en ningún listado (todos filtran WHERE empresa_id = ?).
-async function resolverEmpresaId(req, explicito) {
-  if (!req.user.es_superadmin) return Number(req.user.empresa_id) || null;
-  let empresaId = Number(explicito) || 0;
-  if (!empresaId) {
-    const [firstCompany] = await pool.execute('SELECT id FROM empresas ORDER BY id LIMIT 1');
-    empresaId = Number(firstCompany[0]?.id) || 0;
-  }
-  return empresaId || null;
-}
-
 // ── List Equipment ──
+// El inventario es GLOBAL: un único catálogo compartido por todas las empresas.
+// No se filtra por empresa para que ningún ítem se duplique ni quede oculto.
 router.get('/', async (req, res) => {
   try {
     const { categoria, buscar, activo } = req.query;
-    let empresaId = Number(req.query.empresa_id) || Number(req.user.empresa_id) || 0;
-    if (!empresaId && req.user.es_superadmin) {
-      const [firstCompany] = await pool.execute('SELECT id FROM empresas ORDER BY id LIMIT 1');
-      empresaId = Number(firstCompany[0]?.id) || 1;
-    }
-    if (!empresaId) return res.status(400).json({ detail: 'No se pudo determinar la empresa del inventario' });
 
-    // El superadmin puede consultar una empresa concreta, pero nunca se
-    // mezclan catálogos de varias empresas en la misma lista.
-    if (!req.user.es_superadmin && empresaId !== Number(req.user.empresa_id)) {
-      return res.status(403).json({ detail: 'No tienes acceso a este inventario' });
-    }
-    let query = 'SELECT * FROM equipos WHERE empresa_id = ?';
-    const params = [empresaId];
+    let query = 'SELECT * FROM equipos WHERE 1=1';
+    const params = [];
 
     if (categoria) { query += ' AND categoria = ?'; params.push(categoria); }
     if (buscar) {
@@ -72,7 +50,7 @@ router.get('/', async (req, res) => {
 // ── Get Equipment by ID ──
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM equipos WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    const [rows] = await pool.execute('SELECT * FROM equipos WHERE id = ?', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ detail: 'Equipo no encontrado' });
     res.json(rows[0]);
   } catch (error) {
@@ -85,15 +63,14 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const d = req.body;
-    const empresaId = await resolverEmpresaId(req, d.empresa_id);
     const [result] = await pool.execute(
       `INSERT INTO equipos (categoria, marca, modelo, descripcion, potencia_wp, potencia_kw,
-        capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva, empresa_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [d.categoria, d.marca || '', d.modelo || '', d.descripcion || '', d.potencia_wp || 0,
        d.potencia_kw || 0, d.capacidad_kwh || 0, d.tipo || '', d.costo || 0, d.precio_venta || 0,
        d.utilidad_pct || 0, d.unidad || 'und', d.peso_kg || 0, d.area_m2 || 0,
-       d.activo !== undefined ? d.activo : 1, d.imagen_url || '', d.iva !== undefined ? d.iva : 1, empresaId]
+       d.activo !== undefined ? d.activo : 1, d.imagen_url || '', d.iva !== undefined ? d.iva : 1]
     );
     res.json({ id: result.insertId, message: 'Equipo creado exitosamente' });
   } catch (error) {
@@ -105,7 +82,7 @@ router.post('/', async (req, res) => {
 // ── Update Equipment ──
 router.put('/:id', async (req, res) => {
   try {
-    const [existing] = await pool.execute('SELECT * FROM equipos WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    const [existing] = await pool.execute('SELECT * FROM equipos WHERE id = ?', [req.params.id]);
     if (existing.length === 0) return res.status(404).json({ detail: 'Equipo no encontrado' });
 
     const d = req.body;
@@ -143,10 +120,10 @@ router.put('/:id', async (req, res) => {
 // ── Delete Equipment ──
 router.delete('/:id', async (req, res) => {
   try {
-    const [existing] = await pool.execute('SELECT id FROM equipos WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    const [existing] = await pool.execute('SELECT id FROM equipos WHERE id = ?', [req.params.id]);
     if (existing.length === 0) return res.status(404).json({ detail: 'Equipo no encontrado' });
 
-    await pool.execute('DELETE FROM equipos WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    await pool.execute('DELETE FROM equipos WHERE id = ?', [req.params.id]);
     res.json({ message: 'Equipo eliminado exitosamente' });
   } catch (error) {
     console.error(error);
@@ -169,8 +146,7 @@ router.post('/bulk-delete', async (req, res) => {
     if (!ids || ids.length === 0) return res.status(400).json({ detail: 'No se proporcionaron IDs' });
 
     const placeholders = ids.map(() => '?').join(',');
-    const scope = req.user.es_superadmin ? '' : ' AND empresa_id = ?';
-    await pool.execute(`DELETE FROM equipos WHERE id IN (${placeholders})${scope}`, req.user.es_superadmin ? ids : [...ids, req.user.empresa_id]);
+    await pool.execute(`DELETE FROM equipos WHERE id IN (${placeholders})`, ids);
     res.json({ message: `${ids.length} ítems eliminados exitosamente` });
   } catch (error) {
     console.error(error);
@@ -448,15 +424,14 @@ router.post('/bulk-create', async (req, res) => {
     }
 
     let created = 0;
-    const empresaId = await resolverEmpresaId(req, req.body.empresa_id);
     for (const p of productos) {
       await pool.execute(
         `INSERT INTO equipos (categoria, marca, modelo, descripcion, potencia_wp, potencia_kw,
-          capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva, empresa_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          capacidad_kwh, tipo, costo, precio_venta, utilidad_pct, unidad, peso_kg, area_m2, activo, imagen_url, iva)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [p.categoria || 'inversor', p.marca || '', p.modelo || '', p.descripcion || '',
          p.potencia_wp || 0, p.potencia_kw || 0, p.capacidad_kwh || 0, p.tipo || '',
-         p.costo || 0, 0, 0, 'und', p.peso_kg || 0, p.area_m2 || 0, 1, '', 1, empresaId]
+         p.costo || 0, 0, 0, 'und', p.peso_kg || 0, p.area_m2 || 0, 1, '', 1]
       );
       created++;
     }

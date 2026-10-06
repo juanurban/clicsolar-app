@@ -149,7 +149,7 @@ router.post('/calcular-hsp', async (req, res) => {
 router.post('/dimensionar', async (req, res) => {
   try {
     const d = req.body;
-    const [panels] = await pool.execute("SELECT * FROM equipos WHERE id = ? AND categoria = 'panel' AND (empresa_id = ? OR ? = 1)", [d.panel_id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    const [panels] = await pool.execute("SELECT * FROM equipos WHERE id = ? AND categoria = 'panel'", [d.panel_id]);
     if (panels.length === 0) return res.status(404).json({ detail: 'Panel no encontrado' });
     const panel = panels[0];
 
@@ -180,13 +180,13 @@ router.post('/dimensionar', async (req, res) => {
 
     let inversorSugerido = null;
     if (d.inversor_id) {
-      const [invs] = await pool.execute("SELECT * FROM equipos WHERE id = ? AND categoria = 'inversor' AND (empresa_id = ? OR ? = 1)", [d.inversor_id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+      const [invs] = await pool.execute("SELECT * FROM equipos WHERE id = ? AND categoria = 'inversor'", [d.inversor_id]);
       if (invs.length > 0) inversorSugerido = invs[0];
     }
     if (!inversorSugerido) {
       const [invs] = await pool.execute(
-        "SELECT * FROM equipos WHERE categoria = 'inversor' AND activo = 1 AND potencia_kw >= ? AND (empresa_id = ? OR ? = 1) ORDER BY potencia_kw ASC LIMIT 1",
-        [potenciaRealKwp, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]
+        "SELECT * FROM equipos WHERE categoria = 'inversor' AND activo = 1 AND potencia_kw >= ? ORDER BY potencia_kw ASC LIMIT 1",
+        [potenciaRealKwp]
       );
       if (invs.length > 0) inversorSugerido = invs[0];
     }
