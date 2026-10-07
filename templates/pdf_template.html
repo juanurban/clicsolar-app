@@ -1672,6 +1672,19 @@
                 try { detail = (await response.json()).detail || detail; } catch (_) {}
                 throw new Error(detail);
             }
+            // Si el servidor no pudo usar el renderizador headless (Chrome),
+            // entrega un PDF simplificado sin el diseño completo. En ese caso
+            // se genera localmente con esta plantilla (imágenes, gráficas e
+            // iconos incluidos) y el simplificado queda como último recurso.
+            if ((response.headers.get('X-PDF-Source') || '').toLowerCase() === 'pdfkit') {
+                try {
+                    await generarPDFLocalmente();
+                    window.__descargaPdfCompletada = true;
+                    return;
+                } catch (localError) {
+                    console.error('No se pudo generar el PDF local con el diseño completo; se usa el simplificado:', localError);
+                }
+            }
 
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);

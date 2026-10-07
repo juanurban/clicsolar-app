@@ -638,9 +638,15 @@ async function generateLegacyPDF(req, res) {
     doc.moveDown(1.2).fontSize(20).fillColor(dark).font('Helvetica-Bold').text(text(config.empresa_nombre || 'Plantas Solares de Colombia'));
     doc.fontSize(9).fillColor(gray).font('Helvetica').text(text(config.empresa_direccion || 'Propuesta comercial de sistema fotovoltaico'));
     doc.text(text(config.empresa_telefono || config.empresa_correo || ''));
-    doc.moveDown(0.6).fontSize(17).fillColor(gold).font('Helvetica-Bold').text('PROPUESTA COMERCIAL', { align: 'right' });
+    const fechaTexto = (() => {
+      const f = cotizacion.fecha ? new Date(cotizacion.fecha) : null;
+      return f && !isNaN(f.getTime())
+        ? f.toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' })
+        : String(cotizacion.fecha || new Date().toISOString().slice(0, 10));
+    })();
+    doc.moveDown(0.6).fontSize(17).fillColor(gold).font('Helvetica-Bold').text('PROPUESTA', { align: 'right' });
     doc.fontSize(10).fillColor(dark).font('Helvetica').text(`Código: ${text(cotizacion.codigo || `PROP-${cotizacion.id}`)}`, { align: 'right' });
-    doc.text(`Fecha: ${text(cotizacion.fecha || new Date().toISOString().slice(0, 10))}`, { align: 'right' });
+    doc.text(`Fecha: ${text(fechaTexto)}`, { align: 'right' });
     line();
 
     section('Cliente');
@@ -688,11 +694,38 @@ async function generateLegacyPDF(req, res) {
       doc.text(`Energía acumulada estimada: ${number(proyeccion.reduce((sum, row) => sum + (Number(row.energia_kwh) || 0), 0), 0)} kWh`);
       doc.text(`Ahorro acumulado al año 25: ${money(last.ahorro_acumulado_s1 || last.ahorro_acumulado_s2)}`);
     }
+    // Los términos pueden venir estructurados como JSON ({texto, aplica}) desde
+    // el editor de configuración; se aplanan como lista legible filtrando los
+    // que no aplican a esta modalidad de propuesta.
     const terminosKeys = Object.keys(config).filter(k => /terminos|condiciones|notas/i.test(k));
-    let terminos = '';
-    if (terminosKeys.length > 0) { terminos = config[terminosKeys[0]]; }
-    else { terminos = cotizacion.notas || ''; }
-    if (terminos.trim()) { section('Notas'); doc.font('Helvetica').fontSize(9).text(text(terminos)); }
+    const terminosValor = terminosKeys.length > 0 ? config[terminosKeys[0]] : (cotizacion.notas || '');
+    const tipoPropuesta = (itemData && itemData.tipo_propuesta) || 'solar';
+    const aplicaATipo = aplica => aplica === 'ambos'
+      || (tipoPropuesta === 'suministro' && aplica === 'suministro')
+      || (tipoPropuesta !== 'suministro' && aplica === 'solar');
+    const listaTerminos = (() => {
+      if (Array.isArray(terminosValor)) return terminosValor;
+      if (typeof terminosValor === 'string') {
+        try {
+          const parsed = JSON.parse(terminosValor);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (_) {}
+        return [{ texto: terminosValor }];
+      }
+      return [];
+    })();
+    const textosTerminos = listaTerminos
+      .map(t => typeof t === 'string' ? { texto: t } : t)
+      .filter(t => t && String(t.texto || '').trim() && aplicaATipo(['ambos', 'solar', 'suministro'].includes(t.aplica) ? t.aplica : 'ambos'))
+      .map(t => String(t.texto).trim());
+    if (textosTerminos.length) {
+      section('Notas');
+      doc.font('Helvetica').fontSize(9);
+      textosTerminos.forEach(t => {
+        doc.text(`• ${text(t)}`);
+        doc.moveDown(0.2);
+      });
+    }
     doc.moveDown(1.5).fontSize(8).fillColor(gray).text('Documento generado por Plantas Solares de Colombia. Valores sujetos a verificación técnica y comercial.', { align: 'center' });
 
     const range = doc.bufferedPageRange();
@@ -746,6 +779,7 @@ router.get('/:id/pdf-download', async (req, res) => {
     res.status(200);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="propuesta_${req.params.id}.pdf"`);
+    res.setHeader('X-PDF-Source', 'puppeteer');
     res.setHeader('Content-Length', pdfBuffer.length);
     res.end(pdfBuffer);
   } catch (error) {
@@ -753,8 +787,11 @@ router.get('/:id/pdf-download', async (req, res) => {
     if (!res.headersSent) {
       // Respaldo sin Chrome: PDF simplificado generado con PDFKit, para que la
       // descarga SIEMPRE entregue un archivo válido aunque el renderizador
-      // headless no esté disponible en el hosting.
+      // headless no esté disponible en el hosting. El encabezado X-PDF-Source
+      // le indica al navegador que el diseño completo no está disponible y que
+      // debe intentar el generador local de la plantilla.
       try {
+        res.setHeader('X-PDF-Source', 'pdfkit');
         await generateLegacyPDF(req, res);
         return;
       } catch (legacyError) {
