@@ -1845,7 +1845,13 @@ async function guardarCotizacion(estado, openPdf = false) {
         const targetId = editId || res.id;
         App.guardandoPdfId = targetId;
         if (openPdf) {
-            window.open(`/pdf/${targetId}`, '_blank');
+            const win = window.open(`/pdf/${targetId}`, '_blank');
+            if (!win) {
+                // El navegador bloqueó la pestaña emergente (p. ej. Opera): se abre
+                // la vista del PDF en esta misma pestaña, donde no puede bloquearse.
+                window.location.href = `/pdf/${targetId}`;
+                return;
+            }
         }
         navigateTo('propuestas');
     } catch (e) {
@@ -1860,7 +1866,13 @@ async function guardarYDescargarPDF() {
     if (!id) return;
     App.guardandoPdfId = null;
     setTimeout(() => {
-        window.open(`/pdf/${id}?download=1`, '_blank');
+        const win = window.open(`/pdf/${id}?download=1`, '_blank');
+        if (!win) {
+            // Navegadores como Opera bloquean la pestaña emergente cuando se abre
+            // fuera del gesto del usuario. En esta misma pestaña la descarga
+            // automática no puede bloquearse (y queda el botón Descargar PDF).
+            window.location.href = `/pdf/${id}?download=1`;
+        }
     }, 500);
 }
 

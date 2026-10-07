@@ -273,6 +273,16 @@
     </button>
 </div>
 
+<!-- Aviso para descargas automáticas: si el navegador bloquea la descarga
+     iniciada por script (p. ej. Opera), el usuario puede descargarla con un
+     clic real, que ningún navegador bloquea. -->
+<div id="auto-download-hint" class="fixed top-4 left-1/2 -translate-x-1/2 no-print hidden z-50 bg-dark text-white text-sm font-bold px-5 py-3 rounded shadow-lg flex items-center gap-3 max-w-[90vw]">
+    <span>Preparando la descarga de tu propuesta… Si no inicia automáticamente, usa el botón:</span>
+    <button onclick="descargarPDF()" class="bg-primary text-dark font-bold px-4 py-1.5 rounded hover:brightness-110 flex items-center gap-1 whitespace-nowrap">
+        <span class="material-symbols-outlined text-[16px]">download</span> Descargar PDF
+    </button>
+</div>
+
 <!-- PAGE 1: PORTADA Y RESUMEN TÉCNICO -->
 <div class="page" id="page-1">
     <div class="header-stripe"></div>
@@ -1203,7 +1213,18 @@
             if (window.location.search.includes('print=1')) {
                 setTimeout(() => window.print(), 1000);
             } else if (window.location.search.includes('download=1')) {
+                const hint = document.getElementById('auto-download-hint');
+                if (hint) hint.classList.remove('hidden');
                 setTimeout(() => descargarPDF(), 1200);
+                // Si la pestaña se abrió en segundo plano, navegadores como Opera
+                // o Chrome retrasan o bloquean la descarga automática; se
+                // reintenta cuando la pestaña vuelve a estar visible.
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible' &&
+                        !window.__descargaPdfCompletada && !window.__descargaPdfEnCurso) {
+                        descargarPDF();
+                    }
+                });
             }
 
         } catch (e) {
@@ -1616,6 +1637,8 @@
     }
 
     async function descargarPDF() {
+        if (window.__descargaPdfEnCurso) return;
+        window.__descargaPdfEnCurso = true;
         const btn = (typeof event !== 'undefined' && event && event.target) ? event.target.closest('button') : null;
         const origHtml = btn ? btn.innerHTML : '';
         if (btn) {
@@ -1647,6 +1670,7 @@
             link.click();
             link.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
+            window.__descargaPdfCompletada = true;
         } catch (e) {
             console.error('Error al descargar el PDF del servidor:', e);
             try {
@@ -1657,6 +1681,7 @@
                 window.print();
             }
         } finally {
+            window.__descargaPdfEnCurso = false;
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
