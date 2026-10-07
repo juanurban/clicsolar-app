@@ -291,7 +291,7 @@
                     </div>
                 </div>
                 <div class="text-right">
-                    <h2 class="text-lg font-bold text-gray">PROPUESTA COMERCIAL</h2>
+                    <h2 class="text-lg font-bold text-gray">PROPUESTA</h2>
                     <p class="text-base font-bold text-primary" id="prop-codigo">PROP-0000</p>
                     <p class="text-xs" id="prop-fecha">Fecha: -</p>
                     <p class="text-xs" id="prop-vencimiento">Vence: -</p>
@@ -407,7 +407,7 @@
     <div class="content">
         
         <!-- Propuesta Planta Solar (Images) -->
-        <h3 id="pdf-propuesta-heading" class="text-3xl border-b-2 border-primary pb-2 mt-0 mb-6 text-primary font-light prevent-break">Propuesta <span class="font-bold text-dark">Planta Solar</span></h3>
+        <h3 id="pdf-propuesta-heading" class="text-3xl border-b-2 border-primary pb-2 mt-0 mb-6 text-primary font-light prevent-break"><span class="font-bold text-dark">PROPUESTA</span></h3>
         
             <div class="mt-2 mb-8" id="solar-cost-block">
             <!-- Top Row: Equipment Images -->
@@ -694,7 +694,6 @@
             }
             if (esSuministro) {
                 document.getElementById('page-1').classList.add('supply-proposal');
-                document.querySelector('.text-right h2').innerText = 'PROPUESTA DE SUMINISTRO';
                 document.getElementById('solucion-heading').querySelector('h3').innerText = 'SUMINISTRO DE PRODUCTOS Y SERVICIOS';
                 document.getElementById('perfil-energetico-section').style.display = 'none';
                 document.getElementById('diseno-img-container').style.display = 'none';
@@ -760,7 +759,6 @@
                 }
                 // En suministro sí se muestran valores unitarios, subtotales e impuestos.
                 mostrarPrecios = true;
-                document.getElementById('pdf-propuesta-heading').innerHTML = 'Propuesta <span class="font-bold text-dark">de Suministro</span>';
             }
             document.getElementById('parametro-badge').innerText = baseConsumoText;
 
