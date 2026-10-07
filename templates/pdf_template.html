@@ -820,13 +820,22 @@
             const margen = data.margen_comercial_pct || 30;
             let subtotalIvaItems = 0;
             let subtotalVentaTotal = 0;
+            // Etiquetas de categoría iguales a las del módulo de inventario
+            // (p. ej. 'estructura' se muestra como 'Materiales').
+            const etiquetaCategoriaPdf = (cat) => ({
+                panel: 'Paneles', inversor: 'Inversores', bateria: 'Baterías',
+                estructura: 'Materiales', producto: 'Productos', servicio: 'Servicios'
+            }[(cat || '').toLowerCase()] || cat || '');
             items.forEach(item => {
                 // Precio final editado por ítem (paso 2) manda sobre costo+margen
                 const pfItem = Number(item.precio_final);
                 const precioVenta = pfItem > 0 ? Math.round(pfItem) : Math.round(item.precio_unitario * (1 + margen / 100));
                 subtotalVentaTotal += precioVenta * (Number(item.cantidad) || 0);
+                // La categoría vigente del inventario manda sobre la guardada en el
+                // ítem, para que las reclasificaciones se reflejen en propuestas viejas.
+                const catItem = (item.equipo && item.equipo.categoria) ? item.equipo.categoria : item.categoria;
                 itemsHtml += '<tr>';
-                itemsHtml += `<td class="uppercase font-bold">${item.categoria}</td>`;
+                itemsHtml += `<td class="uppercase font-bold">${etiquetaCategoriaPdf(catItem)}</td>`;
                 itemsHtml += `<td class="uppercase">${item.nombre}</td>`;
                 itemsHtml += `<td class="text-center">${item.cantidad}</td>`;
                 if (mostrarPrecios) {

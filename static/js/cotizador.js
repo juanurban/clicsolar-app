@@ -561,7 +561,7 @@ async function renderStep2(container) {
 
                                 return `
                                 <tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
-                                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${it.categoria}</td>
+                                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${etiquetaCategoriaCotizador(it.categoria, it.equipo_id)}</td>
                                     <td class="px-6 py-4 font-label-bold align-top whitespace-normal">
                                         <div class="w-full">${nombreHtml}</div>
                                         <div class="mt-2 text-sm leading-snug text-on-surface break-words" title="${it.nombre}">${it.nombre}</div>
@@ -608,7 +608,7 @@ async function renderStep2(container) {
 function renderStep2Suministro(container) {
     const grupos = [
         ['Productos', 'prod', stateCotizador.productos],
-        ['Materiales y productos', 'mat', stateCotizador.materiales],
+        ['Materiales', 'mat', stateCotizador.materiales],
         ['Servicios', 'ser', stateCotizador.servicios],
         ['Paneles solares', 'pan', stateCotizador.paneles],
         ['Inversores', 'inv', stateCotizador.inversores],
@@ -631,8 +631,8 @@ function renderStep2Suministro(container) {
                     ${(stateCotizador.items || []).map(it => {
                         const precioVenta = pvItem(it);
                         const override = Number(it.precio_final) > 0;
-                        return `<tr class="border-b border-outline-variant/10">
-                            <td class="px-6 py-4 capitalize">${it.categoria}</td>
+                        return `<tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
+                            <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${etiquetaCategoriaCotizador(it.categoria, it.equipo_id)}</td>
                             <td class="px-6 py-4 font-label-bold">${it.nombre}${it.iva ? '<span class="ml-2 text-[10px] text-primary">IVA</span>' : ''}</td>
                             <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-24 text-right inline-block" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
                             <td class="px-6 py-4 text-right">
@@ -860,6 +860,27 @@ function updateItemQty(id, val) {
     
     recalcularPotenciaPico();
     renderStep();
+}
+
+// ═══ Etiquetas de categoría ═══
+// Traduce la categoría del ítem a la misma etiqueta que usa el módulo de
+// inventario (p. ej. 'estructura' → 'Materiales'). Si el ítem referencia un
+// equipo del inventario, se usa la categoría ACTUAL de ese equipo para que
+// los ítems guardados antes de una reclasificación muestren la categoría vigente.
+function etiquetaCategoriaCotizador(cat, equipoId) {
+    if (equipoId) {
+        const listas = [stateCotizador.paneles, stateCotizador.inversores, stateCotizador.baterias,
+                        stateCotizador.materiales, stateCotizador.productos, stateCotizador.servicios];
+        for (const lista of listas) {
+            const eq = (lista || []).find(e => Number(e.id) === Number(equipoId));
+            if (eq) { cat = eq.categoria; break; }
+        }
+    }
+    const etiquetas = {
+        panel: 'Paneles', inversor: 'Inversores', bateria: 'Baterías',
+        estructura: 'Materiales', producto: 'Productos', servicio: 'Servicios'
+    };
+    return etiquetas[(cat || '').toLowerCase()] || cat || '';
 }
 
 // ═══ Precio de venta unitario ═══
