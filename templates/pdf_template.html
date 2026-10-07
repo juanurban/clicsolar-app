@@ -683,6 +683,9 @@
                 }
             }
             const esSuministro = (itemsData && typeof itemsData === 'object' && itemsData.tipo_propuesta === 'suministro');
+            // Máximo de filas del listado que caben en la primera página (portada);
+            // con más ítems la tabla se divide y continúa en la página 2.
+            const MAX_ITEMS_PAG1 = 18;
             // En suministro no se carga cronograma: ocultar la sección si viene vacía
             // para que no aparezca "Cronograma no disponible" en la portada o página 4.
             if (esSuministro && (!data.cronograma_json || data.cronograma_json.length === 0)) {
@@ -703,19 +706,26 @@
                 document.getElementById('solar-cost-block').style.display = 'none';
                 document.getElementById('page-3').style.display = 'none';
                 document.getElementById('page-2').style.display = 'none';
-                const compactarSuministro = items.length <= 6;
                 const supplyItemsSection = document.getElementById('supply-items-section');
                 const supplyItemsOnPage1 = document.getElementById('supply-items-on-page1');
                 const financialTotals = document.getElementById('financial-totals');
                 const cronograma = document.getElementById('cronograma-container');
-                if (compactarSuministro && supplyItemsSection && supplyItemsOnPage1) {
+                const cierre = document.querySelector('#page-4 .content > div > .flex.justify-between');
+                const page4Inner = document.querySelector('#page-4 .content > div');
+
+                // El listado SIEMPRE arranca en la primera página; solo se divide
+                // cuando no cabe completo (más de MAX_ITEMS_PAG1 ítems).
+                if (supplyItemsSection && supplyItemsOnPage1) {
                     supplyItemsOnPage1.style.display = 'block';
 
-                    const supplyImages = document.getElementById('resumen-imagenes');
-                    if (supplyImages) {
-                        supplyImages.classList.add('supply-product-images');
-                        supplyImages.style.display = 'flex';
-                        supplyItemsOnPage1.appendChild(supplyImages);
+                    // Las fotografías de los productos solo caben con pocos ítems.
+                    if (items.length <= 6) {
+                        const supplyImages = document.getElementById('resumen-imagenes');
+                        if (supplyImages) {
+                            supplyImages.classList.add('supply-product-images');
+                            supplyImages.style.display = 'flex';
+                            supplyItemsOnPage1.appendChild(supplyImages);
+                        }
                     }
                     supplyItemsOnPage1.appendChild(supplyItemsSection);
                     const supplyHeading = supplyItemsSection.querySelector('h3');
@@ -723,37 +733,27 @@
                         supplyHeading.classList.remove('mt-8');
                         supplyHeading.classList.add('mt-4');
                     }
+                }
 
+                if (items.length <= MAX_ITEMS_PAG1) {
+                    // Todo en la portada: listado, totales y firma (1 página).
                     if (financialTotals) {
                         financialTotals.style.display = 'block';
                         supplyItemsOnPage1.appendChild(financialTotals);
                     }
-
-                    // En suministro, el cronograma y el cierre se integran en la portada
-                    // para aprovechar el espacio disponible y evitar páginas casi vacías.
-                    const cierre = document.querySelector('#page-4 .content > div > .flex.justify-between');
-                    if (cronograma) supplyItemsOnPage1.appendChild(cronograma);
                     if (cierre) {
                         cierre.classList.remove('mt-12', 'mb-4');
                         cierre.classList.add('mt-6', 'mb-2');
                         supplyItemsOnPage1.appendChild(cierre);
                     }
-                }
-                if (compactarSuministro) {
+                    if (cronograma && items.length <= 6) supplyItemsOnPage1.appendChild(cronograma);
                     document.getElementById('page-4').style.display = 'none';
                     document.getElementById('f-pagina').innerText = 'Página 1 de 1';
                 } else {
-                    // Con más de 6 ítems el listado y los totales van en la página 2
-                    // (antigua página 4): la página 2 original queda oculta en suministro.
-                    const page4Inner = document.querySelector('#page-4 .content > div');
-                    if (page4Inner && supplyItemsSection) {
-                        if (supplyItemsSection.parentNode) page4Inner.insertBefore(supplyItemsSection, cronograma || null);
-                        if (financialTotals && financialTotals.parentNode) page4Inner.insertBefore(financialTotals, cronograma || null);
-                        const supplyHeading = supplyItemsSection.querySelector('h3');
-                        if (supplyHeading) {
-                            supplyHeading.classList.remove('mt-8');
-                            supplyHeading.classList.add('mt-2');
-                        }
+                    // La continuación de la tabla, los totales y la firma van en la
+                    // página 2 (antigua página 4). La tabla se divide al construirse.
+                    if (financialTotals && financialTotals.parentNode && page4Inner) {
+                        page4Inner.insertBefore(financialTotals, cronograma || null);
                     }
                     document.getElementById('f-pagina').innerText = 'Página 1 de 2';
                     document.querySelector('#page-4 .border-t span:last-child').innerText = 'Página 2 de 2';
@@ -841,6 +841,27 @@
                 }
             });
             tb.innerHTML = itemsHtml;
+
+            // En suministro, si el listado no cabe completo en la portada, se divide:
+            // las primeras MAX_ITEMS_PAG1 filas quedan en la primera página y el resto
+            // pasa a una tabla de continuación en la página 2.
+            if (esSuministro && items.length > MAX_ITEMS_PAG1) {
+                const tabla = document.getElementById('items-table');
+                const filas = Array.from(tb.children);
+                const tabla2 = tabla.cloneNode(true);
+                filas.slice(MAX_ITEMS_PAG1).forEach((f) => f.remove());
+                const tbody2 = tabla2.querySelector('tbody');
+                Array.from(tbody2.children).slice(0, MAX_ITEMS_PAG1).forEach((f) => f.remove());
+                tabla2.id = 'items-table-2';
+                const cont2 = document.createElement('div');
+                const h3 = document.createElement('h3');
+                h3.className = 'text-sm border-b border-dark pb-1 mb-3 text-dark uppercase font-bold mt-4';
+                h3.innerText = 'Productos y servicios incluidos (continuación)';
+                cont2.appendChild(h3);
+                cont2.appendChild(tabla2);
+                const page4Inner = document.querySelector('#page-4 .content > div');
+                if (page4Inner) page4Inner.insertBefore(cont2, page4Inner.firstChild);
+            }
 
             const subtotal = parseFloat(data.subtotal) || 0;
             // Subtotal de venta = suma de precios finales por ítem (coincide con el paso 2)
