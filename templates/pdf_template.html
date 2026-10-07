@@ -706,6 +706,8 @@
                 const compactarSuministro = items.length <= 6;
                 const supplyItemsSection = document.getElementById('supply-items-section');
                 const supplyItemsOnPage1 = document.getElementById('supply-items-on-page1');
+                const financialTotals = document.getElementById('financial-totals');
+                const cronograma = document.getElementById('cronograma-container');
                 if (compactarSuministro && supplyItemsSection && supplyItemsOnPage1) {
                     supplyItemsOnPage1.style.display = 'block';
 
@@ -722,7 +724,6 @@
                         supplyHeading.classList.add('mt-4');
                     }
 
-                    const financialTotals = document.getElementById('financial-totals');
                     if (financialTotals) {
                         financialTotals.style.display = 'block';
                         supplyItemsOnPage1.appendChild(financialTotals);
@@ -730,7 +731,6 @@
 
                     // En suministro, el cronograma y el cierre se integran en la portada
                     // para aprovechar el espacio disponible y evitar páginas casi vacías.
-                    const cronograma = document.getElementById('cronograma-container');
                     const cierre = document.querySelector('#page-4 .content > div > .flex.justify-between');
                     if (cronograma) supplyItemsOnPage1.appendChild(cronograma);
                     if (cierre) {
@@ -743,6 +743,18 @@
                     document.getElementById('page-4').style.display = 'none';
                     document.getElementById('f-pagina').innerText = 'Página 1 de 1';
                 } else {
+                    // Con más de 6 ítems el listado y los totales van en la página 2
+                    // (antigua página 4): la página 2 original queda oculta en suministro.
+                    const page4Inner = document.querySelector('#page-4 .content > div');
+                    if (page4Inner && supplyItemsSection) {
+                        if (supplyItemsSection.parentNode) page4Inner.insertBefore(supplyItemsSection, cronograma || null);
+                        if (financialTotals && financialTotals.parentNode) page4Inner.insertBefore(financialTotals, cronograma || null);
+                        const supplyHeading = supplyItemsSection.querySelector('h3');
+                        if (supplyHeading) {
+                            supplyHeading.classList.remove('mt-8');
+                            supplyHeading.classList.add('mt-2');
+                        }
+                    }
                     document.getElementById('f-pagina').innerText = 'Página 1 de 2';
                     document.querySelector('#page-4 .border-t span:last-child').innerText = 'Página 2 de 2';
                 }
