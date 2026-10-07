@@ -1640,10 +1640,12 @@
         if (window.__descargaPdfEnCurso) return;
         window.__descargaPdfEnCurso = true;
         const btn = (typeof event !== 'undefined' && event && event.target) ? event.target.closest('button') : null;
-        const origHtml = btn ? btn.innerHTML : '';
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
+        const hintBtn = !btn ? document.querySelector('#auto-download-hint button') : null;
+        const boton = btn || hintBtn;
+        const origHtml = boton ? boton.innerHTML : '';
+        if (boton) {
+            boton.disabled = true;
+            boton.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
         }
 
         try {
@@ -1652,9 +1654,19 @@
             // en ese caso el respaldo local usa esta misma plantilla ya ajustada.
             const pdfToken = new URLSearchParams(window.location.search).get('pdf_token');
             const tokenQuery = pdfToken ? `?pdf_token=${encodeURIComponent(pdfToken)}` : '';
-            const response = await fetch(`/api/cotizaciones/${encodeURIComponent(cotizacionId)}/pdf-download${tokenQuery}`, {
-                credentials: 'same-origin'
-            });
+            // Tope de espera: si el renderizador del servidor se demora o se
+            // cuelga, se pasa al generador local en vez de esperar indefinidamente.
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
+            let response;
+            try {
+                response = await fetch(`/api/cotizaciones/${encodeURIComponent(cotizacionId)}/pdf-download${tokenQuery}`, {
+                    credentials: 'same-origin',
+                    signal: controller.signal
+                });
+            } finally {
+                clearTimeout(timeoutId);
+            }
             if (!response.ok) {
                 let detail = 'No se pudo descargar el PDF';
                 try { detail = (await response.json()).detail || detail; } catch (_) {}
@@ -1673,6 +1685,9 @@
             window.__descargaPdfCompletada = true;
         } catch (e) {
             console.error('Error al descargar el PDF del servidor:', e);
+            if (boton) {
+                boton.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
+            }
             try {
                 await generarPDFLocalmente();
             } catch (fallbackError) {
@@ -1682,9 +1697,9 @@
             }
         } finally {
             window.__descargaPdfEnCurso = false;
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = origHtml;
+            if (boton) {
+                boton.disabled = false;
+                boton.innerHTML = origHtml;
             }
         }
     }

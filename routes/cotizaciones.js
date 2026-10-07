@@ -751,6 +751,17 @@ router.get('/:id/pdf-download', async (req, res) => {
   } catch (error) {
     console.error('Puppeteer no disponible o falló:', error.message);
     if (!res.headersSent) {
+      // Respaldo sin Chrome: PDF simplificado generado con PDFKit, para que la
+      // descarga SIEMPRE entregue un archivo válido aunque el renderizador
+      // headless no esté disponible en el hosting.
+      try {
+        await generateLegacyPDF(req, res);
+        return;
+      } catch (legacyError) {
+        console.error('Error en el respaldo PDFKit:', legacyError.message);
+      }
+    }
+    if (!res.headersSent) {
       res.status(503).json({
         detail: 'El servidor requiere la vista interactiva para generar el PDF con diseño exacto.',
         fallback_print_url: `/pdf/${req.params.id}?print=1`
