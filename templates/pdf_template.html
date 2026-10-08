@@ -1138,7 +1138,7 @@
                         <div class="flex-1 flex flex-col items-center justify-end text-center p-2">
                             ${brandHtml}
                             <div style="width:160px;height:180px;display:flex;align-items:center;justify-content:center;margin-bottom:1.5rem;">
-                                <img src="${mainImg}" style="width:160px;height:180px;object-fit:contain;" onerror="this.src='/static/img/placeholder.png'">
+                                <img src="${mainImg}" style="width:160px;height:180px;object-fit:contain;" onerror="this.onerror=null;this.src='/static/img/placeholder.png'">
                             </div>
                             <div class="font-bold text-[10px] text-dark uppercase leading-tight">${eqTitle}</div>
                             <div class="text-[9px] text-gray uppercase mt-1 leading-tight font-bold">${eqDesc}</div>
@@ -1581,6 +1581,18 @@
         tbody.innerHTML = html;
     }
 
+    // Actualiza el texto de la barra de aviso de la descarga (si existe).
+    function actualizarAvisoDescarga(texto) {
+        const hint = document.getElementById('auto-download-hint');
+        const span = hint && hint.querySelector('span');
+        if (span && texto) span.textContent = texto;
+    }
+
+    // Píxel transparente: sustituye a las imágenes que no se pudieron cargar
+    // para que html2canvas no las vuelva a solicitar y agote el tiempo de la
+    // generación local (en producción llegaban 422 y la captura colgaba).
+    const PIXEL_TRANSPARENTE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
     async function prepararImagenesParaPDFLocal(proxiedImages) {
         const images = Array.from(document.images);
         images.forEach(image => {
@@ -1601,6 +1613,17 @@
             image.addEventListener('error', resolve, { once: true });
             setTimeout(resolve, 8000);
         })));
+
+        // Después de esperar, toda imagen rota se reemplaza por un píxel
+        // transparente. Se guarda en la misma lista para restaurarla al final.
+        images.forEach(image => {
+            const source = image.getAttribute('src') || '';
+            if (!(image.complete && image.naturalWidth === 0) || source.startsWith('data:')) return;
+            proxiedImages.push({ image, source, srcset: image.getAttribute('srcset') });
+            image.removeAttribute('srcset');
+            image.onerror = null;
+            image.src = PIXEL_TRANSPARENTE;
+        });
     }
 
     async function generarPDFLocalmente() {
@@ -1624,6 +1647,7 @@
                     // plano, lo que dejaba la descarga colgada en Opera/Chrome.
                     await new Promise(resolve => setTimeout(resolve, 1300));
                     if (document.fonts && document.fonts.ready) await document.fonts.ready;
+                    actualizarAvisoDescarga('Preparando imágenes de tu propuesta…');
                     await prepararImagenesParaPDFLocal(proxiedImages);
 
                     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
@@ -1634,12 +1658,17 @@
 
                     for (let index = 0; index < pages.length; index++) {
                         if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
+                        actualizarAvisoDescarga(`Generando el PDF con el diseño completo — página ${index + 1} de ${pages.length}…`);
                         const page = pages[index];
                         const canvas = await window.html2canvas(page, {
                             scale: 2,
                             useCORS: true,
                             allowTaint: false,
                             logging: false,
+                            // Ninguna imagen puede detener la captura más de
+                            // unos segundos (antes html2canvas esperaba 15s por
+                            // imagen rota y se agotaba el tiempo de la descarga).
+                            imageTimeout: 4000,
                             backgroundColor: '#ffffff',
                             width: page.offsetWidth,
                             height: page.offsetHeight,
@@ -1653,14 +1682,19 @@
                         pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
                     }
 
+                    actualizarAvisoDescarga('Empaquetando el PDF…');
                     if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
                     const codigo = document.getElementById('prop-codigo')?.innerText || cotizacionId;
                     pdf.save(`Propuesta_${codigo}.pdf`);
                 })(),
                 new Promise((_, reject) => setTimeout(() => {
                     window.__generacionLocalAbortada = true;
+                    // Evita reintentar la generación local en el mismo intento de
+                    // descarga: si ya agotó su tiempo, volver a intentarlo solo
+                    // duplica la espera sin posibilidad de éxito.
+                    window.__generacionLocalAgotoTiempo = true;
                     reject(new Error('Tiempo de espera agotado al generar el PDF local'));
-                }, 45000))
+                }, 90000))
             ]);
         } finally {
             proxiedImages.forEach(({ image, source, srcset }) => {
@@ -1682,11 +1716,8 @@
             boton.disabled = true;
             boton.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
         }
-        const aviso = (texto) => {
-            const hint = document.getElementById('auto-download-hint');
-            const span = hint && hint.querySelector('span');
-            if (span) span.textContent = texto;
-        };
+        const aviso = actualizarAvisoDescarga;
+        window.__generacionLocalAgotoTiempo = false;
 
         try {
             // En hosting compartido el servidor no puede renderizar con
@@ -1733,13 +1764,15 @@
             // se genera localmente con esta plantilla (imágenes, gráficas e
             // iconos incluidos) y el simplificado queda como último recurso.
             if ((response.headers.get('X-PDF-Source') || '').toLowerCase() === 'pdfkit') {
-                aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
-                try {
-                    await generarPDFLocalmente();
-                    window.__descargaPdfCompletada = true;
-                    return;
-                } catch (localError) {
-                    console.error('No se pudo generar el PDF local con el diseño completo; se usa el simplificado:', localError);
+                if (!window.__generacionLocalAgotoTiempo) {
+                    aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
+                    try {
+                        await generarPDFLocalmente();
+                        window.__descargaPdfCompletada = true;
+                        return;
+                    } catch (localError) {
+                        console.error('No se pudo generar el PDF local con el diseño completo; se usa el simplificado:', localError);
+                    }
                 }
             }
 
@@ -1758,13 +1791,20 @@
             if (boton) {
                 boton.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
             }
-            aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
-            try {
-                await generarPDFLocalmente();
-            } catch (fallbackError) {
-                console.error('Error al generar el PDF local:', fallbackError);
-                alert(`No se pudo descargar el PDF: ${fallbackError.message || e.message}`);
+            if (window.__generacionLocalAgotoTiempo) {
+                // El generador local ya agotó su tiempo en este intento; no tiene
+                // sentido esperar otra vez. Se ofrece la impresión del navegador.
+                aviso('No se pudo generar el PDF automático. Usa Imprimir/Guardar como PDF:');
                 window.print();
+            } else {
+                aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
+                try {
+                    await generarPDFLocalmente();
+                } catch (fallbackError) {
+                    console.error('Error al generar el PDF local:', fallbackError);
+                    alert(`No se pudo descargar el PDF: ${fallbackError.message || e.message}`);
+                    window.print();
+                }
             }
         } finally {
             window.__descargaPdfEnCurso = false;
