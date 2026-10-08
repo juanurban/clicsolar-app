@@ -223,12 +223,20 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/pdf/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates/pdf_template.html'));
+  // La plantilla del PDF cambia en cada despliegue. Sin no-store, Opera y
+  // Chrome conservaban la copia anterior y el usuario seguía ejecutando el
+  // generador obsoleto (con sus fallos ya corregidos) aunque el servidor
+  // tuviera la versión nueva.
+  res.sendFile(path.join(__dirname, 'templates/pdf_template.html'), {
+    headers: { 'Cache-Control': 'no-store' }
+  });
 });
 
 // Fallback for SPA routing
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'templates/index.html'));
+  res.sendFile(path.join(__dirname, 'templates/index.html'), {
+    headers: { 'Cache-Control': 'no-store' }
+  });
 });
 
 // Start Server

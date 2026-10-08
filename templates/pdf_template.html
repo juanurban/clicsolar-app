@@ -1223,7 +1223,12 @@
                 const healthTimeout = setTimeout(() => healthCtrl.abort(), 4000);
                 fetch('/health', { credentials: 'same-origin', signal: healthCtrl.signal })
                     .then(r => (r.ok ? r.json() : null))
-                    .then(health => { window.__pdfRendererChrome = !!(health && health.pdf_renderer === 'chrome'); })
+                    .then(health => {
+                        window.__pdfRendererChrome = !!(health && health.pdf_renderer === 'chrome');
+                        // Version en ejecución del servidor: permite confirmar que
+                        // el navegador no está usando una plantilla cacheada.
+                        console.info(`[PDF] servidor v${(health && health.version) || '?'} · renderizador: ${(health && health.pdf_renderer) || '?'} · generación local ${window.__pdfRendererChrome ? 'no prioritaria' : 'prioritaria'}`);
+                    })
                     .catch(() => { window.__pdfRendererChrome = undefined; })
                     .finally(() => {
                         clearTimeout(healthTimeout);
