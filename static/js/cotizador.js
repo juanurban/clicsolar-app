@@ -1863,7 +1863,10 @@ async function guardarYDescargarPDF() {
     App.guardandoPdfId = null;
     await guardarCotizacion('enviada');
     const id = App.guardandoPdfId;
-    if (!id) return;
+    if (!id) {
+        alert('No se pudo guardar la cotización para generar el PDF. Revisa los datos del paso 2 y vuelve a intentarlo.');
+        return;
+    }
     App.guardandoPdfId = null;
     setTimeout(() => {
         const win = window.open(`/pdf/${id}?download=1`, '_blank');

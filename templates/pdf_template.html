@@ -1215,7 +1215,25 @@
             } else if (window.location.search.includes('download=1')) {
                 const hint = document.getElementById('auto-download-hint');
                 if (hint) hint.classList.remove('hidden');
-                setTimeout(() => descargarPDF(), 1200);
+                // Se consulta /health para saber si el servidor puede renderizar
+                // con Chromium. En hosting compartido no puede; en ese caso se
+                // genera el PDF localmente con el diseño completo, sin esperar
+                // al servidor. Si la consulta falla, se intenta el servidor.
+                const healthCtrl = new AbortController();
+                const healthTimeout = setTimeout(() => healthCtrl.abort(), 4000);
+                fetch('/health', { credentials: 'same-origin', signal: healthCtrl.signal })
+                    .then(r => (r.ok ? r.json() : null))
+                    .then(health => { window.__pdfRendererChrome = !!(health && health.pdf_renderer === 'chrome'); })
+                    .catch(() => { window.__pdfRendererChrome = undefined; })
+                    .finally(() => {
+                        clearTimeout(healthTimeout);
+                        setTimeout(() => descargarPDF(), 900);
+                    });
+                // Red de seguridad: si /health tardara o fallara, la descarga
+                // se lanza igualmente.
+                setTimeout(() => {
+                    if (!window.__descargaPdfEnCurso && !window.__descargaPdfCompletada) descargarPDF();
+                }, 6000);
                 // Si la pestaña se abrió en segundo plano, navegadores como Opera
                 // o Chrome retrasan o bloquean la descarga automática; se
                 // reintenta cuando la pestaña vuelve a estar visible.
@@ -1581,7 +1599,7 @@
             if (image.complete) return resolve();
             image.addEventListener('load', resolve, { once: true });
             image.addEventListener('error', resolve, { once: true });
-            setTimeout(resolve, 15000);
+            setTimeout(resolve, 8000);
         })));
     }
 
@@ -1591,42 +1609,59 @@
             throw new Error('El generador local de PDF no está disponible en este navegador');
         }
 
+        window.__generacionLocalAbortada = false;
         const root = document.documentElement;
         const proxiedImages = [];
         root.classList.add('local-pdf-render');
         try {
-            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            if (document.fonts && document.fonts.ready) await document.fonts.ready;
-            await prepararImagenesParaPDFLocal(proxiedImages);
+            // Tope global: la generación nunca debe colgar la descarga. Si
+            // excede el límite, se aborta y el descargador sigue con su plan B.
+            await Promise.race([
+                (async () => {
+                    // Espera a que terminen las animaciones de las gráficas
+                    // (Chart.js) antes de capturar. Se usa setTimeout porque
+                    // requestAnimationFrame no avanza en pestañas en segundo
+                    // plano, lo que dejaba la descarga colgada en Opera/Chrome.
+                    await new Promise(resolve => setTimeout(resolve, 1300));
+                    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+                    await prepararImagenesParaPDFLocal(proxiedImages);
 
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-            const pages = Array.from(document.querySelectorAll('.page')).filter(page => {
-                const styles = getComputedStyle(page);
-                return styles.display !== 'none' && styles.visibility !== 'hidden';
-            });
+                    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+                    const pages = Array.from(document.querySelectorAll('.page')).filter(page => {
+                        const styles = getComputedStyle(page);
+                        return styles.display !== 'none' && styles.visibility !== 'hidden';
+                    });
 
-            for (let index = 0; index < pages.length; index++) {
-                const page = pages[index];
-                const canvas = await window.html2canvas(page, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: false,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    width: page.offsetWidth,
-                    height: page.offsetHeight,
-                    windowWidth: page.offsetWidth,
-                    windowHeight: page.offsetHeight,
-                    scrollX: 0,
-                    scrollY: 0
-                });
+                    for (let index = 0; index < pages.length; index++) {
+                        if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
+                        const page = pages[index];
+                        const canvas = await window.html2canvas(page, {
+                            scale: 2,
+                            useCORS: true,
+                            allowTaint: false,
+                            logging: false,
+                            backgroundColor: '#ffffff',
+                            width: page.offsetWidth,
+                            height: page.offsetHeight,
+                            windowWidth: page.offsetWidth,
+                            windowHeight: page.offsetHeight,
+                            scrollX: 0,
+                            scrollY: 0
+                        });
 
-                if (index > 0) pdf.addPage('a4', 'portrait');
-                pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-            }
+                        if (index > 0) pdf.addPage('a4', 'portrait');
+                        pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                    }
 
-            const codigo = document.getElementById('prop-codigo')?.innerText || cotizacionId;
-            pdf.save(`Propuesta_${codigo}.pdf`);
+                    if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
+                    const codigo = document.getElementById('prop-codigo')?.innerText || cotizacionId;
+                    pdf.save(`Propuesta_${codigo}.pdf`);
+                })(),
+                new Promise((_, reject) => setTimeout(() => {
+                    window.__generacionLocalAbortada = true;
+                    reject(new Error('Tiempo de espera agotado al generar el PDF local'));
+                }, 45000))
+            ]);
         } finally {
             proxiedImages.forEach(({ image, source, srcset }) => {
                 image.src = source;
@@ -1647,11 +1682,32 @@
             boton.disabled = true;
             boton.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
         }
+        const aviso = (texto) => {
+            const hint = document.getElementById('auto-download-hint');
+            const span = hint && hint.querySelector('span');
+            if (span) span.textContent = texto;
+        };
 
         try {
-            // Primero se solicita el PDF del servidor, que conserva el diseño
-            // exacto. Hostinger compartido puede no tener Chromium disponible;
-            // en ese caso el respaldo local usa esta misma plantilla ya ajustada.
+            // En hosting compartido el servidor no puede renderizar con
+            // Chromium (lo informa /health). En ese caso se genera el PDF
+            // localmente con esta plantilla, con el diseño completo, sin
+            // depender del servidor. Si el estado se desconoce o el servidor
+            // sí tiene Chromium, se intenta primero el PDF del servidor.
+            if (window.__pdfRendererChrome === false) {
+                aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
+                try {
+                    await generarPDFLocalmente();
+                    window.__descargaPdfCompletada = true;
+                    return;
+                } catch (localError) {
+                    console.error('No se pudo generar el PDF local; se intenta el PDF del servidor:', localError);
+                }
+            }
+
+            // PDF del servidor: conserva el diseño exacto cuando Chromium está
+            // disponible; si no, entrega un respaldo simplificado (marcado con
+            // X-PDF-Source: pdfkit) y aquí se reemplaza por la generación local.
             const pdfToken = new URLSearchParams(window.location.search).get('pdf_token');
             const tokenQuery = pdfToken ? `?pdf_token=${encodeURIComponent(pdfToken)}` : '';
             // Tope de espera: si el renderizador del servidor se demora o se
@@ -1677,6 +1733,7 @@
             // se genera localmente con esta plantilla (imágenes, gráficas e
             // iconos incluidos) y el simplificado queda como último recurso.
             if ((response.headers.get('X-PDF-Source') || '').toLowerCase() === 'pdfkit') {
+                aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
                 try {
                     await generarPDFLocalmente();
                     window.__descargaPdfCompletada = true;
@@ -1701,6 +1758,7 @@
             if (boton) {
                 boton.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Generando PDF...';
             }
+            aviso('Generando tu PDF con el diseño completo en este navegador. Puede tardar unos segundos…');
             try {
                 await generarPDFLocalmente();
             } catch (fallbackError) {
@@ -1713,6 +1771,14 @@
             if (boton) {
                 boton.disabled = false;
                 boton.innerHTML = origHtml;
+            }
+            if (window.__descargaPdfCompletada) {
+                const hint = document.getElementById('auto-download-hint');
+                if (hint) {
+                    const span = hint.querySelector('span');
+                    if (span) span.textContent = '¡Listo! Tu PDF se descargó. Si no lo ves en descargas, usa el botón para reintentar:';
+                    setTimeout(() => hint.classList.add('hidden'), 8000);
+                }
             }
         }
     }

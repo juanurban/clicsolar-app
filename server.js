@@ -19,6 +19,12 @@ const VERSION_GIT = (() => {
   }
 })();
 
+// Estado del renderizador headless (Chromium) usado para el PDF con diseño
+// exacto. En hosting compartido no suele estar disponible; el navegador
+// consulta /health para decidir si genera el PDF localmente con el diseño
+// completo en lugar de esperar el respaldo simplificado del servidor.
+let pdfRendererStatus = 'unknown';
+
 // Trust proxy (behind Nginx/Apache/cPanel)
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
@@ -36,7 +42,7 @@ app.use(cookieParser());
 app.get('/health', async (req, res) => {
   try {
     await require('./db').execute('SELECT 1');
-    res.json({ status: 'ok', service: 'plantas-solares-colombia', version: VERSION_GIT });
+    res.json({ status: 'ok', service: 'plantas-solares-colombia', version: VERSION_GIT, pdf_renderer: pdfRendererStatus });
   } catch (error) {
     res.status(503).json({ status: 'error', detail: 'Base de datos no disponible' });
   }
@@ -60,6 +66,10 @@ app.use('/api/empresas', require('./routes/empresas'));
 app.use('/api', async (req, res, next) => {
   if (req.path === '/auth' || req.path.startsWith('/auth/') || req.path === '/login' || req.path.startsWith('/login/') || req.path === '/logout' || req.path.startsWith('/logout/')) return next();
   if (req.path === '/configuracion/public') return next();
+  // El proxy de imágenes solo devuelve contenido de imágenes públicas (está
+  // validado contra SSRF) y lo usa la página pública del PDF para generar el
+  // PDF local con diseño completo, incluso sin sesión activa.
+  if (req.path === '/imagen-proxy' && req.method === 'GET') return next();
   // El renderizador headless no comparte las cookies del navegador. Sólo se
   // permite saltar la sesión con un token HMAC de corta duración generado por
   // la propia descarga PDF y únicamente para consultar una cotización.
@@ -237,6 +247,27 @@ app.use((req, res) => {
   } catch (error) {
     console.warn('[dedupe-equipos] No se pudo consolidar el inventario:', error.message);
   }
+
+  // Sondeo del renderizador Chromium (no bloquea el arranque): si está
+  // disponible, /health lo reporta y el navegador prefiere el PDF del
+  // servidor con diseño exacto; si no, genera el PDF localmente.
+  (async () => {
+    try {
+      const puppeteer = require('puppeteer');
+      const browser = await Promise.race([
+        puppeteer.launch({
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout de arranque de Chromium')), 12000))
+      ]);
+      try { await browser.close(); } catch (_) {}
+      pdfRendererStatus = 'chrome';
+    } catch (error) {
+      console.warn('[pdf] Renderizador Chromium no disponible:', error.message);
+      pdfRendererStatus = 'unavailable';
+    }
+  })();
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Plantas Solares de Colombia running on port ${PORT}`);
