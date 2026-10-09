@@ -138,13 +138,34 @@ function showToast(message, type = 'info', duration = 4000) {
 function openModal(html, maxWidth = '2xl') {
     const container = document.getElementById('modal-container');
     const content = document.getElementById('modal-content');
+    // Cada modal nuevo debe decidir si necesita protección al cerrar; así no se
+    // hereda el guardián de un formulario anterior.
+    beforeModalClose = null;
     content.className = `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface-container rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto w-[95vw] max-w-${maxWidth}`;
     content.innerHTML = html;
     container.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
 
-function closeModal() {
+// Gancho opcional que ejecuta closeModal() antes de ocultar el modal. Devolver
+// false (o una promesa que se resuelva en false) cancela el cierre: se usa para
+// no perder cambios sin guardar al hacer clic fuera del formulario.
+let beforeModalClose = null;
+
+async function closeModal() {
+    if (beforeModalClose) {
+        let puedeCerrar = true;
+        try {
+            puedeCerrar = await beforeModalClose();
+        } catch (error) {
+            console.error('Error al proteger el cierre del modal:', error);
+            puedeCerrar = false;
+        }
+        // Si el guardián cancela el cierre se mantiene activo para el siguiente
+        // intento; lo contrario dejaría el formulario desprotegido.
+        if (!puedeCerrar) return;
+        beforeModalClose = null;
+    }
     const container = document.getElementById('modal-container');
     container.classList.add('hidden');
     document.body.style.overflow = '';

@@ -33,6 +33,16 @@ function renderPerfilEnergeticoSummary(profile) {
         <div class="mt-3 p-3 rounded-lg bg-surface-container-low text-sm text-on-surface-variant">
             <span class="font-bold text-on-surface">Lectura:</span> ${isReceipt ? `promedio de ${formatNumber(profile.consumo_mensual_estimado_kwh, 1)} kWh/mes a partir de ${monthly.length} meses del recibo.` : (profile.produccion_total_kwh > 0 ? `se detectaron ${formatNumber(profile.produccion_total_kwh, 1)} kWh de producción.` : 'no se detectó producción solar en el archivo; se usará como perfil de demanda.')}
         </div>
+        ${(profile.advertencias && profile.advertencias.length) ? `
+        <div class="mt-3 p-3 rounded-lg bg-error/10 border border-error/30 text-sm text-on-surface">
+            <div class="flex items-start gap-2">
+                <span class="material-symbols-outlined text-error text-lg">warning</span>
+                <div>
+                    <div class="font-bold">Revisa la lectura del recibo</div>
+                    <ul class="mt-1 list-disc list-inside text-on-surface-variant">${profile.advertencias.map(texto => `<li>${texto}</li>`).join('')}</ul>
+                </div>
+            </div>
+        </div>` : ''}
     `;
     if (perfilEnergeticoChart) perfilEnergeticoChart.destroy();
     const canvas = document.getElementById('perfil-energetico-chart');
@@ -51,21 +61,37 @@ function renderPerfilEnergeticoSummary(profile) {
 }
 
 function syncProfileFields(profile) {
-    const monthly = Array.isArray(profile.historial_mensual)
-        ? profile.historial_mensual.map(item => Number(item.consumo_kwh)).filter(value => Number.isFinite(value))
-        : (Array.isArray(profile.resumen_diario) ? profile.resumen_diario.map(item => Number(item.consumo_kwh)).filter(value => Number.isFinite(value)) : []);
+    const monthly = Array.isArray(profile.historial_mensual) && profile.historial_mensual.length
+        ? profile.historial_mensual
+        : (Array.isArray(profile.resumen_diario) ? profile.resumen_diario : []);
+    const mesesLeidos = monthly.filter(item => Number.isFinite(Number(item.consumo_kwh)));
+    document.querySelectorAll('.h-historial').forEach((field, index) => {
+        const item = mesesLeidos[index];
+        field.value = item ? Number(item.consumo_kwh) : '';
+        // La etiqueta deja de ser "Mes 1" y pasa a ser el mes que aparece en el
+        // recibo: así el usuario sabe qué está corrigiendo.
+        const etiqueta = document.querySelector(`.h-historial-label[data-indice="${index}"]`);
+        if (etiqueta) etiqueta.textContent = item && item.periodo ? `${item.periodo} (del recibo)` : `Mes ${index + 1}`;
+    });
     const promedio = Number(profile.consumo_promedio_kwh || profile.consumo_mensual_estimado_kwh);
     const consumo = document.getElementById('inp-consumo');
     if (consumo && Number.isFinite(promedio)) consumo.value = promedio.toFixed(1);
-    document.querySelectorAll('.h-historial').forEach((field, index) => {
-        field.value = monthly[index] !== undefined ? monthly[index] : '';
-    });
 }
 
 async function initPerfilEnergeticoUpload(clienteId) {
     const input = document.getElementById('perfil-energetico-input');
     if (!input) return;
     const receiptInput = document.getElementById('recibo-energetico-input');
+    // Aviso preventivo: sin OCR en el servidor, un recibo escaneado no puede
+    // entregar los meses del gráfico; es mejor decirlo antes de que el usuario
+    // interprete un solo número como el consumo mensual.
+    fetch('/health', { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null))
+        .then(health => {
+            if (!health || health.receipt_ocr === 'ok' || health.receipt_ocr === 'unknown') return;
+            const nota = document.getElementById('recibo-energetico-file-name');
+            if (nota) nota.textContent = 'El servidor no puede leer gráficos de meses en recibos escaneados: verifica los valores tras analizar el PDF.';
+        })
+        .catch(() => {});
     try {
         const perfiles = await API.get(`/perfiles-energeticos/${clienteId}`);
         if (perfiles.length) {
@@ -90,6 +116,9 @@ async function initPerfilEnergeticoUpload(clienteId) {
             renderPerfilEnergeticoSummary(data);
             const consumo = document.getElementById('inp-consumo');
             if (consumo) consumo.value = Number(data.consumo_mensual_estimado_kwh).toFixed(1);
+            // El Excel actualiza solo el perfil; el cliente debe guardarse con el
+            // nuevo consumo, así que se marca el formulario como pendiente.
+            clienteFormSucio = true;
             showToast(`Perfil analizado: ${Number(data.consumo_mensual_estimado_kwh).toFixed(1)} kWh/mes`, 'success');
             if (typeof fetchClientes === 'function') fetchClientes();
         } catch (error) {
@@ -117,7 +146,12 @@ async function initPerfilEnergeticoUpload(clienteId) {
             if (consumo) consumo.value = promedio.toFixed(1);
             if (tarifa && Number(data.tarifa_kwh) > 0) tarifa.value = Number(data.tarifa_kwh).toFixed(2);
             syncProfileFields(data);
-            showToast(`Recibo analizado: promedio ${promedio.toFixed(1)} kWh/mes`, 'success');
+            if ((data.meses_leidos || 0) < 2) {
+                if (typeof toggleHistorial === 'function') toggleHistorial(true);
+                showToast('No se leyeron los meses del gráfico: escríbelos abajo y pulsa "Guardar Cliente".', 'error');
+            } else {
+                showToast(`Recibo analizado: promedio ${promedio.toFixed(1)} kWh/mes con ${data.meses_leidos} meses.`, 'success');
+            }
             if (typeof fetchClientes === 'function') fetchClientes();
         } catch (error) {
             showToast(error.message, 'error');

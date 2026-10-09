@@ -25,6 +25,13 @@ const VERSION_GIT = (() => {
 // completo en lugar de esperar el respaldo simplificado del servidor.
 let pdfRendererStatus = 'unknown';
 
+// Estado del lector óptico (OCR) de recibos de energía. Necesita pdftoppm
+// (poppler) para convertir el PDF en imagen; en hosting compartido suele faltar
+// y entonces el gráfico de consumos mensuales del recibo no se puede leer.
+// Se reporta en /health para que la app avise al usuario en lugar de guardar un
+// solo número como si fuera el historial de meses.
+let ocrRecibosStatus = 'unknown';
+
 // Trust proxy (behind Nginx/Apache/cPanel)
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
@@ -42,7 +49,7 @@ app.use(cookieParser());
 app.get('/health', async (req, res) => {
   try {
     await require('./db').execute('SELECT 1');
-    res.json({ status: 'ok', service: 'plantas-solares-colombia', version: VERSION_GIT, pdf_renderer: pdfRendererStatus });
+    res.json({ status: 'ok', service: 'plantas-solares-colombia', version: VERSION_GIT, pdf_renderer: pdfRendererStatus, receipt_ocr: ocrRecibosStatus });
   } catch (error) {
     res.status(503).json({ status: 'error', detail: 'Base de datos no disponible' });
   }
@@ -275,6 +282,18 @@ app.use((req, res) => {
       console.warn('[pdf] Renderizador Chromium no disponible:', error.message);
       pdfRendererStatus = 'unavailable';
     }
+  })();
+
+  // Sondeo del OCR de recibos: basta con que exista pdftoppm en el servidor.
+  (async () => {
+    const { execFile } = require('child_process');
+    const binario = process.env.PDFTOPPM_PATH || 'pdftoppm';
+    execFile(binario, ['-v'], { timeout: 8000 }, (error) => {
+      // Un código distinto de cero solo significa que el binario respondió: el
+      // OCR está disponible. Solamente ENOENT indica que no está instalado.
+      ocrRecibosStatus = error && error.code === 'ENOENT' ? 'unavailable' : 'ok';
+      if (ocrRecibosStatus !== 'ok') console.warn('[recibos] OCR no disponible:', error.message);
+    });
   })();
 
   app.listen(PORT, '0.0.0.0', () => {

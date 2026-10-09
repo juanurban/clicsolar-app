@@ -12,6 +12,13 @@ let stateClientes = {
 let currentArchivos = [];
 let colombiaTerritoriosPromise = null;
 
+// El modal solo escribe en la base de datos al pulsar "Guardar Cliente". Estos
+// dos estados permiten (1) persistir los adjuntos en cuanto se suben y (2) que
+// cerrar el modal o irse al dimensionamiento guarde lo pendiente en vez de
+// descartarlo en silencio.
+let clienteModalId = null;
+let clienteFormSucio = false;
+
 function cargarTerritoriosColombia() {
     if (!colombiaTerritoriosPromise) {
         colombiaTerritoriosPromise = fetch('/static/data/colombia-territorios.json').then(r => {
@@ -113,6 +120,10 @@ function fetchClientesDebounced() {
 
 async function fetchClientes() {
     const container = document.getElementById('clientes-table-container');
+    // La tabla puede no existir: el guardado automático del modal ocurre también
+    // desde otras vistas (p. ej. al irse al dimensionamiento), y escribir sobre un
+    // container nulo cortaba la función con un error en consola.
+    if (!container) return;
     try {
         const res = await API.get(`/clientes?page=${stateClientes.page}&limit=${stateClientes.limit}&buscar=${encodeURIComponent(stateClientes.buscar)}`);
         stateClientes.data = res.data;
@@ -305,7 +316,7 @@ async function openClienteModal(id = null) {
                         </div>
                         <div id="perfil-energetico-summary" class="mt-4"></div>
                         <div class="mt-4 flex justify-end">
-                            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="closeModal(); crearCotizacionDesdeCliente(${id})">
+                            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="cerrarClienteModal(true)">
                                 <span class="material-symbols-outlined">calculate</span> Continuar al dimensionamiento
                             </button>
                         </div>
@@ -338,7 +349,7 @@ async function openClienteModal(id = null) {
                         <div id="historial-grid" class="hidden grid grid-cols-3 md:grid-cols-4 gap-2 mt-4 pt-4 border-t border-outline-variant">
                             ${Array(12).fill(0).map((_,i) => `
                                 <div>
-                                    <label class="text-[10px] text-on-surface-variant uppercase ml-1">Mes ${i+1}</label>
+                                    <label class="text-[10px] text-on-surface-variant uppercase ml-1 h-historial-label" data-indice="${i}">Mes ${i+1}</label>
                                     <input type="number" class="sq-input h-historial" placeholder="kWh" value="${c.historial_consumo[i] || ''}">
                                 </div>
                             `).join('')}
@@ -376,16 +387,25 @@ async function openClienteModal(id = null) {
                     <div id="cli-archivos-list" class="flex flex-col gap-2 mt-2">
                         <!-- Archivos irán aquí -->
                     </div>
+                    ${id ? '<p class="text-xs text-on-surface-variant">Los archivos se guardan en el momento en que los seleccionas.</p>' : '<p class="text-xs text-amber-400">Encima ves los archivos ya cargados, pero todavía no están asociados a ningún cliente: pulsa "Guardar Cliente" para registrarlos.</p>'}
                 </div>
 
                 <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-outline-variant">
-                    <button type="button" class="sq-btn sq-btn-ghost" onclick="closeModal()">Cancelar</button>
+                    <button type="button" class="sq-btn sq-btn-ghost" onclick="cerrarClienteModal()">Cancelar</button>
                     <button type="submit" class="sq-btn sq-btn-primary">Guardar Cliente</button>
                 </div>
             </form>
         </div>
     `;
     openModal(modalHtml);
+    clienteModalId = id;
+    clienteFormSucio = false;
+    // Cualquier edición (o archivo recién subido) marca el formulario como pendiente
+    // de guardar; el guardián lo persiste antes de cerrar.
+    const form = document.getElementById('cliente-form');
+    form.addEventListener('input', () => { clienteFormSucio = true; });
+    form.addEventListener('change', () => { clienteFormSucio = true; });
+    beforeModalClose = asegurarClienteGuardadoAntesDeCerrar;
     toggleHistorial(true);
     renderClientArchivos();
     initSelectoresUbicacion(c);
@@ -407,28 +427,58 @@ function switchClienteTab(tab) {
 
 async function uploadClientFiles(input) {
     if (!input.files || input.files.length === 0) return;
-    showToast('Subiendo archivos...', 'info');
-    
+    let subidos = 0;
+    let fallidos = 0;
+
     for (const file of input.files) {
         const fd = new FormData();
         fd.append('file', file);
         try {
             const res = await fetch('/api/clientes/upload', { method: 'POST', body: fd });
-            if (!res.ok) throw new Error('Error al subir');
-            const fileData = await res.json();
-            currentArchivos.push(fileData);
+            if (!res.ok) {
+                const detalle = await res.json().catch(() => ({}));
+                throw new Error(detalle.detail || `el servidor respondió ${res.status}`);
+            }
+            currentArchivos.push(await res.json());
+            subidos++;
         } catch (e) {
-            showToast(`Error al subir ${file.name}`, 'error');
+            fallidos++;
+            console.error(`No se pudo subir ${file.name}:`, e);
+            showToast(`No se pudo subir ${file.name}: ${e.message}`, 'error');
         }
     }
     input.value = '';
     renderClientArchivos();
-    showToast('Archivos subidos exitosamente', 'success');
+    if (subidos > 0) {
+        clienteFormSucio = true;
+        // Si el cliente ya existe, el listado se registra en la base de datos en
+        // este momento: antes el archivo quedaba huérfano si el modal se cerraba
+        // sin pulsar "Guardar Cliente".
+        await persistirArchivosCliente();
+    }
+    if (fallidos === 0 && subidos > 0) {
+        showToast(clienteModalId ? 'Archivo guardado en el cliente' : 'Archivo cargado; pulsa "Guardar Cliente" para asociarlo', 'success');
+    }
+}
+
+// Escribe el listado de adjuntos en el cliente sin tocar el resto de los datos.
+async function persistirArchivosCliente() {
+    if (!clienteModalId) return false;
+    try {
+        await API.put(`/clientes/${clienteModalId}/archivos`, { archivos_json: currentArchivos });
+        return true;
+    } catch (error) {
+        console.error('El archivo se subió pero no se pudo asociar al cliente:', error);
+        showToast(`El archivo se subió pero no se pudo asociar al cliente: ${error.message}`, 'error');
+        return false;
+    }
 }
 
 function removeClientFile(idx) {
     currentArchivos.splice(idx, 1);
     renderClientArchivos();
+    clienteFormSucio = true;
+    persistirArchivosCliente();
 }
 
 function renderClientArchivos() {
@@ -485,34 +535,8 @@ function calcularPromedio() {
 
 async function saveCliente(e, id) {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = Object.fromEntries(fd.entries());
-    data.ciudad = data.municipio || data.ciudad || '';
-    
-    // Parse numbers
-    ['consumo_mensual_kwh', 'costo_kwh', 'hsp', 'cargas_especiales_kwh_dia'].forEach(k => {
-        data[k] = parseFloat(data[k]) || 0;
-    });
-
-    // Gather historial
-    const historial = [];
-    document.querySelectorAll('.h-historial').forEach(inp => {
-        const val = parseFloat(inp.value);
-        if (!isNaN(val)) historial.push(val);
-    });
-    data.historial_consumo = historial;
-    data.archivos_json = currentArchivos;
-
     try {
-        let res;
-        if (id) {
-            res = await API.put(`/clientes/${id}`, data);
-            showToast('Cliente actualizado', 'success');
-        } else {
-            res = await API.post('/clientes', data);
-            showToast('Cliente creado', 'success');
-        }
-        const targetId = id || (res ? res.id : null);
+        const targetId = await guardarCliente(id);
         if (typeof stateCotizador !== 'undefined' && stateCotizador.clienteSelected && stateCotizador.clienteSelected.id === targetId) {
             selectCliente(targetId);
         }
@@ -521,6 +545,76 @@ async function saveCliente(e, id) {
     } catch (error) {
         showToast(error.message, 'error');
     }
+}
+
+// Reúne el contenido del formulario (datos, historial mensual y adjuntos).
+function recolectarDatosCliente() {
+    const form = document.getElementById('cliente-form');
+    const fd = new FormData(form);
+    const data = Object.fromEntries(fd.entries());
+    // Los <input type="file"> también viajan en el FormData y no son datos del
+    // cliente; se descartan para no mandar objetos vacíos al servidor.
+    ['cli-archivos-input', 'recibo-energetico-input', 'perfil-energetico-input'].forEach(k => delete data[k]);
+    data.ciudad = data.municipio || data.ciudad || '';
+
+    ['consumo_mensual_kwh', 'costo_kwh', 'hsp', 'cargas_especiales_kwh_dia'].forEach(k => {
+        data[k] = parseFloat(data[k]) || 0;
+    });
+
+    const historial = [];
+    document.querySelectorAll('.h-historial').forEach(inp => {
+        const val = parseFloat(inp.value);
+        if (!isNaN(val)) historial.push(val);
+    });
+    data.historial_consumo = historial;
+    data.archivos_json = currentArchivos;
+    return data;
+}
+
+// Persiste el cliente. Devuelve el id (el nuevo si acababa de crearse).
+async function guardarCliente(id, { aviso = true } = {}) {
+    const data = recolectarDatosCliente();
+    let res;
+    if (id) {
+        await API.put(`/clientes/${id}`, data);
+        if (aviso) showToast('Cliente actualizado', 'success');
+        res = { id };
+    } else {
+        res = await API.post('/clientes', data);
+        if (aviso) showToast('Cliente creado', 'success');
+        clienteModalId = res.id;
+    }
+    clienteFormSucio = false;
+    return res ? res.id : null;
+}
+
+// Guardián del modal: closeModal() lo llama antes de ocultarlo. Un clic fuera
+// del formulario o el botón de continuar perdían la corrección del consumo y los
+// archivos recién subidos; ahora eso se guarda primero y solo se descarta si el
+// usuario lo confirma.
+async function asegurarClienteGuardadoAntesDeCerrar() {
+    if (!clienteFormSucio) return true;
+    const form = document.getElementById('cliente-form');
+    if (!form || !form.checkValidity()) {
+        return confirm('Tienes cambios sin guardar y hay campos obligatorios incompletos. ¿Salir sin guardar?');
+    }
+    try {
+        await guardarCliente(clienteModalId, { aviso: false });
+        showToast('Cambios guardados', 'success');
+        fetchClientes();
+        return true;
+    } catch (error) {
+        console.error('No se pudo guardar el cliente al cerrar:', error);
+        return confirm(`No se pudieron guardar los cambios (${error.message}). ¿Salir sin guardar?`);
+    }
+}
+
+// Cierra el modal guardando lo pendiente. `continuar` lanza el dimensionamiento
+// con el cliente ya persistido.
+async function cerrarClienteModal(continuar = false) {
+    const id = clienteModalId;
+    await closeModal();
+    if (continuar && id) crearCotizacionDesdeCliente(id);
 }
 
 function eliminarCliente(id) {

@@ -245,16 +245,108 @@ function findTariffInText(text) {
   return null;
 }
 
+// Umbrales de un consumo mensual doméstico/comercial razonable en Colombia.
+// Por debajo o por encima de estos límites lo que se leyó no es un consumo
+// mensual (suele ser la lectura del contador, un importe en pesos o un
+// acumulados del período).
+const KWH_MENSUAL_MINIMO = 5;
+const KWH_MENSUAL_MAXIMO = 200000;
+
+function esConsumoPlausible(valor) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) && numero >= KWH_MENSUAL_MINIMO && numero <= KWH_MENSUAL_MAXIMO;
+}
+
+const FORMA_MES = {
+  ene: 0, enero: 0, feb: 1, febrero: 1, mar: 2, marzo: 2, abr: 3, abril: 3,
+  may: 4, mayo: 4, jun: 5, junio: 5, jul: 6, julio: 6, ago: 7, agosto: 7,
+  sep: 8, set: 8, septiembre: 8, setiembre: 8, oct: 9, octubre: 9,
+  nov: 10, noviembre: 10, dic: 11, diciembre: 11
+};
+
+// Los recibidos digitales traen el histórico de meses en la capa de texto del
+// PDF (las barras del gráfico suelen llevar al lado su etiqueta y su valor).
+// Este extractor recorre los tokens buscando "Ene 166 kWh Feb 152 …" sin
+// depender del OCR. Solo se acepta una racha de al menos 3 meses consecutivos
+// con valores plausibles, para no tomar cifras sueltas de otras secciones.
+function extraerHistorialDelTexto(texto) {
+  const tokens = String(texto || '').replace(/\u00a0/g, ' ').split(/\s+/).filter(Boolean);
+  const hallazgos = [];
+  for (let i = 0; i + 1 < tokens.length; i++) {
+    const indiceMes = FORMA_MES[normalizeText(tokens[i].replace(/[^\p{L}]/gu, ''))];
+    if (indiceMes === undefined) continue;
+    const contexto = tokens.slice(i, i + 4).join(' ');
+    const llevaUnidad = /kwh/i.test(contexto);
+    for (let salto = 1; salto <= 2; salto++) {
+      const intermedio = tokens[i + salto - 1];
+      if (salto > 1 && !/kwh/i.test(intermedio) && !/^[:.)\-]$/.test(intermedio)) break;
+      const consumo = numericValue(tokens[i + salto] || '');
+      if (!esConsumoPlausible(consumo)) continue;
+      // Un número de 4 cifras entre 1900 y 2100 sin unidad al lado es un año,
+      // no un consumo (p. ej. "julio 2026").
+      if (!llevaUnidad && /^\d{4}$/.test(consumo.toString()) && consumo >= 1900 && consumo <= 2100) continue;
+      hallazgos.push({ indiceMes, periodo: tokens[i].toUpperCase().slice(0, 3), consumo_kwh: consumo });
+      break;
+    }
+  }
+  // Racha más larga de meses consecutivos (envuelta al terminar el año).
+  let mejor = [];
+  for (let inicio = 0; inicio < hallazgos.length; inicio++) {
+    const racha = [hallazgos[inicio]];
+    for (let siguiente = inicio + 1; siguiente < hallazgos.length; siguiente++) {
+      if (hallazgos[siguiente].indiceMes === (racha[racha.length - 1].indiceMes + 1) % 12) racha.push(hallazgos[siguiente]);
+    }
+    if (racha.length > mejor.length) mejor = racha;
+  }
+  if (mejor.length < 3) return [];
+  return mejor.map(({ periodo, consumo_kwh }) => ({ periodo, consumo_kwh, tarifa_kwh: null }));
+}
+
+// Cruza el consumo declarado con la aritmética de la propia factura
+// (valor_total / tarifa_kwh). Si el modelo confundió la lectura del contador o
+// un importe en pesos, la división de la factura delata el valor real.
+function validarLecturaRecibo(parsed) {
+  const advertencias = [];
+  parsed.historial_mensual = (parsed.historial_mensual || []).filter(item => esConsumoPlausible(item.consumo_kwh));
+
+  const esperado = (parsed.valor_total && parsed.tarifa_kwh && parsed.tarifa_kwh > 0)
+    ? Math.round(parsed.valor_total / parsed.tarifa_kwh * 10) / 10
+    : null;
+
+  if (!esConsumoPlausible(parsed.consumo_kwh_mes)) {
+    if (esConsumoPlausible(esperado)) {
+      advertencias.push(`El consumo mensual leído (${parsed.consumo_kwh_mes} kWh) no es válido; se usó el calculado de la factura: ${esperado} kWh.`);
+      parsed.consumo_kwh_mes = esperado;
+    } else {
+      throw new Error(`No pude identificar el consumo mensual en kWh del recibo (leí "${parsed.consumo_kwh_mes}"). Escribe los consumos mensuales a mano en el perfil energético.`);
+    }
+  } else if (esConsumoPlausible(esperado)) {
+    const relacion = parsed.consumo_kwh_mes / esperado;
+    if (relacion < 0.5 || relacion > 2) {
+      advertencias.push(`El consumo leído (${parsed.consumo_kwh_mes} kWh) no cuadra con la factura (${esperado} kWh = valor total ÷ tarifa); se usó este último.`);
+      parsed.consumo_kwh_mes = esperado;
+    }
+  }
+
+  if (!parsed.historial_mensual.length) {
+    advertencias.push('No pude leer el gráfico de consumos mensuales del recibo; se guardó únicamente el mes facturado. Captura los meses restantes a mano.');
+  }
+  parsed.advertencias = advertencias;
+  return parsed;
+}
+
 async function analyzeReceipt(buffer, originalName) {
   const extracted = await pdfParse(buffer);
   const extractedText = String(extracted.text || '').trim();
   const enelReceipt = /ENEL|CODENSA/i.test(extractedText);
   let text = extractedText;
+  let ocrUsado = false;
   // ENEL and other providers often draw the six-month history as a chart.
   // OCR supplements the PDF text so those chart labels are available to the model.
   if (process.env.RECEIPT_OCR !== 'false') {
     try {
       const ocrText = await ocrPdf(buffer, enelReceipt);
+      ocrUsado = true;
       // For ENEL, never send the full page text: it contains a second graph
       // for municipal waste/aseo with unrelated monthly values.
       text = enelReceipt
@@ -280,21 +372,27 @@ Receipt text (${originalName}):\n${text.slice(0, 30000)}`;
     body: JSON.stringify({ model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b', messages: [{ role: 'user', content: prompt }], temperature: 0.1, response_format: { type: 'json_object' } })
   });
   if (!response.ok) throw new Error(`Groq API Error: ${await response.text()}`);
-  const result = await response.json();
-  const parsed = parseReceiptResponse(result.choices?.[0]?.message?.content);
+  const completion = await response.json();
+  const parsed = validarLecturaRecibo(parseReceiptResponse(completion.choices?.[0]?.message?.content));
   // Prefer an explicit tariff written next to kWh in the receipt text over an
   // inferred or misclassified value returned by the model.
   const explicitTariff = findTariffInText(text);
   if (explicitTariff) parsed.tarifa_kwh = explicitTariff;
-  // This ENEL template prints the historical bars as vector artwork. When the
-  // PDF text confirms the current month (129 kWh) and the stated six-month
-  // average (157 kWh), use the bar labels from that chart instead of OCR's
-  // occasional digit substitutions.
-  if (enelReceipt && /129\s*kWh/i.test(extractedText) && /157\s*kWh/i.test(extractedText)) {
-    parsed.historial_mensual = [
-      ['Ene', 166], ['Feb', 152], ['Mar', 167], ['Abr', 151],
-      ['May', 167], ['Jun', 137], ['Jul', 129]
-    ].map(([periodo, consumo_kwh]) => ({ periodo, consumo_kwh, tarifa_kwh: parsed.tarifa_kwh }));
+  // Cuando el modelo no devolvió el histórico (típico si el gráfico es una
+  // imagen y el OCR no está disponible), se intenta leer la secuencia de meses
+  // directamente de la capa de texto del PDF.
+  if (!parsed.historial_mensual.length) {
+    const delTexto = extraerHistorialDelTexto(`${extractedText}\n${text}`).filter(item => esConsumoPlausible(item.consumo_kwh));
+    if (delTexto.length) {
+      parsed.historial_mensual = delTexto.map(item => ({ ...item, tarifa_kwh: parsed.tarifa_kwh }));
+      parsed.advertencias = (parsed.advertencias || []).filter(texto => !texto.startsWith('No pude leer el gráfico'));
+      parsed.advertencias.push(`Histórico de meses recuperado del texto del recibo (${delTexto.length} meses).`);
+    }
+  }
+  parsed.ocr_disponible = ocrUsado;
+  if (!ocrUsado) {
+    parsed.advertencias = (parsed.advertencias || []);
+    parsed.advertencias.push('Este servidor no tiene el lector óptico (OCR) instalado: si el recibo es una imagen escaneada, los meses del gráfico no se pueden leer automáticamente.');
   }
   return parsed;
 }
@@ -343,15 +441,15 @@ router.post('/recibo/:clienteId', receiptUpload.single('file'), async (req, res)
     if (!clients.length) return res.status(404).json({ detail: 'Cliente no encontrado' });
 
     const receipt = await analyzeReceipt(req.file.buffer, req.file.originalname);
-    const enelReceipt = /ENEL|CODENSA/i.test(`${receipt.proveedor || ''} ${req.file.originalname}`);
+    const advertencias = receipt.advertencias || [];
     const monthlyHistory = receipt.historial_mensual.length
       ? receipt.historial_mensual
       : [{ periodo: receipt.periodo || 'Periodo actual', consumo_kwh: receipt.consumo_kwh_mes, tarifa_kwh: receipt.tarifa_kwh }];
     const consumptionValues = monthlyHistory.map(item => item.consumo_kwh).filter(value => Number.isFinite(value));
-    // On ENEL bills the highlighted current month is shown after the six-month
-    // history; the client's average must use the six preceding months.
-    const averageValues = enelReceipt && consumptionValues.length > 1 ? consumptionValues.slice(0, -1) : consumptionValues;
-    const monthly = Math.round(averageValues.reduce((sum, value) => sum + value, 0) / averageValues.length * 10) / 10;
+    // El promedio usa todos los meses leídos. Antes, para ENEL se descartaba el
+    // último mes asumiendo que el gráfico siempre termina antes del mes
+    // facturado; con recibos de otros operadores eso distorsionaba el promedio.
+    const monthly = Math.round(consumptionValues.reduce((sum, value) => sum + value, 0) / consumptionValues.length * 10) / 10;
     const latest = consumptionValues[consumptionValues.length - 1] || receipt.consumo_kwh_mes;
     const tariff = receipt.tarifa_kwh || monthlyHistory.find(item => item.tarifa_kwh > 0)?.tarifa_kwh || 0;
     const profile = {
@@ -362,7 +460,7 @@ router.post('/recibo/:clienteId', receiptUpload.single('file'), async (req, res)
       produccion_total_kwh: 0, perfil_horario_json: '[]',
       resumen_diario_json: JSON.stringify(monthlyHistory.map(item => ({ fecha: item.periodo, consumo_kwh: item.consumo_kwh, demanda_max_kw: 0, mediciones: 1 }))),
       mediciones_json: JSON.stringify([{ fecha_hora: receipt.fecha_fin || receipt.periodo || null, consumo_kwh_mes: monthly, tarifa_kwh: tariff, valor_total: receipt.valor_total }]),
-      observaciones: `Perfil creado desde recibo. Proveedor: ${receipt.proveedor || 'no identificado'}. Cuenta: ${receipt.cuenta || 'no identificada'}. ${receipt.observaciones || ''}`.trim()
+      observaciones: `Perfil creado desde recibo. Proveedor: ${receipt.proveedor || 'no identificado'}. Cuenta: ${receipt.cuenta || 'no identificada'}. ${advertencias.join(' ')} ${receipt.observaciones || ''}`.trim()
     };
     const [result] = await pool.execute(`
       INSERT INTO perfiles_energeticos (cliente_id, archivo_nombre, hoja_origen, intervalo_minutos, fecha_inicio, fecha_fin,
@@ -374,14 +472,20 @@ router.post('/recibo/:clienteId', receiptUpload.single('file'), async (req, res)
       profile.consumo_mensual_estimado_kwh, profile.demanda_promedio_kw, profile.demanda_maxima_kw,
       profile.produccion_total_kwh, profile.perfil_horario_json, profile.resumen_diario_json, profile.mediciones_json, profile.observaciones]);
 
-    await pool.execute('UPDATE clientes SET consumo_mensual_kwh = ?, costo_kwh = ?, historial_consumo = ? WHERE id = ?',
-      [monthly, tariff, JSON.stringify(consumptionValues), req.params.clienteId]);
+    // La tarifa solo se sobreescribe si el recibo entregó un valor válido; si no,
+    // no se debe borrar el costo/kWh que el usuario ya tenía registrado.
+    const campos = ['consumo_mensual_kwh = ?', 'historial_consumo = ?'];
+    const valores = [monthly, JSON.stringify(consumptionValues)];
+    if (tariff > 0) { campos.push('costo_kwh = ?'); valores.push(tariff); }
+    valores.push(req.params.clienteId);
+    await pool.execute(`UPDATE clientes SET ${campos.join(', ')} WHERE id = ?`, valores);
     res.status(201).json({ id: result.insertId, ...receipt, consumo_kwh_mes: latest, consumo_promedio_kwh: monthly,
       tarifa_kwh: tariff, ...profile, perfil_horario: [], historial_mensual: monthlyHistory,
+      meses_leidos: monthlyHistory.length, advertencias, ocr_disponible: receipt.ocr_disponible,
       resumen_diario: parseJson(profile.resumen_diario_json) });
   } catch (error) {
     console.error('Error analizando recibo energético:', error);
-    res.status(400).json({ detail: error.message || 'No se pudo analizar el recibo' });
+    if (!res.headersSent) res.status(400).json({ detail: error.message || 'No se pudo analizar el recibo' });
   }
 });
 

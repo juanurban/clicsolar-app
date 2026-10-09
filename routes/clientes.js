@@ -139,8 +139,12 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(aArr)) aArr = [];
     const archivos = JSON.stringify(aArr);
 
-    let consumo = d.consumo_mensual_kwh || 0;
-    if (hArr.length > 0) {
+    // El consumo escrito por el usuario manda. El promedio del historial solo se
+    // usa como valor de cuando no se envió un consumo explícito. Antes el
+    // promedio del historial sobrescribía silenciosamente la corrección manual
+    // del cliente (p. ej. un único valor mal leído del recibo) y el cambio se perdía.
+    let consumo = parseFloat(d.consumo_mensual_kwh) || 0;
+    if (!consumo && hArr.length > 0) {
       consumo = Math.round((hArr.reduce((a, b) => a + Number(b), 0) / hArr.length) * 10) / 10;
     }
 
@@ -190,8 +194,10 @@ router.put('/:id', async (req, res) => {
     if (!Array.isArray(aArr)) aArr = [];
     const archivos = JSON.stringify(aArr);
 
-    let consumo = d.consumo_mensual_kwh || 0;
-    if (hArr.length > 0) {
+    // Mismo criterio que en la creación: un valor escrito a mano en el formulario
+    // no puede ser reemplazado por el promedio de un historial obsoleto.
+    let consumo = parseFloat(d.consumo_mensual_kwh) || 0;
+    if (!consumo && hArr.length > 0) {
       consumo = Math.round((hArr.reduce((a, b) => a + Number(b), 0) / hArr.length) * 10) / 10;
     }
 
@@ -220,6 +226,34 @@ router.delete('/:id', async (req, res) => {
     await pool.execute('DELETE FROM cotizaciones WHERE cliente_id = ?', [req.params.id]);
     await pool.execute('DELETE FROM clientes WHERE id = ?', [req.params.id]);
     res.json({ message: 'Cliente eliminado exitosamente' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ detail: 'Error del servidor' });
+  }
+});
+
+// ── Persist the attachment list immediately ──
+// La pestaña "Archivos Adjuntos" sube el archivo al disco en el momento en que se
+// selecciona, pero solo quedaba registrado si el usuario pulsaba "Guardar
+// Cliente". Al cerrar el modal (o irse al dimensionamiento) el archivo se
+// perdía. Este endpoint guarda el listado en la base de datos al instante.
+router.put('/:id/archivos', async (req, res) => {
+  try {
+    const [existing] = await pool.execute('SELECT id FROM clientes WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    if (existing.length === 0) return res.status(404).json({ detail: 'Cliente no encontrado' });
+
+    let aArr = req.body.archivos_json;
+    while (typeof aArr === 'string') {
+      try {
+        const p = JSON.parse(aArr);
+        if (p === aArr) break;
+        aArr = p;
+      } catch { break; }
+    }
+    if (!Array.isArray(aArr)) return res.status(400).json({ detail: 'Listado de archivos inválido' });
+
+    await pool.execute('UPDATE clientes SET archivos_json = ? WHERE id = ?', [JSON.stringify(aArr), req.params.id]);
+    res.json({ message: 'Archivos guardados', archivos_json: aArr });
   } catch (error) {
     console.error(error);
     res.status(500).json({ detail: 'Error del servidor' });
