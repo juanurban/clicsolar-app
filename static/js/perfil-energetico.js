@@ -33,7 +33,7 @@ function renderPerfilEnergeticoSummary(profile) {
             <div class="h-40"><canvas id="perfil-energetico-chart"></canvas></div>
         </div>
         <div class="mt-3 p-3 rounded-lg bg-surface-container-low text-sm text-on-surface-variant">
-            <span class="font-bold text-on-surface">Lectura:</span> ${isReceipt ? `promedio de ${formatNumber(profile.consumo_mensual_estimado_kwh, 1)} kWh/mes a partir de ${monthly.length} meses del recibo.` : (profile.produccion_total_kwh > 0 ? `se detectaron ${formatNumber(profile.produccion_total_kwh, 1)} kWh de producción.` : 'no se detectó producción solar en el archivo; se usará como perfil de demanda.')}
+            <span class="font-bold text-on-surface">Lectura:</span> ${isReceipt ? `promedio de ${formatNumber(profile.consumo_mensual_estimado_kwh, 1)} kWh/mes a partir de ${monthly.length} meses del recibo.${profile.promedio_seis_meses ? ` El recibo anuncia un promedio de los últimos 6 meses de ${formatNumber(profile.promedio_seis_meses, 0)} kWh.` : ''}` : (profile.produccion_total_kwh > 0 ? `se detectaron ${formatNumber(profile.produccion_total_kwh, 1)} kWh de producción.` : 'no se detectó producción solar en el archivo; se usará como perfil de demanda.')}
         </div>
         ${(profile.advertencias && profile.advertencias.length) ? `
         <div class="mt-3 p-3 rounded-lg bg-error/10 border border-error/30 text-sm text-on-surface">
@@ -141,6 +141,15 @@ async function initPerfilEnergeticoUpload(clienteId) {
     if (receiptInput) receiptInput.addEventListener('change', async () => {
         const file = receiptInput.files?.[0];
         if (!file) return;
+        // Analizar un recibo escribe en el cliente los valores del PDF. Si el
+        // usuario ya había capturado los meses a mano, eso se pierde sin aviso
+        // (era la queja de "escribo los meses y al reabrir aparece el del PDF").
+        const mesesYaEscritos = [...document.querySelectorAll('.h-historial')]
+            .some(campo => String(campo.value || '').trim() !== '');
+        if (mesesYaEscritos && !confirm('El cliente ya tiene meses de consumo escritos. Analizar este recibo los reemplazará por los valores del PDF. ¿Continuar?')) {
+            receiptInput.value = '';
+            return;
+        }
         document.getElementById('recibo-energetico-file-name').textContent = file.name;
         const formData = new FormData();
         formData.append('file', file);
@@ -158,7 +167,7 @@ async function initPerfilEnergeticoUpload(clienteId) {
             syncProfileFields(data);
             if ((data.meses_leidos || 0) < 2) {
                 if (typeof toggleHistorial === 'function') toggleHistorial(true);
-                showToast('No se leyeron los meses del gráfico: escríbelos abajo y pulsa "Guardar Cliente".', 'error');
+                showToast('El recibo no entregó los meses: escríbelos abajo y pulsa "Guardar Cliente".', 'error');
             } else {
                 showToast(`Recibo analizado: promedio ${promedio.toFixed(1)} kWh/mes con ${data.meses_leidos} meses.`, 'success');
             }

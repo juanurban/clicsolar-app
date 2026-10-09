@@ -365,6 +365,28 @@ function validarLecturaRecibo(parsed) {
   return parsed;
 }
 
+// Los recibos de operadores grandes (p. ej. ENEL Factura Expres) imprimen la
+// frase "Consumo promedio / últimos 6 meses / 18.560 kWh". La capa de texto del
+// PDF separa la etiqueta de su cifra con saltos de línea y además desordena las
+// columnas, así que "CONSUMO MES" puede quedar lejos de su número. Esta ancla
+// es la referencia más fiable del consumo mensual típico del cliente.
+function extraerPromedioSeisMeses(texto) {
+  const normalizado = String(texto || '').replace(/\s+/g, ' ');
+  const buscador = /consumo\s+promedio/gi;
+  const posiciones = [];
+  let match;
+  while ((match = buscador.exec(normalizado)) !== null) posiciones.push(match.index);
+  for (const indice of posiciones) {
+    const ventana = normalizado.slice(indice, indice + 160);
+    if (!/meses/i.test(ventana)) continue;
+    const cifra = ventana.match(/([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*kwh/i);
+    if (!cifra) continue;
+    const valor = numericValue(cifra[1]);
+    if (esConsumoPlausible(valor)) return valor;
+  }
+  return null;
+}
+
 async function analyzeReceipt(buffer, originalName) {
   const extracted = await pdfParse(buffer);
   const extractedText = String(extracted.text || '').trim();
@@ -395,6 +417,7 @@ async function analyzeReceipt(buffer, originalName) {
 Return one raw JSON object without markdown with exactly these fields:
 {"periodo":"billing period or null","fecha_inicio":"YYYY-MM-DD or null","fecha_fin":"YYYY-MM-DD or null","consumo_kwh_mes":number,"tarifa_kwh":number,"valor_total":number,"proveedor":"string or null","cuenta":"string or null","observaciones":"string or null","historial_mensual":[{"periodo":"month shown","consumo_kwh":number,"tarifa_kwh":number}]}
 Rules: consume only the electricity section and the graph titled "Comportamiento consumo". Never use values from aseo, residuos, limpieza urbana, or any municipal waste graph. consumo_kwh_mes is the current billed electricity consumption, not pesos. tarifa_kwh is the exact energy price in Colombian pesos per kWh; preserve decimals such as 875,89 as 875.89. valor_total is the total bill in Colombian pesos. historial_mensual must contain every monthly electricity-consumption row shown in the graph, preferably the latest 6 months, in chronological order. Return numbers only and do not invent missing values.
+Important about layout: in these PDFs labels and numbers are printed in separate blocks, so a label such as "CONSUMO MES:" may appear far from its value. Never take a reactive-energy ("reactiva"), demand ("demanda"), power or meter-reading number as consumo_kwh_mes. If the bill shows "Consumo promedio últimos 6 meses", that figure is the customer's typical monthly consumption: report it in observaciones as "promedio_6m=<value>" and prefer it over an ambiguous "CONSUMO MES" reading when the two differ by more than three times.
 Receipt text (${originalName}):\n${text.slice(0, 30000)}`;
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -417,6 +440,20 @@ Receipt text (${originalName}):\n${text.slice(0, 30000)}`;
       parsed.historial_mensual = delTexto.map(item => ({ ...item, tarifa_kwh: parsed.tarifa_kwh }));
       parsed.advertencias = (parsed.advertencias || []).filter(texto => !texto.startsWith('No pude leer el gráfico'));
       parsed.advertencias.push(`Histórico de meses recuperado del texto del recibo (${delTexto.length} meses).`);
+    }
+  }
+  // Ancla determinista: el propio recibo anuncia su promedio de los últimos
+  // 6 meses. Si difiere mucho de lo que se tomó como consumo mensual, se avisa
+  // (no se reemplaza: el usuario decide cuál corresponde a su proyecto).
+  const promedioSeisMeses = extraerPromedioSeisMeses(`${extractedText}\n${text}`);
+  if (promedioSeisMeses) {
+    parsed.promedio_seis_meses = promedioSeisMeses;
+    if (esConsumoPlausible(parsed.consumo_kwh_mes)) {
+      const relacion = promedioSeisMeses / parsed.consumo_kwh_mes;
+      if (relacion > 3 || relacion < 0.33) {
+        parsed.advertencias = parsed.advertencias || [];
+        parsed.advertencias.push(`El recibo anuncia un consumo promedio de los últimos 6 meses de ${promedioSeisMeses.toLocaleString('es-CO')} kWh, muy distinto del consumo mensual leído (${parsed.consumo_kwh_mes} kWh). En este tipo de factura la etiqueta "CONSUMO MES" suele quedar separada de su cifra: escribe los meses reales del cliente antes de guardar.`);
+      }
     }
   }
   parsed.ocr_disponible = ocrUsado;
