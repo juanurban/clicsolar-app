@@ -237,7 +237,15 @@ async function openClienteModal(id = null) {
 
     const modalHtml = `
         <div class="p-8 fade-in">
-            <h2 class="font-headline-md text-headline-md text-on-surface mb-6">${id ? 'Editar' : 'Nuevo'} Cliente</h2>
+            <div class="sq-modal-header">
+                <div>
+                    <h2 class="font-headline-md text-headline-md text-on-surface leading-tight">${id ? 'Editar' : 'Nuevo'} Cliente</h2>
+                    <p class="text-sm text-on-surface-variant mt-1">Los campos marcados con * son obligatorios.</p>
+                </div>
+                <button type="button" class="sq-modal-close" onclick="cerrarClienteModal()" title="Cerrar" aria-label="Cerrar la ventana del cliente">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
             <form id="cliente-form" onsubmit="saveCliente(event, ${id})">
                 <div class="sq-tabs mb-6" id="cliente-tabs">
                     <button type="button" class="sq-tab active" onclick="switchClienteTab('datos')">Datos Básicos</button>
@@ -245,7 +253,8 @@ async function openClienteModal(id = null) {
                     <button type="button" class="sq-tab" onclick="switchClienteTab('archivos')">Archivos Adjuntos</button>
                 </div>
 
-                <div id="tab-datos" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div id="tab-datos" class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+                    <div class="md:col-span-3 sq-fieldset-title">Identificación del cliente</div>
                     <div class="md:col-span-2">
                         <label class="sq-label">Nombre / Razón Social *</label>
                         <input type="text" name="nombre" class="sq-input" required value="${c.nombre}">
@@ -258,31 +267,32 @@ async function openClienteModal(id = null) {
                         <label class="sq-label">Teléfono</label>
                         <input type="text" name="telefono" class="sq-input" value="${c.telefono}">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="sq-label">Correo</label>
                         <input type="email" name="correo" class="sq-input" value="${c.correo}">
                     </div>
+                    <div class="md:col-span-3 sq-fieldset-title mt-1">Ubicación</div>
                     <div>
                         <label class="sq-label">Departamento *</label>
                         <select id="inp-departamento" name="departamento" class="sq-input" required>
                             <option value="">Cargando departamentos…</option>
                         </select>
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="sq-label">Municipio *</label>
                         <select id="inp-municipio" name="municipio" class="sq-input" required disabled>
                             <option value="">Selecciona primero un departamento</option>
                         </select>
                         <input type="hidden" id="inp-ciudad" name="ciudad" value="${c.municipio || c.ciudad || ''}">
                     </div>
-                    <div class="md:col-span-2">
+                    <div class="md:col-span-3">
                         <label class="sq-label">Dirección</label>
                         <input type="text" name="direccion" class="sq-input" value="${c.direccion}">
                     </div>
                 </div>
 
-                <div id="tab-perfil" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="md:col-span-2 bg-primary-container/10 border border-primary/30 rounded-xl p-5">
+                <div id="tab-perfil" class="hidden grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5">
+                    <div class="md:col-span-3 bg-primary-container/10 border border-primary/30 rounded-xl p-5">
                         <div class="flex items-start gap-3">
                             <span class="material-symbols-outlined text-primary">analytics</span>
                             <div>
@@ -293,7 +303,7 @@ async function openClienteModal(id = null) {
                         ${id ? `
                         <div class="mt-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                             <input type="file" id="perfil-energetico-input" class="hidden" accept=".xlsx,.xls,.csv">
-                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="document.getElementById('perfil-energetico-input').click()">
+                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="document.getElementById('perfil-energetico-input').click()">
                                 <span class="material-symbols-outlined">upload_file</span> Seleccionar Excel
                             </button>
                             <span id="perfil-energetico-file-name" class="text-sm text-on-surface-variant">Ningún archivo seleccionado</span>
@@ -308,7 +318,7 @@ async function openClienteModal(id = null) {
                             </div>
                             <div class="mt-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                                 <input type="file" id="recibo-energetico-input" class="hidden" accept="application/pdf,.pdf">
-                                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="document.getElementById('recibo-energetico-input').click()">
+                                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="document.getElementById('recibo-energetico-input').click()">
                                     <span class="material-symbols-outlined">upload_file</span> Seleccionar recibo PDF
                                 </button>
                                 <span id="recibo-energetico-file-name" class="text-sm text-on-surface-variant">Ningún recibo seleccionado</span>
@@ -324,6 +334,7 @@ async function openClienteModal(id = null) {
                         <p class="mt-4 text-sm text-on-surface-variant">Guarda primero el cliente para poder asociar el archivo a su perfil energético.</p>
                         `}
                     </div>
+                    <div class="md:col-span-3 sq-fieldset-title mt-1">Suministro y tarifa</div>
                     <div>
                         <label class="sq-label">Operador de Red</label>
                         <input type="text" name="operador_red" class="sq-input" value="${c.operador_red}">
@@ -336,8 +347,12 @@ async function openClienteModal(id = null) {
                             <option value="Industrial" ${c.tipo_tarifa==='Industrial'?'selected':''}>Industrial</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="sq-label">Cargas Especiales (kWh/día)</label>
+                        <input type="number" step="0.1" name="cargas_especiales_kwh_dia" class="sq-input" value="${c.cargas_especiales_kwh_dia}" placeholder="Ej. Carro eléctrico 15 kWh/día">
+                    </div>
                     
-                    <div class="md:col-span-2 bg-surface-container-high p-4 rounded-xl mb-2">
+                    <div class="md:col-span-3 bg-surface-container-high p-5 rounded-xl">
                         <div class="flex justify-between items-center mb-4">
                             <label class="sq-label !mb-0">Consumo Promedio Mensual (kWh)</label>
                             <button type="button" class="sq-btn sq-btn-ghost sq-btn-sm" onclick="toggleHistorial()">
@@ -346,7 +361,7 @@ async function openClienteModal(id = null) {
                         </div>
                         <input type="number" step="0.1" name="consumo_mensual_kwh" id="inp-consumo" oninput="actualizarAvisoPromedio()" class="sq-input text-lg font-bold text-primary" value="${c.consumo_mensual_kwh}">
                         
-                        <div id="historial-grid" class="hidden grid grid-cols-3 md:grid-cols-4 gap-2 mt-4 pt-4 border-t border-outline-variant">
+                        <div id="historial-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-3 mt-4 pt-4 border-t border-outline-variant">
                             ${Array(12).fill(0).map((_,i) => `
                                 <div>
                                     <label class="text-[10px] text-on-surface-variant uppercase ml-1 h-historial-label" data-indice="${i}">Mes ${i+1}</label>
@@ -364,18 +379,14 @@ async function openClienteModal(id = null) {
                         <label class="sq-label">Costo Actual $/kWh *</label>
                         <input type="number" min="0" step="0.01" name="costo_kwh" class="sq-input" required value="${c.costo_kwh}">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="sq-label">Horas Sol Pico (HSP)</label>
                         <input type="number" step="0.01" min="0" max="24" id="inp-hsp" name="hsp" class="sq-input" value="${c.hsp}">
                         <p id="hsp-status" class="text-xs text-on-surface-variant mt-2">Se calcula automáticamente al seleccionar el municipio y puedes ajustarla manualmente.</p>
                     </div>
-                    <div class="md:col-span-2">
-                        <label class="sq-label">Cargas Especiales Futuras (kWh/día)</label>
-                        <input type="number" step="0.1" name="cargas_especiales_kwh_dia" class="sq-input" value="${c.cargas_especiales_kwh_dia}" placeholder="Ej. Carro eléctrico 15 kWh/día">
-                    </div>
                 </div>
 
-                <div id="tab-archivos" class="hidden flex flex-col gap-4">
+                <div id="tab-archivos" class="hidden flex flex-col gap-5">
                     <div class="bg-surface-container-low border border-outline-variant/30 border-dashed rounded-xl p-6 text-center">
                         <span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2">upload_file</span>
                         <h4 class="font-bold text-on-surface mb-1">Subir Archivos</h4>
@@ -385,20 +396,20 @@ async function openClienteModal(id = null) {
                             Seleccionar Archivos
                         </button>
                     </div>
-                    <div id="cli-archivos-list" class="flex flex-col gap-2 mt-2">
+                    <div id="cli-archivos-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                         <!-- Archivos irán aquí -->
                     </div>
                     ${id ? '<p class="text-xs text-on-surface-variant">Los archivos se guardan en el momento en que los seleccionas.</p>' : '<p class="text-xs text-amber-400">Encima ves los archivos ya cargados, pero todavía no están asociados a ningún cliente: pulsa "Guardar Cliente" para registrarlos.</p>'}
                 </div>
 
-                <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-outline-variant">
+                <div class="sq-modal-footer">
                     <button type="button" class="sq-btn sq-btn-ghost" onclick="cerrarClienteModal()">Cancelar</button>
                     <button type="submit" class="sq-btn sq-btn-primary">Guardar Cliente</button>
                 </div>
             </form>
         </div>
     `;
-    openModal(modalHtml);
+    openModal(modalHtml, '4xl');
     clienteModalId = id;
     clienteFormSucio = false;
     // Cualquier edición (o archivo recién subido) marca el formulario como pendiente
