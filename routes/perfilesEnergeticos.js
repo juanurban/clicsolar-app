@@ -302,29 +302,59 @@ function extraerHistorialDelTexto(texto) {
   return mejor.map(({ periodo, consumo_kwh }) => ({ periodo, consumo_kwh, tarifa_kwh: null }));
 }
 
-// Cruza el consumo declarado con la aritmética de la propia factura
-// (valor_total / tarifa_kwh). Si el modelo confundió la lectura del contador o
-// un importe en pesos, la división de la factura delata el valor real.
+// Umbrales de la tarifa en Colombia. El cargo por energía suele estar entre
+// $120 y $1.500 por kWh; si se leyó muy fuera de ese rango (p. ej. "8,76" en
+// lugar de "876") cualquier cálculo hecho con ella es mentira.
+const TARIFA_MINIMA = 50;
+const TARIFA_MAXIMA = 5000;
+
+function esTarifaPlausible(valor) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) && numero >= TARIFA_MINIMA && numero <= TARIFA_MAXIMA;
+}
+
+// Descarta lecturas imposibles y deja constancia escrita de cada corrección.
+// Solo se sustituye el consumo cuando lo leído no es un consumo mensual. Si es
+// plausible se conserva aunque no cuadre con el total facturado: en los recibos
+// colombianos ese total incluye POT, distribución, administración e IVA, así
+// que dividirlo por la tarifa de energía infla el consumo varias veces (leer
+// 29.011 kWh en un recibo de 634 kWh es signo de una tarifa mal interpretada,
+// no de un consumo enorme).
 function validarLecturaRecibo(parsed) {
   const advertencias = [];
   parsed.historial_mensual = (parsed.historial_mensual || []).filter(item => esConsumoPlausible(item.consumo_kwh));
 
-  const esperado = (parsed.valor_total && parsed.tarifa_kwh && parsed.tarifa_kwh > 0)
+  if (parsed.tarifa_kwh && !esTarifaPlausible(parsed.tarifa_kwh)) {
+    advertencias.push(`La tarifa leída (${parsed.tarifa_kwh} $/kWh) no es creíble; se conservará el costo/kWh que ya tuvieras registrado.`);
+    parsed.tarifa_kwh = null;
+  }
+
+  const estimado = (parsed.valor_total && parsed.tarifa_kwh)
     ? Math.round(parsed.valor_total / parsed.tarifa_kwh * 10) / 10
     : null;
 
   if (!esConsumoPlausible(parsed.consumo_kwh_mes)) {
-    if (esConsumoPlausible(esperado)) {
-      advertencias.push(`El consumo mensual leído (${parsed.consumo_kwh_mes} kWh) no es válido; se usó el calculado de la factura: ${esperado} kWh.`);
-      parsed.consumo_kwh_mes = esperado;
+    if (esConsumoPlausible(estimado)) {
+      advertencias.push(`El consumo mensual leído (${parsed.consumo_kwh_mes} kWh) no es válido; se usó el calculado de la factura: ${estimado} kWh.`);
+      parsed.consumo_kwh_mes = estimado;
     } else {
       throw new Error(`No pude identificar el consumo mensual en kWh del recibo (leí "${parsed.consumo_kwh_mes}"). Escribe los consumos mensuales a mano en el perfil energético.`);
     }
-  } else if (esConsumoPlausible(esperado)) {
-    const relacion = parsed.consumo_kwh_mes / esperado;
-    if (relacion < 0.5 || relacion > 2) {
-      advertencias.push(`El consumo leído (${parsed.consumo_kwh_mes} kWh) no cuadra con la factura (${esperado} kWh = valor total ÷ tarifa); se usó este último.`);
-      parsed.consumo_kwh_mes = esperado;
+  } else if (esConsumoPlausible(estimado)) {
+    // El consumo no puede costar más que el propio recibo: la energía es solo uno
+    // de los cargos. Si consumo × tarifa supera el total facturado, lo leído no es
+    // un consumo (suele ser la lectura del contador o un acumulado) y sí conviene
+    // sustituirlo. Si el total es mayor, lo normal es que ese extra sean POT,
+    // distribución e IVA: entonces se conserva el consumo del recibo y solo se avisa.
+    const costoEnergia = parsed.consumo_kwh_mes * parsed.tarifa_kwh;
+    if (costoEnergia > Number(parsed.valor_total) * 1.5) {
+      advertencias.push(`El consumo leído (${parsed.consumo_kwh_mes} kWh) costaría más que todo el recibo ($${parsed.valor_total}); se usó el valor compatible con la factura: ${estimado} kWh.`);
+      parsed.consumo_kwh_mes = estimado;
+    } else {
+      const relacion = estimado / parsed.consumo_kwh_mes;
+      if (relacion < 0.5 || relacion > 2) {
+        advertencias.push(`El consumo del recibo (${parsed.consumo_kwh_mes} kWh) no coincide con el total facturado ÷ tarifa (${estimado} kWh). El total incluye otros cargos, así que se conservó ${parsed.consumo_kwh_mes} kWh: contrasta el consumo con tu recibo.`);
+      }
     }
   }
 
@@ -472,15 +502,15 @@ router.post('/recibo/:clienteId', receiptUpload.single('file'), async (req, res)
       profile.consumo_mensual_estimado_kwh, profile.demanda_promedio_kw, profile.demanda_maxima_kw,
       profile.produccion_total_kwh, profile.perfil_horario_json, profile.resumen_diario_json, profile.mediciones_json, profile.observaciones]);
 
-    // La tarifa solo se sobreescribe si el recibo entregó un valor válido; si no,
+    // La tarifa solo se sobreescribe si el recibo entregó un valor creíble; si no,
     // no se debe borrar el costo/kWh que el usuario ya tenía registrado.
     const campos = ['consumo_mensual_kwh = ?', 'historial_consumo = ?'];
     const valores = [monthly, JSON.stringify(consumptionValues)];
-    if (tariff > 0) { campos.push('costo_kwh = ?'); valores.push(tariff); }
+    if (esTarifaPlausible(tariff)) { campos.push('costo_kwh = ?'); valores.push(tariff); }
     valores.push(req.params.clienteId);
     await pool.execute(`UPDATE clientes SET ${campos.join(', ')} WHERE id = ?`, valores);
     res.status(201).json({ id: result.insertId, ...receipt, consumo_kwh_mes: latest, consumo_promedio_kwh: monthly,
-      tarifa_kwh: tariff, ...profile, perfil_horario: [], historial_mensual: monthlyHistory,
+      tarifa_kwh: esTarifaPlausible(tariff) ? tariff : 0, ...profile, perfil_horario: [], historial_mensual: monthlyHistory,
       meses_leidos: monthlyHistory.length, advertencias, ocr_disponible: receipt.ocr_disponible,
       resumen_diario: parseJson(profile.resumen_diario_json) });
   } catch (error) {

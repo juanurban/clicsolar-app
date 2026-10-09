@@ -210,6 +210,38 @@ router.put('/:id', async (req, res) => {
        d.operador_red || '', d.tipo_tarifa || 'Residencial', consumo,
        d.costo_kwh || 0, d.hsp || 4.2, d.cargas_especiales_kwh_dia || 0, historial, archivos, req.params.id]
     );
+    // El perfil energético nacido de un recibo guarda la lectura original. Si el
+    // cliente corrige los meses, ese resumen se queda mentiroso y al abrir el
+    // modal otra vez aparece el valor del PDF, por eso se sincroniza aquí.
+    if (hArr.length > 0) {
+      try {
+        const [perfiles] = await pool.execute(
+          `SELECT id, resumen_diario_json FROM perfiles_energeticos
+           WHERE cliente_id = ? AND hoja_origen = 'Recibo de energía' ORDER BY id DESC LIMIT 1`,
+          [req.params.id]
+        );
+        if (perfiles.length) {
+          let resumen = [];
+          try {
+            resumen = JSON.parse(perfiles[0].resumen_diario_json) || [];
+          } catch { resumen = []; }
+          const nuevoResumen = hArr.map((valor, index) => ({
+            fecha: (resumen[index] && resumen[index].fecha) || `Mes ${index + 1}`,
+            consumo_kwh: Number(valor) || 0,
+            demanda_max_kw: 0,
+            mediciones: 1
+          }));
+          await pool.execute(
+            `UPDATE perfiles_energeticos SET consumo_total_kwh = ?, consumo_diario_promedio_kwh = ?,
+             consumo_mensual_estimado_kwh = ?, resumen_diario_json = ? WHERE id = ?`,
+            [consumo, Math.round(consumo / 30 * 1000) / 1000, consumo, JSON.stringify(nuevoResumen), perfiles[0].id]
+          );
+        }
+      } catch (perfilError) {
+        console.warn('No se pudo sincronizar el perfil energético del cliente:', perfilError.message);
+      }
+    }
+
     res.json({ message: 'Cliente actualizado exitosamente' });
   } catch (error) {
     console.error(error);

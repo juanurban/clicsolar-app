@@ -344,15 +344,16 @@ async function openClienteModal(id = null) {
                                 Ingresar Historial (Mes a Mes)
                             </button>
                         </div>
-                        <input type="number" step="0.1" name="consumo_mensual_kwh" id="inp-consumo" class="sq-input text-lg font-bold text-primary" value="${c.consumo_mensual_kwh}">
+                        <input type="number" step="0.1" name="consumo_mensual_kwh" id="inp-consumo" oninput="actualizarAvisoPromedio()" class="sq-input text-lg font-bold text-primary" value="${c.consumo_mensual_kwh}">
                         
                         <div id="historial-grid" class="hidden grid grid-cols-3 md:grid-cols-4 gap-2 mt-4 pt-4 border-t border-outline-variant">
                             ${Array(12).fill(0).map((_,i) => `
                                 <div>
                                     <label class="text-[10px] text-on-surface-variant uppercase ml-1 h-historial-label" data-indice="${i}">Mes ${i+1}</label>
-                                    <input type="number" class="sq-input h-historial" placeholder="kWh" value="${c.historial_consumo[i] || ''}">
+                                    <input type="number" class="sq-input h-historial" oninput="actualizarAvisoPromedio()" placeholder="kWh" value="${c.historial_consumo[i] || ''}">
                                 </div>
                             `).join('')}
+                            <div id="historial-aviso" class="col-span-full text-xs text-on-surface-variant"></div>
                             <div class="col-span-full flex justify-end mt-2">
                                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="calcularPromedio()">Calcular Promedio</button>
                             </div>
@@ -410,6 +411,7 @@ async function openClienteModal(id = null) {
     renderClientArchivos();
     initSelectoresUbicacion(c);
     if (id) initPerfilEnergeticoUpload(id);
+    else actualizarAvisoPromedio();
 }
 
 function switchClienteTab(tab) {
@@ -518,6 +520,34 @@ function toggleHistorial(forceShow = false) {
     } else {
         grid.classList.add('hidden');
     }
+    actualizarAvisoPromedio();
+}
+
+// Compara el promedio declarado con el promedio de los meses escritos. Un valor
+// sacado del recibo por error (la lectura del contador, por ejemplo) solía
+// quedar muy por encima de los meses reales sin que el usuario lo notara.
+function actualizarAvisoPromedio() {
+    const aviso = document.getElementById('historial-aviso');
+    const campoConsumo = document.getElementById('inp-consumo');
+    if (!aviso || !campoConsumo) return;
+    const valores = [...document.querySelectorAll('.h-historial')]
+        .map(campo => parseFloat(campo.value))
+        .filter(valor => Number.isFinite(valor) && valor > 0);
+    const formatear = (n) => n.toLocaleString('es-CO', { maximumFractionDigits: 1 });
+    if (valores.length < 2) {
+        aviso.classList.remove('text-error');
+        aviso.textContent = valores.length === 1 ? 'Añade al menos dos meses para comparar el promedio.' : '';
+        return;
+    }
+    const promedio = Math.round(valores.reduce((a, b) => a + b, 0) / valores.length * 10) / 10;
+    const declarado = parseFloat(campoConsumo.value);
+    if (!Number.isFinite(declarado) || Math.abs(promedio - declarado) / promedio > 0.15) {
+        aviso.classList.add('text-error');
+        aviso.innerHTML = `El promedio de los ${valores.length} meses es <b>${formatear(promedio)} kWh</b>, pero arriba dice ${formatear(declarado || 0)} kWh. Pulsa «Calcular Promedio» para usar el de los meses.`;
+    } else {
+        aviso.classList.remove('text-error');
+        aviso.textContent = `Promedio de ${valores.length} meses: ${formatear(promedio)} kWh.`;
+    }
 }
 
 function calcularPromedio() {
@@ -529,6 +559,7 @@ function calcularPromedio() {
     });
     if (count > 0) {
         document.getElementById('inp-consumo').value = (sum / count).toFixed(1);
+        actualizarAvisoPromedio();
         showToast('Promedio calculado', 'success');
     }
 }

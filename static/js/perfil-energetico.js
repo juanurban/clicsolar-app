@@ -17,7 +17,9 @@ function renderPerfilEnergeticoSummary(profile) {
         : [];
     const monthlyValues = monthly.map(item => Number(item.consumo_kwh)).filter(value => Number.isFinite(value));
     const lastConsumption = monthlyValues[monthlyValues.length - 1] || Number(profile.consumo_mensual_estimado_kwh) || 0;
-    const tariff = Number(profile.tarifa_kwh) || 0;
+    // La fila del perfil no tiene columna de tarifa: se toma de la medición
+    // guardada para que el resumen no muestre "$0,0 / kWh" al reabrir el cliente.
+    const tariff = Number(profile.tarifa_kwh) || Number((profile.mediciones || [])[0]?.tarifa_kwh) || 0;
     container.innerHTML = `
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="bg-surface-container p-3 rounded-lg"><div class="text-xs text-on-surface-variant">Consumo promedio</div><div class="text-lg font-bold text-primary">${formatNumber(profile.consumo_mensual_estimado_kwh, 1)} kWh/mes</div></div>
@@ -76,6 +78,7 @@ function syncProfileFields(profile) {
     const promedio = Number(profile.consumo_promedio_kwh || profile.consumo_mensual_estimado_kwh);
     const consumo = document.getElementById('inp-consumo');
     if (consumo && Number.isFinite(promedio)) consumo.value = promedio.toFixed(1);
+    if (typeof actualizarAvisoPromedio === 'function') actualizarAvisoPromedio();
 }
 
 async function initPerfilEnergeticoUpload(clienteId) {
@@ -97,7 +100,13 @@ async function initPerfilEnergeticoUpload(clienteId) {
         if (perfiles.length) {
             document.getElementById('perfil-energetico-file-name').textContent = perfiles[0].archivo_nombre;
             renderPerfilEnergeticoSummary(perfiles[0]);
-            syncProfileFields(perfiles[0]);
+            // El perfil guardado conserva la lectura original del recibo. Cuando el
+            // cliente ya tiene meses escritos (el usuario los corrigió) esos campos
+            // no se pueden pisar: al reabrir el modal volvía a aparecer el número
+            // leído del PDF y parecía que la corrección no se había guardado.
+            const mesesDelCliente = [...document.querySelectorAll('.h-historial')]
+                .some(campo => String(campo.value || '').trim() !== '');
+            if (!mesesDelCliente) syncProfileFields(perfiles[0]);
         }
     } catch (error) {
         console.error('Error cargando perfil energético:', error);
@@ -116,6 +125,7 @@ async function initPerfilEnergeticoUpload(clienteId) {
             renderPerfilEnergeticoSummary(data);
             const consumo = document.getElementById('inp-consumo');
             if (consumo) consumo.value = Number(data.consumo_mensual_estimado_kwh).toFixed(1);
+            if (typeof actualizarAvisoPromedio === 'function') actualizarAvisoPromedio();
             // El Excel actualiza solo el perfil; el cliente debe guardarse con el
             // nuevo consumo, así que se marca el formulario como pendiente.
             clienteFormSucio = true;
