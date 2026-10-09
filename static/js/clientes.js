@@ -246,7 +246,9 @@ async function openClienteModal(id = null) {
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <form id="cliente-form" onsubmit="saveCliente(event, ${id})">
+            <!-- novalidate: sin él el navegador bloquea el submit en silencio cuando el
+                 campo inválido está en una pestaña oculta y el botón parece no hacer nada. -->
+            <form id="cliente-form" novalidate onsubmit="saveCliente(event, ${id})">
                 <div class="sq-tabs mb-6" id="cliente-tabs">
                     <button type="button" class="sq-tab active" onclick="switchClienteTab('datos')">Datos Básicos</button>
                     <button type="button" class="sq-tab" onclick="switchClienteTab('perfil')">Perfil Energético</button>
@@ -349,7 +351,7 @@ async function openClienteModal(id = null) {
                     </div>
                     <div>
                         <label class="sq-label">Cargas Especiales (kWh/día)</label>
-                        <input type="number" step="0.1" name="cargas_especiales_kwh_dia" class="sq-input" value="${c.cargas_especiales_kwh_dia}" placeholder="Ej. Carro eléctrico 15 kWh/día">
+                        <input type="number" step="any" name="cargas_especiales_kwh_dia" class="sq-input" value="${c.cargas_especiales_kwh_dia}" placeholder="Ej. Carro eléctrico 15 kWh/día">
                     </div>
                     
                     <div class="md:col-span-3 bg-surface-container-high p-5 rounded-xl">
@@ -359,13 +361,13 @@ async function openClienteModal(id = null) {
                                 Ingresar Historial (Mes a Mes)
                             </button>
                         </div>
-                        <input type="number" step="0.1" name="consumo_mensual_kwh" id="inp-consumo" oninput="actualizarAvisoPromedio()" class="sq-input text-lg font-bold text-primary" value="${c.consumo_mensual_kwh}">
+                        <input type="number" step="any" name="consumo_mensual_kwh" id="inp-consumo" oninput="actualizarAvisoPromedio()" class="sq-input text-lg font-bold text-primary" value="${c.consumo_mensual_kwh}">
                         
                         <div id="historial-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-3 mt-4 pt-4 border-t border-outline-variant">
                             ${Array(12).fill(0).map((_,i) => `
                                 <div>
                                     <label class="text-[10px] text-on-surface-variant uppercase ml-1 h-historial-label" data-indice="${i}">Mes ${i+1}</label>
-                                    <input type="number" class="sq-input h-historial" oninput="actualizarAvisoPromedio()" placeholder="kWh" value="${c.historial_consumo[i] || ''}">
+                                    <input type="number" step="any" class="sq-input h-historial" oninput="actualizarAvisoPromedio()" placeholder="kWh" value="${c.historial_consumo[i] || ''}">
                                 </div>
                             `).join('')}
                             <div id="historial-aviso" class="col-span-full text-xs text-on-surface-variant"></div>
@@ -377,11 +379,11 @@ async function openClienteModal(id = null) {
 
                     <div>
                         <label class="sq-label">Costo Actual $/kWh *</label>
-                        <input type="number" min="0" step="0.01" name="costo_kwh" class="sq-input" required value="${c.costo_kwh}">
+                        <input type="number" min="0" step="any" name="costo_kwh" class="sq-input" required value="${c.costo_kwh}">
                     </div>
                     <div class="md:col-span-2">
                         <label class="sq-label">Horas Sol Pico (HSP)</label>
-                        <input type="number" step="0.01" min="0" max="24" id="inp-hsp" name="hsp" class="sq-input" value="${c.hsp}">
+                        <input type="number" step="any" min="0" max="24" id="inp-hsp" name="hsp" class="sq-input" value="${c.hsp}">
                         <p id="hsp-status" class="text-xs text-on-surface-variant mt-2">Se calcula automáticamente al seleccionar el municipio y puedes ajustarla manualmente.</p>
                     </div>
                 </div>
@@ -577,6 +579,21 @@ function calcularPromedio() {
 
 async function saveCliente(e, id) {
     e.preventDefault();
+    // Un campo inválido dentro de una pestaña oculta no puede mostrar el aviso del
+    // navegador (el botón parecía no hacer nada): se abre la pestaña y se enfoca.
+    const form = document.getElementById('cliente-form');
+    if (form && !form.checkValidity()) {
+        const malo = [...form.elements].find(el => el.willValidate && !el.checkValidity());
+        if (malo) {
+            const pestana = malo.closest('[id^="tab-"]');
+            if (pestana && pestana.classList.contains('hidden')) {
+                switchClienteTab(pestana.id.replace('tab-', ''));
+            }
+            malo.focus();
+            malo.reportValidity();
+            return;
+        }
+    }
     try {
         const targetId = await guardarCliente(id);
         if (typeof stateCotizador !== 'undefined' && stateCotizador.clienteSelected && stateCotizador.clienteSelected.id === targetId) {
