@@ -317,8 +317,9 @@
                     <p class="text-xs mt-0.5" id="cl-id">NIT/CC: -</p>
                     <p class="text-xs" id="cl-dir">-</p>
                     <p class="text-xs" id="cl-ciudad">-</p>
+                    <p class="text-xs" id="cl-contacto" style="display:none;"></p>
                 </div>
-                <div>
+                <div id="perfil-energetico-info">
                     <h3 class="text-sm border-b border-gray pb-1 mb-2 text-primary uppercase font-bold">Perfil Energético</h3>
                     <div class="grid grid-cols-2 gap-y-1 text-xs">
                         <span class="text-gray">Tarifa:</span> <span class="font-bold" id="cl-tarifa">-</span>
@@ -654,6 +655,20 @@
             document.getElementById('cl-id').innerText = `NIT/CC: ${data.cliente_cedula || '-'}`;
             document.getElementById('cl-dir').innerText = `Dir: ${data.cliente_direccion || '-'}`;
             document.getElementById('cl-ciudad').innerText = `Ciudad: ${data.cliente_ciudad || '-'}`;
+            // Contacto del cliente en una sola línea: dos líneas extra hubieran hecho
+            // crecer la ficha por encima del Perfil Energético y empujado toda la
+            // portada (KPIs, gráfica y equipos) hacia abajo. Se usa en cualquier tipo
+            // de propuesta, pero en el suministro es donde la ficha queda más visible
+            // porque el perfil energético no aplica.
+            const contacto = [
+                data.cliente_telefono ? `Tel: ${String(data.cliente_telefono).trim()}` : '',
+                data.cliente_correo ? `Correo: ${String(data.cliente_correo).trim()}` : '',
+            ].filter(Boolean).join('  ·  ');
+            const cajaContacto = document.getElementById('cl-contacto');
+            if (contacto && cajaContacto) {
+                cajaContacto.innerText = contacto;
+                cajaContacto.style.display = '';
+            }
             document.getElementById('cl-tarifa').innerText = data.cliente_tarifa;
             document.getElementById('cl-op').innerText = data.cliente_operador || '-';
             document.getElementById('cl-consumo').innerText = `${formatNumber(data.cliente_consumo)} kWh/m`;
@@ -714,8 +729,16 @@
             }
             const esSuministro = (itemsData && typeof itemsData === 'object' && itemsData.tipo_propuesta === 'suministro');
             // Máximo de filas del listado que caben en la primera página (portada);
-            // con más ítems la tabla se divide y continúa en la página 2.
-            const MAX_ITEMS_PAG1 = 18;
+            // con más ítems la tabla se divide y el resto pasa a la página de
+            // continuación junto con los totales, la firma y los términos. Era 18
+            // cuando el suministro ocultaba toda la ficha superior: ahora ahí vive
+            // también "Datos del Cliente", que consume ~147px (≈6 filas de tabla),
+            // así que 12 deja la portada con la misma holgura mínima que tenía el
+            // diseño antiguo en su peor caso. Medido con los términos reales de la
+            // empresa (6 que aplican a suministro): con 12 filas el cierre termina
+            // justo sobre la línea del pie absolute bottom-8, que es la restricción
+            // real y no el borde del lienzo.
+            const MAX_ITEMS_PAG1 = 12;
             // En suministro no se carga cronograma: ocultar la sección si viene vacía
             // para que no aparezca "Cronograma no disponible" en la portada o página 4.
             if (esSuministro && (!data.cronograma_json || data.cronograma_json.length === 0)) {
@@ -725,7 +748,16 @@
             if (esSuministro) {
                 document.getElementById('page-1').classList.add('supply-proposal');
                 document.getElementById('solucion-heading').querySelector('h3').innerText = 'SUMINISTRO DE PRODUCTOS Y SERVICIOS';
-                document.getElementById('perfil-energetico-section').style.display = 'none';
+                // Aquí solo sobra el Perfil Energético (tarifa, operador, consumos), que
+                // no aplica a un suministro. La ficha de "Datos del Cliente" SI debe verse:
+                // antes se ocultaba el contenedor completo y el PDF quedaba sin cliente.
+                const perfilInfoCliente = document.getElementById('perfil-energetico-info');
+                if (perfilInfoCliente) perfilInfoCliente.style.display = 'none';
+                const fichaCliente = document.getElementById('perfil-energetico-section');
+                if (fichaCliente) {
+                    fichaCliente.classList.remove('grid-cols-2');
+                    fichaCliente.classList.add('grid-cols-1');
+                }
                 document.getElementById('diseno-img-container').style.display = 'none';
                 document.getElementById('solar-kpis').style.display = 'none';
                 document.getElementById('prod-chart-title').style.display = 'none';
@@ -1274,6 +1306,23 @@
             console.error("Error cargando PDF", e);
             document.body.innerHTML = `<div class="p-8 text-red-500">Error cargando cotización: ${e.message}</div>`;
         }
+
+        // Las fotografías de los equipos se asignan dentro de init(), así que el
+        // alto real del cierre (firma + términos) solo se conoce cuando terminan
+        // de cargar. Sin esta segunda pasada el ajuste de términos se calculaba
+        // con las imágenes en cero de alto y el texto quedaba encimado con el pie
+        // de la portada, que es justo lo que el ajuste intenta evitar.
+        Promise.allSettled(Array.from(document.images).map(img => img.complete ? null : new Promise(resolve => {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+            setTimeout(resolve, 8000);
+        }))).then(() => {
+            try { asegurarTerminosVisiblesEnPDF(); } catch (e) { console.error('Ajuste de términos (imágenes):', e); }
+            // Señal para el renderizador del servidor (pdf-download): sin ella
+            // imprimiría justo al terminar init(), con las fotos sin cargar y el
+            // cierre todavía mal medido.
+            window.terminosAjustados = true;
+        });
     }
 
     function renderPaybackChart(canvasId, totalInv, proyeccion, roiAnos, opts = {}) {
@@ -1674,12 +1723,20 @@
                     if (document.fonts && document.fonts.ready) await document.fonts.ready;
                     actualizarAvisoDescarga('Preparando imágenes de tu propuesta…');
                     await prepararImagenesParaPDFLocal(proxiedImages);
+                    // Con las fotos ya en su sitio, el cierre puede haber crecido:
+                    // se recalcula el ajuste de términos antes de listar las páginas
+                    // para capturar, así la nueva continuación entra en el PDF.
+                    try { asegurarTerminosVisiblesEnPDF(); } catch (e) { console.error('Ajuste de términos:', e); }
 
                     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
                     const pages = Array.from(document.querySelectorAll('.page')).filter(page => {
                         const styles = getComputedStyle(page);
                         return styles.display !== 'none' && styles.visibility !== 'hidden';
                     });
+                    // Desde aquí la estructura ya está decidida: se congela el ajuste
+                    // para que la pasada que se dispara al terminar de cargar las
+                    // imágenes no borre páginas de continuación mientras se capturan.
+                    window.__terminosCongelado = true;
 
                     for (let index = 0; index < pages.length; index++) {
                         if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
@@ -1722,6 +1779,7 @@
                 }, 90000))
             ]);
         } finally {
+            window.__terminosCongelado = false;
             proxiedImages.forEach(({ image, source, srcset }) => {
                 image.src = source;
                 if (srcset) image.setAttribute('srcset', srcset);
@@ -1891,36 +1949,91 @@
         return pagina;
     }
 
-    function asegurarTerminosVisiblesEnPDF() {
-        const page4 = document.getElementById('page-4');
+    // Devuelve los términos a su estado base —todos en la página de origen y con
+    // el cuerpo de letra original— para que el ajuste pueda ejecutarse varias
+    // veces sin acumular páginas de continuación: se vuelve a llamar cuando
+    // cargan las tipografías y cuando cargan las fotos de los equipos.
+    function restablecerTerminos() {
         const cont = document.getElementById('terminos-container');
         const ul = document.getElementById('terminos-list-pdf');
-        if (!page4 || !cont || !ul || cont.classList.contains('hidden') || !ul.firstElementChild) return;
+        if (!cont || !ul) return;
+        let elimino = false;
+        document.querySelectorAll('.terminos-continuacion').forEach(pagina => {
+            pagina.querySelectorAll('ol > li').forEach(li => ul.appendChild(li));
+            pagina.remove();
+            elimino = true;
+        });
+        ul.style.fontSize = '';
+        ul.removeAttribute('start');
+        if (ul.firstElementChild) cont.classList.remove('hidden');
+        if (elimino) renumerarPaginas();
+    }
 
-        // 1) Reducir el cuerpo de letra de la lista hasta que la página 4 quepa.
+    function asegurarTerminosVisiblesEnPDF() {
+        // Congelado mientras html2canvas recorre las páginas: esta función empieza
+        // borrando las páginas de continuación, y hacer eso con la lista de páginas
+        // ya capturada dejaría la portada sin términos y un elemento desconectado
+        // en el bucle de la captura.
+        if (window.__terminosCongelado) return;
+        const cont = document.getElementById('terminos-container');
+        const ul = document.getElementById('terminos-list-pdf');
+        if (!cont || !ul) return;
+        restablecerTerminos();
+        if (cont.classList.contains('hidden') || !ul.firstElementChild) return;
+        // La página que realmente lleva los términos: en el suministro de una sola
+        // página el cierre se muda a la portada y #page-4 queda oculto, y medir una
+        // página con display:none (scrollHeight = clientHeight = 0) desactivaba el
+        // ajuste y dejaba los términos recortados sin ninguna señal.
+        const page4 = cont.closest('.page');
+        if (!page4 || page4.clientHeight === 0) return;
+
+        // En la portada el pie de página va en position:absolute: no empuja el
+        // flujo, así que el cierre puede quedar por debajo de su borde superior y
+        // encimarse con el texto del pie aunque el lienzo no desborde. Ese borde es
+        // el límite real de esta página; en las demás el pie está en el flujo y el
+        // único límite es el alto visible.
+        const cajaPagina = page4.getBoundingClientRect();
+        const piePortada = page4.querySelector('.absolute.bottom-8');
+        const topePie = piePortada ? piePortada.getBoundingClientRect().top - cajaPagina.top : null;
+
+        // true cuando la página ya no admite más texto: desborda el lienzo o el
+        // bloque de términos choca contra la línea del pie (con 4px de aire).
+        // Se mide el bloque de términos y no la fila completa del cierre porque la
+        // otra columna de esa fila (la firma) no se puede mover: usarla como
+        // criterio vaciaba la lista entera sin resolver nada.
+        const desborda = (pagina, lista) => {
+            if (pagina.scrollHeight > pagina.clientHeight + 1) return true;
+            if (topePie === null || pagina !== page4) return false;
+            const bloque = lista.closest('.prevent-break') || lista;
+            return bloque.getBoundingClientRect().bottom - cajaPagina.top > topePie - 4;
+        };
+
+        // 1) Reducir el cuerpo de letra de la lista hasta que la página quepa.
         //    El piso es 7.5px: por debajo de eso el texto deja de ser legible,
         //    así que el excedente se envía a páginas de continuación.
         let fontSize = 9.5;
-        while (page4.scrollHeight > page4.clientHeight + 1 && fontSize > 7.5) {
+        while (desborda(page4, ul) && fontSize > 7.5) {
             fontSize -= 0.5;
             ul.style.fontSize = fontSize + 'px';
         }
-        if (page4.scrollHeight <= page4.clientHeight + 1) return;
+        if (!desborda(page4, ul)) return;
 
         // 2) Mover los últimos términos a páginas de continuación encadenadas.
         let fuentePage = page4;
         let fuenteUl = ul;
         let destinoPage = null;
         let destinoUl = null;
-        while (fuentePage.scrollHeight > fuentePage.clientHeight + 1 && fuenteUl.firstElementChild) {
+        while (desborda(fuentePage, fuenteUl) && fuenteUl.firstElementChild) {
             if (!destinoUl) {
                 destinoPage = crearPaginaContinuacionTerminos(fontSize);
                 fuentePage.parentNode.insertBefore(destinoPage, fuentePage.nextSibling);
                 destinoUl = destinoPage.querySelector('ol');
             }
             destinoUl.insertBefore(fuenteUl.lastElementChild, destinoUl.firstChild);
-            if (fuentePage.scrollHeight <= fuentePage.clientHeight + 1) {
-                // La fuente ya cabe; si la continuación desborda, pasa a ser fuente.
+            if (!desborda(fuentePage, fuenteUl) || !fuenteUl.firstElementChild) {
+                // La fuente ya cabe, o se vació por un desborde ajeno a los términos
+                // (tabla, firma): en ambos casos la continuación pasa a ser la fuente
+                // para seguir moviendo si tampoco cabe allí.
                 fuentePage = destinoPage;
                 fuenteUl = destinoUl;
                 destinoPage = null;

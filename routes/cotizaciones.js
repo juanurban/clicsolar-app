@@ -781,24 +781,48 @@ router.get('/:id/pdf-download', async (req, res) => {
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     });
-    const page = await browser.newPage();
-    await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 35000 });
-    await page.evaluate(async () => {
-      if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      let count = 0;
-      while (!window.pdfRenderFinished && count < 40) {
-        await new Promise(r => setTimeout(r, 100));
-        count++;
-      }
-    });
-    await new Promise(r => setTimeout(r, 1500));
-    const pdfBuffer = Buffer.from(await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margins: { top: 0, right: 0, bottom: 0, left: 0 }
-    }));
-    await browser.close();
+    let pdfBuffer;
+    try {
+      const page = await browser.newPage();
+      await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 35000 });
+      await page.evaluate(async () => {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        let count = 0;
+        while (!window.pdfRenderFinished && count < 40) {
+          await new Promise(r => setTimeout(r, 100));
+          count++;
+        }
+        // El ajuste de términos y de la firma depende de las fotografías de los
+        // equipos, que se asignan dentro de init(); sin esperar, la impresión se
+        // hacía con las imágenes en cero de alto y el cierre quedaba encimado con
+        // el pie de la portada. Se topa a 6 s para no colgar la descarga.
+        let esperaTerminos = 0;
+        while (window.terminosAjustados !== true && esperaTerminos < 60) {
+          await new Promise(r => setTimeout(r, 100));
+          esperaTerminos++;
+        }
+      });
+      await new Promise(r => setTimeout(r, 1500));
+      // page.pdf() imprime con las reglas de @media, que dan un encuadre distinto
+      // al de pantalla. Se emula ese medio y se recalcula el ajuste de términos para
+      // que la medida coincida con la hoja realmente impresa (si no caben, se crea
+      // una página de continuación antes de imprimirla).
+      await page.emulateMediaType('print');
+      await page.evaluate(() => {
+        try { if (window.asegurarTerminosVisiblesEnPDF) window.asegurarTerminosVisiblesEnPDF(); } catch (_) {}
+      });
+      pdfBuffer = Buffer.from(await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: true,
+        margins: { top: 0, right: 0, bottom: 0, left: 0 }
+      }));
+    } finally {
+      // Cualquier fallo antes de page.pdf() (emulación de medio, CDP, memoria en
+      // un hosting compartido) dejaba Chrome abierto por petición, y el respaldo
+      // PDFKit arrancaba con una instancia huérfana consumiendo recursos.
+      await browser.close().catch(() => {});
+    }
 
     if (!pdfBuffer || pdfBuffer.toString().slice(0, 5) !== '%PDF-') {
       throw new Error('El renderizador no produjo un PDF válido');
