@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS equipos (
 CREATE TABLE IF NOT EXISTS cotizaciones (
     id INT AUTO_INCREMENT PRIMARY KEY,
     codigo VARCHAR(50) UNIQUE,
+    titulo VARCHAR(120) DEFAULT '',
     cliente_id INT,
     estado VARCHAR(50) DEFAULT 'borrador',
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

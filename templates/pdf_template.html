@@ -303,6 +303,7 @@
                 <div class="text-right">
                     <h2 class="text-lg font-bold text-gray">PROPUESTA</h2>
                     <p class="text-base font-bold text-primary" id="prop-codigo">PROP-0000</p>
+                    <p class="text-sm font-bold text-dark" id="prop-titulo"></p>
                     <p class="text-xs" id="prop-fecha">Fecha: -</p>
                     <p class="text-xs" id="prop-vencimiento">Vence: -</p>
                 </div>
@@ -592,6 +593,17 @@
     function formatNumber(v) { return Number(v||0).toLocaleString('es-CO', {maximumFractionDigits:1}); }
     function formatDate(d) { return new Date(d).toLocaleDateString('es-CO', {year:'numeric',month:'long',day:'numeric'}); }
     function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(+y, +m-1, +d); }
+
+    // El título distingue las propuestas de un mismo cliente (hoy con ventiladores
+    // y mañana con aires acondicionados), así que también viaja en el nombre del
+    // archivo descargado.
+    function nombreArchivoPdf() {
+        const codigo = (document.getElementById('prop-codigo')?.innerText || cotizacionId).trim();
+        const titulo = String(window.__propTitulo || '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+        return `Propuesta_${codigo}${titulo ? '_' + titulo : ''}.pdf`;
+    }
     
     async function init() {
         try {
@@ -615,6 +627,14 @@
             document.getElementById('emp-email').innerText = data.empresa?.empresa_correo || '';
             document.getElementById('emp-web').innerText = data.empresa?.empresa_web || '';
             document.getElementById('prop-codigo').innerText = data.codigo;
+            window.__propTitulo = data.titulo || '';
+            const cajaTitulo = document.getElementById('prop-titulo');
+            if (window.__propTitulo) {
+                cajaTitulo.innerText = window.__propTitulo;
+            } else {
+                // Sin título no se deja una línea vacía empujando la fecha.
+                cajaTitulo.remove();
+            }
             document.getElementById('prop-fecha').innerText = `Fecha: ${formatDate(data.fecha)}`;
             // Expiration date: 15 days from proposal date
             const fechaVence = new Date(data.fecha);
@@ -1690,7 +1710,7 @@
                     actualizarAvisoDescarga('Empaquetando el PDF…');
                     if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
                     const codigo = document.getElementById('prop-codigo')?.innerText || cotizacionId;
-                    pdf.save(`Propuesta_${codigo}.pdf`);
+                    pdf.save(nombreArchivoPdf());
                 })(),
                 new Promise((_, reject) => setTimeout(() => {
                     window.__generacionLocalAbortada = true;
@@ -1785,7 +1805,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `Propuesta_${document.getElementById('prop-codigo')?.innerText || cotizacionId}.pdf`;
+            link.download = nombreArchivoPdf();
             document.body.appendChild(link);
             link.click();
             link.remove();

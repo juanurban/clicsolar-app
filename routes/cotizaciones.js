@@ -95,6 +95,30 @@ async function generateCodigo() {
   return `PROP-${String(nextId).padStart(4, '0')}`;
 }
 
+// Título corto que acompaña al consecutivo cuando un cliente pide varias
+// propuestas (p. ej. "Con ventiladores" y "Con aires acondicionados"). Se
+// normaliza a una sola línea y al tamaño de la columna.
+function normalizarTitulo(valor) {
+  return String(valor ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+// MySQL entrega las columnas JSON ya parseadas y SQLite como texto; para copiar
+// una propuesta hay que volver a serializar lo que sea objeto.
+function normalizarValorCopia(valor) {
+  return (valor && typeof valor === 'object') ? JSON.stringify(valor) : valor;
+}
+
+// Nombre de archivo para las descargas del servidor. Lleva el consecutivo y el
+// título, porque un mismo cliente puede recibir varias propuestas (ventiladores
+// hoy, aires acondicionados mañana) y los PDF no pueden llamarse igual.
+function nombreArchivoPropuesta(codigo, id, titulo) {
+  const base = `propuesta_${codigo || id}`;
+  const slug = normalizarTitulo(titulo).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  return slug ? `${base}_${slug}` : base;
+}
+
 // Estima las Horas Sol Pico para la ubicación seleccionada. La clave de IA
 // permanece en el servidor; el navegador sólo recibe el resultado validado.
 router.post('/calcular-hsp', async (req, res) => {
@@ -348,8 +372,8 @@ router.get('/', async (req, res) => {
     let where = '(c.empresa_id = ? OR ? = 1)', params = [req.user.empresa_id, req.user.es_superadmin ? 1 : 0];
 
     if (buscar) {
-      where += ' AND (cl.nombre LIKE ? OR c.codigo LIKE ?)';
-      const s = `%${buscar}%`; params.push(s, s);
+      where += ' AND (cl.nombre LIKE ? OR c.codigo LIKE ? OR c.titulo LIKE ?)';
+      const s = `%${buscar}%`; params.push(s, s, s);
     }
     if (estado) { where += ' AND c.estado = ?'; params.push(estado); }
 
@@ -624,8 +648,10 @@ async function generateLegacyPDF(req, res) {
 
     res.status(200);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="propuesta_${cotizacion.id}.pdf"`);
-    const doc = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true, info: { Title: `Propuesta ${cotizacion.codigo || cotizacion.id}`, Author: config.empresa_nombre || 'Plantas Solares de Colombia' } });
+    const tituloCorto = normalizarTitulo(cotizacion.titulo);
+    const nombreArchivo = nombreArchivoPropuesta(cotizacion.codigo, cotizacion.id, tituloCorto);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}.pdf"`);
+    const doc = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true, info: { Title: `Propuesta ${cotizacion.codigo || cotizacion.id}${tituloCorto ? ' - ' + tituloCorto : ''}`, Author: config.empresa_nombre || 'Plantas Solares de Colombia' } });
     doc.pipe(res);
 
     const gold = '#d4a800';
@@ -646,6 +672,7 @@ async function generateLegacyPDF(req, res) {
     })();
     doc.moveDown(0.6).fontSize(17).fillColor(gold).font('Helvetica-Bold').text('PROPUESTA', { align: 'right' });
     doc.fontSize(10).fillColor(dark).font('Helvetica').text(`Código: ${text(cotizacion.codigo || `PROP-${cotizacion.id}`)}`, { align: 'right' });
+    if (tituloCorto) doc.fontSize(10).fillColor(gold).font('Helvetica-Bold').text(text(tituloCorto), { align: 'right' });
     doc.text(`Fecha: ${text(fechaTexto)}`, { align: 'right' });
     line();
 
@@ -743,8 +770,8 @@ async function generateLegacyPDF(req, res) {
 // ── Download PDF (Puppeteer exact rendering, legacy fallback) ──
 router.get('/:id/pdf-download', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT id FROM cotizaciones WHERE id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ detail: 'Cotización no encontrada' });
+    const [filasPdf] = await pool.execute('SELECT id, codigo, titulo FROM cotizaciones WHERE id = ?', [req.params.id]);
+    if (!filasPdf.length) return res.status(404).json({ detail: 'Cotización no encontrada' });
 
     const pdfToken = createPdfToken(req.params.id);
     const previewUrl = `${req.protocol}://${req.get('host')}/pdf/${encodeURIComponent(req.params.id)}?pdf=1&pdf_token=${encodeURIComponent(pdfToken)}`;
@@ -778,7 +805,7 @@ router.get('/:id/pdf-download', async (req, res) => {
     }
     res.status(200);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="propuesta_${req.params.id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivoPropuesta(filasPdf[0].codigo, req.params.id, filasPdf[0].titulo)}.pdf"`);
     res.setHeader('X-PDF-Source', 'puppeteer');
     res.setHeader('Content-Length', pdfBuffer.length);
     res.end(pdfBuffer);
@@ -842,15 +869,15 @@ router.post('/', async (req, res) => {
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO cotizaciones (codigo, cliente_id, empresa_id, potencia_kwp, num_paneles, panel_id,
+      `INSERT INTO cotizaciones (codigo, titulo, cliente_id, empresa_id, potencia_kwp, num_paneles, panel_id,
         inversor_id, bateria_id, num_baterias, produccion_diaria_kwh, produccion_mensual_kwh,
         area_requerida_m2, peso_total_kg, items_json, subtotal, margen_comercial_pct,
         total_inversion, ahorro_mensual, ahorro_anual, roi_sin_incentivos_meses,
         roi_con_incentivos_meses, deduccion_renta_pct, degradacion_anual_pct,
         inflacion_tarifa_pct, aom_anual, aom_incremento_pct, pct_autoconsumo,
         precio_excedente_kwh, proyeccion_25_json, cronograma_json, notas)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [codigo, d.cliente_id, req.user.es_superadmin ? (d.empresa_id || req.user.empresa_id) : req.user.empresa_id, d.potencia_kwp || 0, d.num_paneles || 0, d.panel_id,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [codigo, normalizarTitulo(d.titulo), d.cliente_id, req.user.es_superadmin ? (d.empresa_id || req.user.empresa_id) : req.user.empresa_id, d.potencia_kwp || 0, d.num_paneles || 0, d.panel_id,
        d.inversor_id, d.bateria_id || null, d.num_baterias || 0, d.produccion_diaria_kwh || 0,
        d.produccion_mensual_kwh || 0, d.area_requerida_m2 || 0, d.peso_total_kg || 0,
        d.items_json || '[]', d.subtotal || 0, d.margen_comercial_pct || 30, d.total_inversion || 0,
@@ -864,6 +891,51 @@ router.post('/', async (req, res) => {
     res.json({ id: result.insertId, codigo, message: 'Cotización creada exitosamente' });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ detail: 'Error del servidor' });
+  }
+});
+
+// ── Clonar propuesta ──
+// Un mismo cliente suele pedir varias versiones de la cotización (el consumo de
+// hoy con ventiladores y una proyección con aires acondicionados). La copia nace
+// en borrador, con su propio consecutivo y un título corto para distinguirlas.
+router.post('/:id/clonar', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT c.* FROM cotizaciones c LEFT JOIN clientes cl ON c.cliente_id = cl.id
+       WHERE c.id = ? AND (c.empresa_id = ? OR (c.empresa_id IS NULL AND cl.empresa_id = ?) OR ? = 1)`,
+      [req.params.id, req.user.empresa_id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]
+    );
+    if (rows.length === 0) return res.status(404).json({ detail: 'Cotización no encontrada' });
+    const origen = rows[0];
+
+    // Se copian todas las columnas de la tabla menos la identidad y las fechas, que
+    // deben ser nuevas, y el estado, que se reinicia a borrador porque la copia aún
+    // no se ha revisado ni enviado.
+    const columnas = Object.keys(origen).filter(campo =>
+      !['id', 'codigo', 'titulo', 'estado', 'fecha', 'created_at', 'updated_at'].includes(campo)
+    );
+    const codigo = await generateCodigo();
+    const titulo = normalizarTitulo(req.body.titulo) || `Copia de ${origen.codigo || `PROP-${origen.id}`}`;
+
+    const valores = columnas.map(campo => campo === 'empresa_id'
+      ? (origen.empresa_id || req.user.empresa_id || 1)
+      : normalizarValorCopia(origen[campo]));
+
+    const [result] = await pool.execute(
+      `INSERT INTO cotizaciones (codigo, titulo, estado, ${columnas.join(', ')})
+       VALUES (?, ?, 'borrador', ${columnas.map(() => '?').join(', ')})`,
+      [codigo, titulo, ...valores]
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+      codigo,
+      titulo,
+      message: `Propuesta clonada como ${codigo}${titulo ? ' · ' + titulo : ''}`
+    });
+  } catch (error) {
+    console.error('Error al clonar la propuesta:', error);
     res.status(500).json({ detail: 'Error del servidor' });
   }
 });
@@ -883,7 +955,7 @@ router.put('/:id', async (req, res) => {
        ahorro_anual=?, roi_sin_incentivos_meses=?, roi_con_incentivos_meses=?,
        deduccion_renta_pct=?, degradacion_anual_pct=?, inflacion_tarifa_pct=?,
        aom_anual=?, aom_incremento_pct=?, pct_autoconsumo=?, precio_excedente_kwh=?,
-       proyeccion_25_json=?, cronograma_json=?, notas=? WHERE id=?`,
+       proyeccion_25_json=?, cronograma_json=?, notas=?, titulo=COALESCE(?, titulo) WHERE id=?`,
       [d.cliente_id, d.estado || 'borrador', d.potencia_kwp || 0, d.num_paneles || 0,
        d.panel_id, d.inversor_id, d.bateria_id || null, d.num_baterias || 0,
        d.produccion_diaria_kwh || 0, d.produccion_mensual_kwh || 0, d.area_requerida_m2 || 0,
@@ -893,11 +965,31 @@ router.put('/:id', async (req, res) => {
        d.deduccion_renta_pct || 50, d.degradacion_anual_pct || 0.74,
        d.inflacion_tarifa_pct || 10, d.aom_anual || 0, d.aom_incremento_pct || 5,
        d.pct_autoconsumo || 100, d.precio_excedente_kwh || 0, d.proyeccion_25_json || '[]',
-       d.cronograma_json || '[]', d.notas || '', req.params.id]
+       d.cronograma_json || '[]', d.notas || '',
+       // El asistente del cotizador no conoce el título: COALESCE lo conserva cuando
+       // el payload no lo trae, y permite borrarlo enviando cadena vacía.
+       d.titulo !== undefined ? normalizarTitulo(d.titulo) : null, req.params.id]
     );
     res.json({ message: 'Cotización actualizada exitosamente' });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ detail: 'Error del servidor' });
+  }
+});
+
+// ── Cambiar el título de la propuesta ──
+// Ruta aparte porque el formulario completo del cotizador no siempre está
+// disponible: desde la lista se renombra sólo el título del consecutivo.
+router.put('/:id/titulo', async (req, res) => {
+  try {
+    const [existing] = await pool.execute('SELECT id FROM cotizaciones WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    if (existing.length === 0) return res.status(404).json({ detail: 'Cotización no encontrada' });
+
+    const titulo = normalizarTitulo(req.body.titulo);
+    await pool.execute('UPDATE cotizaciones SET titulo = ? WHERE id = ?', [titulo, req.params.id]);
+    res.json({ message: titulo ? 'Título actualizado' : 'Título eliminado', titulo });
+  } catch (error) {
+    console.error('Error al cambiar el título de la propuesta:', error);
     res.status(500).json({ detail: 'Error del servidor' });
   }
 });

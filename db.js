@@ -93,6 +93,10 @@ function ensureSqliteProjectSchema(database) {
     if (!columns.some((item) => item.name === column)) database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   };
   ['clientes', 'equipos', 'cotizaciones', 'proyectos', 'perfiles_energeticos'].forEach((table) => addColumn(table, 'empresa_id', 'INTEGER'));
+  // Un mismo cliente puede recibir varias propuestas con configuraciones
+  // distintas; el título corto acompaña al consecutivo, así que la columna debe
+  // existir también en bases de datos antiguas.
+  addColumn('cotizaciones', 'titulo', "TEXT DEFAULT ''");
   addColumn('usuarios', 'empresa_id', 'INTEGER');
   addColumn('usuarios', 'es_superadmin', 'INTEGER DEFAULT 0');
   database.exec(`
@@ -305,6 +309,21 @@ async function ensureMysqlSchema(p) {
           [plantas.id, LOGO_PLANTAS]
         );
       }
+    }
+
+    // 4. Título corto de la propuesta: se maneja aparte para que un fallo aquí no
+    // interrumpa las migraciones de configuración de arriba.
+    try {
+      const [cotCols] = await p.query(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cotizaciones' AND COLUMN_NAME = 'titulo'
+      `);
+      if (cotCols.length === 0) {
+        console.log('🔧 MySQL: Añadiendo columna titulo a tabla cotizaciones...');
+        await p.query("ALTER TABLE cotizaciones ADD COLUMN titulo VARCHAR(120) DEFAULT '' AFTER codigo");
+      }
+    } catch (err) {
+      console.error('⚠️ No se pudo migrar cotizaciones.titulo:', err.message);
     }
   } catch (err) {
     console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);

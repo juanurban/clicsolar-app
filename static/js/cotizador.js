@@ -166,6 +166,10 @@ async function renderCotizador() {
             };
             // Mark as editing
             App.editingCotizacionId = editId;
+            // Al clonar una propuesta para el mismo cliente (hoy con ventiladores y
+            // mañana con aires) el consecutivo nuevo no vuelve a aparecer en pantalla,
+            // así que guardamos código y título para poder mostrarlos en el aviso.
+            App.editingCotizacionInfo = { codigo: ed.codigo || '', titulo: ed.titulo || '' };
         }
 
         // Auto-select if arriving from Clients
@@ -218,6 +222,46 @@ function renderStep() {
     else if (stateCotizador.step === 2) renderStep2(container);
     else if (stateCotizador.step === 3) renderStep3(container);
     else if (stateCotizador.step === 4) renderStep4(container);
+
+    pintarAvisoEdicionPropuesta(container);
+}
+
+function pintarAvisoEdicionPropuesta(container) {
+    const info = App.editingCotizacionInfo;
+    if (!App.editingCotizacionId || !info) return;
+
+    const aviso = document.createElement('div');
+    aviso.className = 'mb-6 flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3';
+
+    const icono = document.createElement('span');
+    icono.className = 'material-symbols-outlined text-primary shrink-0';
+    icono.textContent = 'edit_note';
+
+    const texto = document.createElement('div');
+    texto.className = 'min-w-0 flex-1';
+
+    const lineaCodigo = document.createElement('p');
+    lineaCodigo.className = 'text-sm font-bold text-primary';
+    lineaCodigo.textContent = `Editando la propuesta ${info.codigo || 'guardada'}`;
+
+    const lineaTitulo = document.createElement('p');
+    lineaTitulo.className = 'text-xs text-on-surface-variant truncate';
+    lineaTitulo.textContent = info.titulo || 'Sin título';
+
+    texto.append(lineaCodigo, lineaTitulo);
+
+    const salir = document.createElement('button');
+    salir.type = 'button';
+    salir.className = 'text-xs font-bold text-primary underline shrink-0';
+    salir.textContent = 'Salir sin guardar';
+    salir.onclick = () => {
+        App.editingCotizacionId = null;
+        App.editingCotizacionInfo = null;
+        navigateTo('propuestas');
+    };
+
+    aviso.append(icono, texto, salir);
+    container.prepend(aviso);
 }
 
 // ══════════════ STEP 1: PERFIL ══════════════
@@ -1834,6 +1878,7 @@ async function guardarCotizacion(estado, openPdf = false) {
             res = await API.put(`/cotizaciones/${editId}`, { ...payload, estado });
             showToast('Propuesta actualizada', 'success');
             App.editingCotizacionId = null;
+            App.editingCotizacionInfo = null;
         } else {
             res = await API.post('/cotizaciones', payload);
             showToast(res.message, 'success');
