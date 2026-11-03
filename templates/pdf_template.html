@@ -595,15 +595,25 @@
     function formatDate(d) { return new Date(d).toLocaleDateString('es-CO', {year:'numeric',month:'long',day:'numeric'}); }
     function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(+y, +m-1, +d); }
 
-    // El título distingue las propuestas de un mismo cliente (hoy con ventiladores
-    // y mañana con aires acondicionados), así que también viaja en el nombre del
-    // archivo descargado.
+    // Mismo criterio que el servidor (routes/cotizaciones.js → nombreArchivoPropuesta):
+    // nombre del cliente + título, y el consecutivo cuando no hay título. Se
+    // repite aquí a propósito porque la generación local (y el guardado del blob
+    // del servidor) definen el nombre en el navegador, sin pasar por la cabecera
+    // Content-Disposition.
+    function segmentoArchivo(valor, maximo) {
+        return String(valor ?? '')
+            .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, maximo)
+            .replace(/[-_.\s]+$/g, '');
+    }
+
     function nombreArchivoPdf() {
         const codigo = (document.getElementById('prop-codigo')?.innerText || cotizacionId).trim();
-        const titulo = String(window.__propTitulo || '')
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-        return `Propuesta_${codigo}${titulo ? '_' + titulo : ''}.pdf`;
+        const quien = segmentoArchivo(window.__propCliente || document.getElementById('cl-nombre')?.innerText || '', 60) || 'Propuesta';
+        const cual = segmentoArchivo(window.__propTitulo, 40) || segmentoArchivo(codigo, 24) || `PROP-${cotizacionId}`;
+        return `${quien} - ${cual}.pdf`;
     }
     
     async function init() {
@@ -651,7 +661,9 @@
             document.getElementById('f-emp-web4').innerText = data.empresa?.empresa_web || '';
             
             // Cliente
-            document.getElementById('cl-nombre').innerText = data.cliente_nombre;
+            const nombreCliente = String(data.cliente_nombre || '').trim();
+            window.__propCliente = nombreCliente;
+            document.getElementById('cl-nombre').innerText = nombreCliente || '-';
             document.getElementById('cl-id').innerText = `NIT/CC: ${data.cliente_cedula || '-'}`;
             document.getElementById('cl-dir').innerText = `Dir: ${data.cliente_direccion || '-'}`;
             document.getElementById('cl-ciudad').innerText = `Ciudad: ${data.cliente_ciudad || '-'}`;
@@ -1766,7 +1778,6 @@
 
                     actualizarAvisoDescarga('Empaquetando el PDF…');
                     if (window.__generacionLocalAbortada) throw new Error('Generación local abortada por tiempo de espera');
-                    const codigo = document.getElementById('prop-codigo')?.innerText || cotizacionId;
                     pdf.save(nombreArchivoPdf());
                 })(),
                 new Promise((_, reject) => setTimeout(() => {

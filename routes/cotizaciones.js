@@ -108,15 +108,45 @@ function normalizarValorCopia(valor) {
   return (valor && typeof valor === 'object') ? JSON.stringify(valor) : valor;
 }
 
-// Nombre de archivo para las descargas del servidor. Lleva el consecutivo y el
-// título, porque un mismo cliente puede recibir varias propuestas (ventiladores
-// hoy, aires acondicionados mañana) y los PDF no pueden llamarse igual.
-function nombreArchivoPropuesta(codigo, id, titulo) {
-  const base = `propuesta_${codigo || id}`;
-  const slug = normalizarTitulo(titulo).toLowerCase()
+// Fragmento apto para un nombre de archivo: se quitan los caracteres que el
+// sistema de archivos reserva, se colapsan los espacios y se recorta sin dejar
+// signos sueltos al final. Se conservan tildes y la eñe porque viajan codificados
+// en Content-Disposition (filename*=UTF-8'').
+function segmentoArchivo(valor, maximo) {
+  return String(valor ?? '')
+    .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maximo)
+    .replace(/[-_.\s]+$/g, '');
+}
+
+// Nombre de archivo para las descargas del servidor. Antes sólo llevaba el
+// consecutivo, pero al descargar varias propuestas seguidas un
+// "propuesta_PROP-0001.pdf" no dice de quién es; ahora manda el nombre del
+// cliente y el título (el título distingue las propuestas de un mismo cliente:
+// ventiladores hoy, aires acondicionados mañana). Sin título se usa el
+// consecutivo. Mismo criterio que nombreArchivoPdf() en pdf_template.html.
+function nombreArchivoPropuesta(cliente, codigo, id, titulo) {
+  const quien = segmentoArchivo(cliente, 60) || 'Propuesta';
+  const cual = segmentoArchivo(titulo, 40) || segmentoArchivo(codigo, 24) || `PROP-${id}`;
+  return `${quien} - ${cual}`;
+}
+
+// Cabecera de descarga. El nombre con tildes va en filename* (RFC 5987) y se deja
+// una versión ASCII en filename para clientes antiguos; sin ella, un nombre como
+// "Finca La Esperación" llegaba mutilado o con los acentos perdidos.
+function cabeceraDescarga(nombre) {
+  const completo = `${nombre}.pdf`;
+  const ascii = completo
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-  return slug ? `${base}_${slug}` : base;
+    .replace(/[^\x20-\x7e]/g, ' ')
+    .replace(/["\\]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const codificado = encodeURIComponent(completo)
+    .replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${codificado}`;
 }
 
 // Estima las Horas Sol Pico para la ubicación seleccionada. La clave de IA
@@ -649,8 +679,8 @@ async function generateLegacyPDF(req, res) {
     res.status(200);
     res.setHeader('Content-Type', 'application/pdf');
     const tituloCorto = normalizarTitulo(cotizacion.titulo);
-    const nombreArchivo = nombreArchivoPropuesta(cotizacion.codigo, cotizacion.id, tituloCorto);
-    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}.pdf"`);
+    const nombreArchivo = nombreArchivoPropuesta(cotizacion.cliente_nombre, cotizacion.codigo, cotizacion.id, tituloCorto);
+    res.setHeader('Content-Disposition', cabeceraDescarga(nombreArchivo));
     const doc = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true, info: { Title: `Propuesta ${cotizacion.codigo || cotizacion.id}${tituloCorto ? ' - ' + tituloCorto : ''}`, Author: config.empresa_nombre || 'Plantas Solares de Colombia' } });
     doc.pipe(res);
 
@@ -770,7 +800,12 @@ async function generateLegacyPDF(req, res) {
 // ── Download PDF (Puppeteer exact rendering, legacy fallback) ──
 router.get('/:id/pdf-download', async (req, res) => {
   try {
-    const [filasPdf] = await pool.execute('SELECT id, codigo, titulo FROM cotizaciones WHERE id = ?', [req.params.id]);
+    const [filasPdf] = await pool.execute(`
+      SELECT c.id, c.codigo, c.titulo, cl.nombre AS cliente_nombre
+      FROM cotizaciones c
+      LEFT JOIN clientes cl ON c.cliente_id = cl.id
+      WHERE c.id = ?
+    `, [req.params.id]);
     if (!filasPdf.length) return res.status(404).json({ detail: 'Cotización no encontrada' });
 
     const pdfToken = createPdfToken(req.params.id);
@@ -829,7 +864,7 @@ router.get('/:id/pdf-download', async (req, res) => {
     }
     res.status(200);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivoPropuesta(filasPdf[0].codigo, req.params.id, filasPdf[0].titulo)}.pdf"`);
+    res.setHeader('Content-Disposition', cabeceraDescarga(nombreArchivoPropuesta(filasPdf[0].cliente_nombre, filasPdf[0].codigo, req.params.id, filasPdf[0].titulo)));
     res.setHeader('X-PDF-Source', 'puppeteer');
     res.setHeader('Content-Length', pdfBuffer.length);
     res.end(pdfBuffer);
