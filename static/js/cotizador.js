@@ -431,9 +431,14 @@ async function renderStep2(container) {
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="sq-label !mb-0">Panel Solar</label>
-                        <button type="button" onclick="openCrearProductoCotizador('panel')" class="text-xs text-primary hover:underline flex items-center gap-0.5" title="Crear nuevo panel en inventario">
-                            <span class="material-symbols-outlined text-[14px]">add</span> Nuevo panel
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="openEditarProductoDesdeCotizador(document.getElementById('dim-panel').value)" class="text-xs text-on-surface-variant hover:text-primary flex items-center gap-0.5" title="Editar panel seleccionado en el inventario">
+                                <span class="material-symbols-outlined text-[14px]">edit</span> Editar
+                            </button>
+                            <button type="button" onclick="openCrearProductoCotizador('panel')" class="text-xs text-primary hover:underline flex items-center gap-0.5" title="Crear nuevo panel en inventario">
+                                <span class="material-symbols-outlined text-[14px]">add</span> Nuevo
+                            </button>
+                        </div>
                     </div>
                     <select id="dim-panel" class="sq-input" onchange="if(this.value==='__nuevo_panel__'){openCrearProductoCotizador('panel');this.value='${d.panel.id}';}else{triggerDimensionamiento();}">
                         ${optsPanel}
@@ -443,9 +448,14 @@ async function renderStep2(container) {
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="sq-label !mb-0">Inversor</label>
-                        <button type="button" onclick="openCrearProductoCotizador('inversor')" class="text-xs text-primary hover:underline flex items-center gap-0.5" title="Crear nuevo inversor en inventario">
-                            <span class="material-symbols-outlined text-[14px]">add</span> Nuevo inversor
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="openEditarProductoDesdeCotizador(document.getElementById('dim-inversor').value)" class="text-xs text-on-surface-variant hover:text-primary flex items-center gap-0.5" title="Editar inversor seleccionado en el inventario">
+                                <span class="material-symbols-outlined text-[14px]">edit</span> Editar
+                            </button>
+                            <button type="button" onclick="openCrearProductoCotizador('inversor')" class="text-xs text-primary hover:underline flex items-center gap-0.5" title="Crear nuevo inversor en inventario">
+                                <span class="material-symbols-outlined text-[14px]">add</span> Nuevo
+                            </button>
+                        </div>
                     </div>
                     <select id="dim-inversor" class="sq-input" onchange="if(this.value==='__nuevo_inversor__'){openCrearProductoCotizador('inversor');this.value='${d.inversor_sugerido ? d.inversor_sugerido.id : ''}';}else{triggerDimensionamiento();}">
                         ${invOptions}
@@ -568,11 +578,16 @@ async function renderStep2(container) {
                     <div class="md:col-span-6">
                         <div class="flex justify-between items-center mb-1">
                             <label class="sq-label !mb-0">Agregar Ítem Extra</label>
-                            <button type="button" onclick="openCrearProductoCotizador()" class="text-xs text-primary hover:underline flex items-center gap-1">
-                                <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" id="btn-edit-extra-item" onclick="editarItemExtraSeleccionado('extra-item-id')" class="text-xs text-on-surface-variant hover:text-primary flex items-center gap-0.5 hidden" title="Editar este producto en inventario">
+                                    <span class="material-symbols-outlined text-[14px]">edit</span> Editar producto
+                                </button>
+                                <button type="button" onclick="openCrearProductoCotizador()" class="text-xs text-primary hover:underline flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
+                                </button>
+                            </div>
                         </div>
-                        <select id="extra-item-id" class="sq-input" onchange="if(this.value==='__nuevo_item__'){openCrearProductoCotizador();this.value='';}">
+                        <select id="extra-item-id" class="sq-input" onchange="onChangeExtraItem(this.value, 'btn-edit-extra-item')">
                             <option value="">-- Seleccionar --</option>
                             <option value="__nuevo_item__" style="color:#ffc800; font-weight:bold;">➕ Crear nuevo producto / equipo en inventario...</option>
                             ${stateCotizador.paneles.length ? `<optgroup label="Paneles">
@@ -662,9 +677,12 @@ async function renderStep2(container) {
                                     </td>
                                     <td class="px-6 py-4 text-right text-primary font-label-bold align-top">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
                                     <td class="px-6 py-4 text-center">
-                                        <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1">
-                                            <span class="material-symbols-outlined text-[18px]">close</span>
-                                        </button>
+                                        <div class="flex items-center justify-center gap-1">
+                                            ${it.equipo_id ? `<button type="button" onclick="openEditarProductoDesdeCotizador(${it.equipo_id}, '${it.id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar este producto en el inventario"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : ''}
+                                            <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Quitar de la cotización">
+                                                <span class="material-symbols-outlined text-[18px]">close</span>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>`;
                             }).join('')}
@@ -707,6 +725,10 @@ function renderStep2Suministro(container) {
                 <div>
                     <h2 class="font-headline-md text-on-surface">Productos y servicios</h2>
                     <p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p>
+                    <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-label-bold text-primary mt-2 bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg border border-primary/20 transition-colors">
+                        <input type="checkbox" id="check-crono-suministro-step2" ${stateCotizador.cronograma && stateCotizador.cronograma.length > 0 ? 'checked' : ''} onchange="toggleCronogramaSuministro(this.checked)" class="w-4 h-4 accent-primary rounded cursor-pointer">
+                        <span>Incluir cronograma de trabajo en la propuesta</span>
+                    </label>
                 </div>
                 <button type="button" onclick="openCrearProductoCotizador()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1.5 shadow-md">
                     <span class="material-symbols-outlined text-[18px]">add_circle</span> Nuevo Producto al Inventario
@@ -716,11 +738,16 @@ function renderStep2Suministro(container) {
                 <div class="md:col-span-6">
                     <div class="flex justify-between items-center mb-1">
                         <label class="sq-label !mb-0">Producto o servicio</label>
-                        <button type="button" onclick="openCrearProductoCotizador()" class="text-xs text-primary hover:underline flex items-center gap-1">
-                            <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="btn-edit-extra-item-sum" onclick="editarItemExtraSeleccionado('extra-item-id')" class="text-xs text-on-surface-variant hover:text-primary flex items-center gap-0.5 hidden" title="Editar este producto en inventario">
+                                <span class="material-symbols-outlined text-[14px]">edit</span> Editar producto
+                            </button>
+                            <button type="button" onclick="openCrearProductoCotizador()" class="text-xs text-primary hover:underline flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
+                            </button>
+                        </div>
                     </div>
-                    <select id="extra-item-id" class="sq-input" onchange="if(this.value==='__nuevo_item__'){openCrearProductoCotizador();this.value='';}">
+                    <select id="extra-item-id" class="sq-input" onchange="onChangeExtraItem(this.value, 'btn-edit-extra-item-sum')">
                         <option value="">-- Seleccionar --</option>
                         <option value="__nuevo_item__" style="color:#ffc800; font-weight:bold;">➕ Crear nuevo producto / equipo en inventario...</option>
                         ${opciones}
@@ -747,7 +774,12 @@ function renderStep2Suministro(container) {
                                 ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
                             </td>
                             <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
-                            <td class="px-6 py-4 text-center"><button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error"><span class="material-symbols-outlined">close</span></button></td>
+                            <td class="px-6 py-4 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    ${it.equipo_id ? `<button type="button" onclick="openEditarProductoDesdeCotizador(${it.equipo_id}, '${it.id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar este producto en el inventario"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : ''}
+                                    <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Quitar de la cotización"><span class="material-symbols-outlined text-[18px]">close</span></button>
+                                </div>
+                            </td>
                         </tr>`;
                     }).join('')}
                 </tbody><tfoot><tr><td colspan="4" class="px-6 py-5 text-right font-label-bold">Subtotal venta ${(stateCotizador.items || []).some(i => Number(i.precio_final) > 0) ? '(con precios finales editados)' : '(con margen ' + margen + '%)'}</td><td class="px-6 py-5 text-right text-lg text-primary font-label-bold">${formatCurrency(total)}</td><td></td></tr></tfoot></table></div>
@@ -1223,6 +1255,103 @@ async function openCrearProductoCotizador(defaultCat = 'producto') {
         const nombreMostrado = (nuevoEquipo.marca ? nuevoEquipo.marca + ' ' : '') + (nuevoEquipo.modelo || 'Producto');
         showToast(`Producto "${nombreMostrado}" guardado en inventario y disponible en la cotización`, 'success');
     }, defaultCat);
+}
+
+async function openEditarProductoDesdeCotizador(equipoId, itemId = null) {
+    if (!equipoId) return;
+    openEquipoModal(equipoId, async (updatedEq) => {
+        // 1. Recargar catálogo completo de inventario en el cotizador
+        await cargarListasEquipos();
+
+        // 2. Actualizar el ítem en la cotización si existe
+        if (itemId) {
+            const item = (stateCotizador.items || []).find(i => i.id === itemId);
+            if (item) {
+                item.nombre = `${updatedEq.marca ? updatedEq.marca + ' ' : ''}${updatedEq.modelo}`.trim();
+                item.precio_unitario = Number(updatedEq.costo) || 0;
+                item.iva = !!updatedEq.iva;
+                item.subtotal = (Number(item.cantidad) || 0) * item.precio_unitario;
+            }
+        } else {
+            (stateCotizador.items || []).forEach(item => {
+                if (Number(item.equipo_id) === Number(equipoId)) {
+                    item.nombre = `${updatedEq.marca ? updatedEq.marca + ' ' : ''}${updatedEq.modelo}`.trim();
+                    item.precio_unitario = Number(updatedEq.costo) || 0;
+                    item.iva = !!updatedEq.iva;
+                    item.subtotal = (Number(item.cantidad) || 0) * item.precio_unitario;
+                }
+            });
+        }
+
+        // 3. Si se editó el panel o inversor principal del dimensionamiento, sincronizar
+        if (stateCotizador.dimensionamiento) {
+            if (stateCotizador.dimensionamiento.panel && Number(stateCotizador.dimensionamiento.panel.id) === Number(equipoId)) {
+                stateCotizador.dimensionamiento.panel.marca = updatedEq.marca;
+                stateCotizador.dimensionamiento.panel.modelo = updatedEq.modelo;
+                stateCotizador.dimensionamiento.panel.costo = Number(updatedEq.costo) || 0;
+                stateCotizador.dimensionamiento.panel.potencia_wp = Number(updatedEq.potencia_wp) || stateCotizador.dimensionamiento.panel.potencia_wp;
+                await triggerDimensionamiento();
+                return;
+            } else if (stateCotizador.dimensionamiento.inversor_sugerido && Number(stateCotizador.dimensionamiento.inversor_sugerido.id) === Number(equipoId)) {
+                stateCotizador.dimensionamiento.inversor_sugerido.marca = updatedEq.marca;
+                stateCotizador.dimensionamiento.inversor_sugerido.modelo = updatedEq.modelo;
+                stateCotizador.dimensionamiento.inversor_sugerido.costo = Number(updatedEq.costo) || 0;
+                stateCotizador.dimensionamiento.inversor_sugerido.potencia_kw = Number(updatedEq.potencia_kw) || stateCotizador.dimensionamiento.inversor_sugerido.potencia_kw;
+                await triggerDimensionamiento();
+                return;
+            }
+        }
+
+        recalcularPotenciaPico();
+        renderStep();
+        showToast(`Producto "${updatedEq.marca ? updatedEq.marca + ' ' : ''}${updatedEq.modelo}" actualizado con éxito`, 'success');
+    });
+}
+
+function onChangeExtraItem(val, btnId = 'btn-edit-extra-item') {
+    if (val === '__nuevo_item__') {
+        openCrearProductoCotizador();
+        const select = document.getElementById('extra-item-id');
+        if (select) select.value = '';
+        return;
+    }
+    const btnEdit = document.getElementById(btnId);
+    if (btnEdit) {
+        if (val && val.includes('-')) {
+            btnEdit.classList.remove('hidden');
+        } else {
+            btnEdit.classList.add('hidden');
+        }
+    }
+}
+
+function editarItemExtraSeleccionado(selectId = 'extra-item-id') {
+    const el = document.getElementById(selectId);
+    if (!el || !el.value) return;
+    const parts = el.value.split('-');
+    if (parts.length >= 2) {
+        const eqId = parseInt(parts[1]);
+        if (eqId) openEditarProductoDesdeCotizador(eqId);
+    }
+}
+
+function toggleCronogramaSuministro(incluir) {
+    if (incluir) {
+        if (!stateCotizador.cronograma || stateCotizador.cronograma.length === 0) {
+            const base_date = addBusinessDays(new Date(), 3);
+            stateCotizador.cronograma = [
+                { fecha_inicio: addBusinessDays(base_date, 0), fecha_fin: addBusinessDays(base_date, 1), actividad: 'Aprobación de orden de compra y anticipo', completado: false },
+                { fecha_inicio: addBusinessDays(base_date, 2), fecha_fin: addBusinessDays(base_date, 4), actividad: 'Alistamiento y despacho de productos / equipos', completado: false },
+                { fecha_inicio: addBusinessDays(base_date, 5), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Entrega, instalación o prestación del servicio', completado: false },
+                { fecha_inicio: addBusinessDays(base_date, 8), fecha_fin: addBusinessDays(base_date, 8), actividad: 'Pruebas, entrega a satisfacción y liquidación', completado: false }
+            ];
+        }
+        showToast('Cronograma de trabajo activado', 'info');
+    } else {
+        stateCotizador.cronograma = [];
+        showToast('Cronograma de trabajo removido', 'info');
+    }
+    renderStep();
 }
 
 async function prepareAndGoToStep3() {
@@ -1870,8 +1999,54 @@ function renderStep4(container) {
                 </div>
             </div>
 
-            ${esSuministro ? '' : `
-            <!-- Cronograma editable (solo propuestas solares; en suministro no se carga) -->
+            ${esSuministro ? `
+            <!-- Cronograma para Suministro (con Checkbox para agregar o quitar) -->
+            <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-headline-md text-on-surface">Cronograma de Trabajo</h3>
+                            <span class="text-xs text-on-surface-variant font-label-bold uppercase bg-surface-container px-2 py-0.5 rounded">Opcional</span>
+                        </div>
+                        <p class="text-xs text-on-surface-variant mt-1">Activa esta casilla para planificar y mostrar las etapas de entrega, instalación o prestación del servicio en la propuesta.</p>
+                    </div>
+                    <label class="flex items-center gap-2.5 cursor-pointer text-sm font-label-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2.5 rounded-xl border border-primary/30 transition-all select-none">
+                        <input type="checkbox" id="check-crono-suministro-step4" ${stateCotizador.cronograma && stateCotizador.cronograma.length > 0 ? 'checked' : ''} onchange="toggleCronogramaSuministro(this.checked)" class="w-5 h-5 accent-primary rounded cursor-pointer">
+                        <span>Incluir Cronograma de Trabajo</span>
+                    </label>
+                </div>
+
+                ${stateCotizador.cronograma && stateCotizador.cronograma.length > 0 ? `
+                <div class="flex justify-end mb-3">
+                    <button type="button" onclick="addCronogramaRow()" class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px]">add</span> Agregar Fila
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="text-xs uppercase text-on-surface-variant bg-surface-container border-b border-outline-variant/20">
+                            <tr>
+                                <th class="px-2 py-3 w-8"></th>
+                                <th class="px-4 py-3 w-32">Inicio</th>
+                                <th class="px-4 py-3 w-32">Fin</th>
+                                <th class="px-4 py-3">Actividad</th>
+                                <th class="px-4 py-3 w-12"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="crono-rows" class="crono-drag-container">
+                            ${stateCotizador.cronograma.map((r, i) => cronoRowHtml(r, i)).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ` : `
+                <div class="p-6 text-center text-on-surface-variant text-sm bg-surface-container-high/40 rounded-lg border border-dashed border-outline-variant/30">
+                    <span class="material-symbols-outlined text-[28px] text-on-surface-variant/60 mb-1 block">event_busy</span>
+                    El cronograma de trabajo no se incluirá en esta propuesta de productos/servicios. Marca la casilla de arriba si deseas agregarlo.
+                </div>
+                `}
+            </div>
+            ` : `
+            <!-- Cronograma editable (solo propuestas solares) -->
             <div class="bg-surface-container-low p-6 rounded-xl">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="font-headline-md text-on-surface">Cronograma de Ejecución y Pagos</h3>
