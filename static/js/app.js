@@ -49,6 +49,18 @@ const API = {
 };
 
 // ══════════════════════════════════════════
+//  PERFORMANCE UTILITIES
+// ══════════════════════════════════════════
+
+function debounce(fn, delay = 250) {
+    let timer = null;
+    return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
+
+// ══════════════════════════════════════════
 //  FORMAT UTILITIES
 // ══════════════════════════════════════════
 
@@ -228,7 +240,6 @@ async function handleRoute() {
     }
 
     const content = document.getElementById('app-content');
-    content.innerHTML = `<div class="flex items-center justify-center h-[60vh]"><div class="sq-spinner"></div></div>`;
 
     const routeFn = routes[page];
     if (routeFn) {

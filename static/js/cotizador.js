@@ -494,45 +494,56 @@ async function renderStep2(container) {
                     <h3 class="font-headline-md text-headline-md text-on-surface">Sistema Propuesto</h3>
                     <div class="text-right">
                         <div class="text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">Cobertura</div>
-                        <div class="font-display-lg text-primary text-4xl">${d.cobertura_pct || 0}%</div>
+                        <div id="card-cobertura-val" class="font-display-lg text-primary text-4xl">${d.cobertura_pct || 0}%</div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-primary text-[40px] mb-4">solar_power</span>
-                        <div class="font-display-lg text-on-surface text-4xl mb-2">${d.potencia_kwp || 0} <span class="text-xl">kWp</span></div>
+                        <div id="card-potencia-val" class="font-display-lg text-on-surface text-4xl mb-2">${d.potencia_kwp || 0} <span class="text-xl">kWp</span></div>
                         <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Potencia Instalada</div>
                     </div>
 
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-primary text-[40px] mb-4">grid_view</span>
-                        <div class="font-display-lg text-on-surface text-4xl mb-2">${d.num_paneles || 0} <span class="text-xl">Und</span></div>
+                        <div id="card-paneles-val" class="font-display-lg text-on-surface text-4xl mb-2">${d.num_paneles || 0} <span class="text-xl">Und</span></div>
                         <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Cantidad Paneles</div>
                     </div>
 
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-4">electric_bolt</span>
-                        <div class="font-display-lg text-on-surface text-3xl mb-2">${formatNumber(d.produccion_mensual_kwh)} <span class="text-lg">kWh</span></div>
+                        <div id="card-produccion-val" class="font-display-lg text-on-surface text-3xl mb-2">${formatNumber(d.produccion_mensual_kwh)} <span class="text-lg">kWh</span></div>
                         <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Producción Mensual</div>
                     </div>
 
                     <div class="bg-surface-container-low border border-outline-variant/30 p-8 lg:p-10 rounded-xl text-center">
                         <span class="material-symbols-outlined text-on-surface-variant text-[40px] mb-4">architecture</span>
-                        <div class="font-display-lg text-on-surface text-3xl mb-2">${d.area_requerida_m2 || 0} <span class="text-lg">m²</span></div>
-                        <div class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Área · ${d.peso_total_kg || 0} kg</div>
+                        <div id="card-area-val" class="font-display-lg text-on-surface text-3xl mb-2">${d.area_requerida_m2 || 0} <span class="text-lg">m²</span></div>
+                        <div id="card-peso-val" class="text-sm text-on-surface-variant uppercase tracking-wider font-medium">Área · ${d.peso_total_kg || 0} kg</div>
                     </div>
                 </div>
             </div>
 
             <!-- Grilla de Ítems (BOM) -->
             <div class="bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20">
-                <div class="p-5 lg:p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-highest">
-                    <h3 class="font-headline-md text-headline-md text-on-surface">Equipos, Materiales y Servicios</h3>
+                <div class="p-5 lg:p-6 border-b border-outline-variant/20 flex flex-wrap justify-between items-center gap-4 bg-surface-container-highest">
+                    <div>
+                        <h3 class="font-headline-md text-headline-md text-on-surface">Equipos, Materiales y Servicios</h3>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Componentes de la planta y materiales complementarios.</p>
+                    </div>
+                    <button type="button" onclick="openCrearProductoCotizador()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1.5 shadow-md">
+                        <span class="material-symbols-outlined text-[18px]">add_circle</span> Nuevo Producto al Inventario
+                    </button>
                 </div>
-                <div class="p-5 lg:p-6 grid grid-cols-1 md:grid-cols-4 gap-5 items-end bg-surface-container-low border-b border-outline-variant/20">
-                    <div class="md:col-span-2">
-                        <label class="sq-label">Agregar Ítem Extra</label>
+                <div class="p-5 lg:p-6 grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-surface-container-low border-b border-outline-variant/20">
+                    <div class="md:col-span-6">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="sq-label !mb-0">Agregar Ítem Extra</label>
+                            <button type="button" onclick="openCrearProductoCotizador()" class="text-xs text-primary hover:underline flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
+                            </button>
+                        </div>
                         <select id="extra-item-id" class="sq-input">
                             <option value="">-- Seleccionar --</option>
                             ${stateCotizador.paneles.length ? `<optgroup label="Paneles">
@@ -555,11 +566,11 @@ async function renderStep2(container) {
                             </optgroup>` : ''}
                         </select>
                     </div>
-                    <div>
+                    <div class="md:col-span-3">
                         <label class="sq-label">Cantidad</label>
-                        <input type="number" id="extra-item-qty" class="sq-input" value="1" min="1">
+                        <input type="number" id="extra-item-qty" class="sq-input" value="1" min="0.1" step="any">
                     </div>
-                    <div>
+                    <div class="md:col-span-3">
                         <button onclick="addExtraItem()" class="sq-btn sq-btn-secondary w-full">Añadir</button>
                     </div>
                 </div>
@@ -663,11 +674,27 @@ function renderStep2Suministro(container) {
     const total = (stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-8">
-            <div class="flex justify-between items-start gap-4"><div><h2 class="font-headline-md text-on-surface">Productos y servicios</h2><p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p></div></div>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-5 items-end p-6 bg-surface-container-low rounded-xl border border-outline-variant/20">
-                <div class="md:col-span-2"><label class="sq-label">Producto o servicio</label><select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select></div>
-                <div><label class="sq-label">Cantidad</label><input type="number" id="extra-item-qty" class="sq-input" value="1" min="0.1" step="any"></div>
-                <button onclick="addExtraItem()" class="sq-btn sq-btn-secondary">Añadir ítem</button>
+            <div class="flex flex-wrap justify-between items-start gap-4">
+                <div>
+                    <h2 class="font-headline-md text-on-surface">Productos y servicios</h2>
+                    <p class="text-on-surface-variant mt-2">Agrega los elementos que formarán parte de la propuesta y define sus cantidades.</p>
+                </div>
+                <button type="button" onclick="openCrearProductoCotizador()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1.5 shadow-md">
+                    <span class="material-symbols-outlined text-[18px]">add_circle</span> Nuevo Producto al Inventario
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end p-6 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                <div class="md:col-span-6">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="sq-label !mb-0">Producto o servicio</label>
+                        <button type="button" onclick="openCrearProductoCotizador()" class="text-xs text-primary hover:underline flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
+                        </button>
+                    </div>
+                    <select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select>
+                </div>
+                <div class="md:col-span-3"><label class="sq-label">Cantidad</label><input type="number" id="extra-item-qty" class="sq-input" value="1" min="0.1" step="any"></div>
+                <div class="md:col-span-3"><button onclick="addExtraItem()" class="sq-btn sq-btn-secondary w-full">Añadir ítem</button></div>
             </div>
             <div class="bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20">
                 <div class="p-5 bg-surface-container-highest"><h3 class="font-headline-md text-on-surface">Detalle de la propuesta</h3></div>
@@ -903,7 +930,8 @@ function updateItemQty(id, val) {
     item.subtotal = qty * item.precio_unitario;
     
     recalcularPotenciaPico();
-    renderStep();
+    actualizarPreciosTabla();
+    actualizarCardsDimensionamiento();
 }
 
 // ═══ Etiquetas de categoría ═══
@@ -947,7 +975,7 @@ function setItemPrecioFinal(id, val) {
     } else {
         item.precio_final = Math.round(n);
     }
-    renderStep();
+    actualizarPreciosTabla();
 }
 
 function changeItemEquipo(itemId, newEquipoId) {
@@ -1037,7 +1065,131 @@ function recalcularPotenciaPico() {
 function updateStep2Margen(val) {
     stateCotizador.config.margen = parseFloat(val);
     document.getElementById('dim-margen-val').textContent = val + '%';
-    renderStep();
+    // Solo actualizar los precios de la tabla, no re-renderizar todo el paso
+    actualizarPreciosTabla();
+}
+
+function actualizarCardsDimensionamiento() {
+    const d = stateCotizador.dimensionamiento;
+    if (!d) return;
+    const elPot = document.getElementById('card-potencia-val');
+    if (elPot) elPot.innerHTML = `${d.potencia_kwp || 0} <span class="text-xl">kWp</span>`;
+    const elPan = document.getElementById('card-paneles-val');
+    if (elPan) elPan.innerHTML = `${d.num_paneles || 0} <span class="text-xl">Und</span>`;
+    const elProd = document.getElementById('card-produccion-val');
+    if (elProd) elProd.innerHTML = `${formatNumber(d.produccion_mensual_kwh)} <span class="text-lg">kWh</span>`;
+    const elArea = document.getElementById('card-area-val');
+    if (elArea) elArea.innerHTML = `${d.area_requerida_m2 || 0} <span class="text-lg">m²</span>`;
+    const elPeso = document.getElementById('card-peso-val');
+    if (elPeso) elPeso.innerHTML = `Área · ${d.peso_total_kg || 0} kg`;
+    const elCob = document.getElementById('card-cobertura-val');
+    if (elCob) elCob.textContent = `${d.cobertura_pct || 0}%`;
+}
+
+function actualizarPreciosTabla() {
+    const margen = stateCotizador.config.margen || 0;
+    const rows = document.querySelectorAll('#step-container tbody tr');
+    rows.forEach(row => {
+        // Encontrar el input de cantidad para obtener el ID del item
+        const qtyInput = row.querySelector('input[type="number"][onchange^="updateItemQty"]');
+        if (!qtyInput) return;
+
+        // Extraer el ID del item del atributo onchange
+        const match = qtyInput.getAttribute('onchange').match(/updateItemQty\('([^']+)'/);
+        if (!match) return;
+        const id = match[1];
+        const item = stateCotizador.items.find(i => i.id === id);
+        if (!item) return;
+
+        const precioVenta = pvItem(item);
+        const override = Number(item.precio_final) > 0;
+
+        // Actualizar el campo de precio final si no es el input actualmente enfocado
+        const priceInput = row.querySelector('input[type="number"][onchange^="setItemPrecioFinal"]');
+        if (priceInput && document.activeElement !== priceInput) {
+            priceInput.value = precioVenta;
+            if (override) {
+                priceInput.classList.add('border-primary', 'text-primary', 'font-label-bold');
+            } else {
+                priceInput.classList.remove('border-primary', 'text-primary', 'font-label-bold');
+            }
+        }
+
+        // Actualizar el subtotal (penúltima celda de datos)
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 3) {
+            const subtotalCell = cells[cells.length - 2];
+            subtotalCell.innerHTML = formatCurrency(precioVenta * (Number(item.cantidad) || 0));
+        }
+    });
+
+    // Actualizar el total del tfoot
+    const tfoot = document.querySelector('#step-container tfoot');
+    if (tfoot) {
+        const total = (stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
+        const subtotalLabelCell = tfoot.querySelector('td[colspan]');
+        if (subtotalLabelCell) {
+            const hasFinalPrice = (stateCotizador.items || []).some(i => Number(i.precio_final) > 0);
+            subtotalLabelCell.innerHTML = `SUBTOTAL VENTA ${hasFinalPrice ? '(con precios finales editados)' : '(Costo + Margen ' + margen + '%)'}`;
+        }
+        const totalValorCell = tfoot.querySelector('td.text-lg.text-primary, td.text-primary.text-lg');
+        if (totalValorCell) {
+            totalValorCell.innerHTML = formatCurrency(total);
+        }
+    }
+}
+
+async function openCrearProductoCotizador(defaultCat = 'producto') {
+    openEquipoModal(null, async (nuevoEquipo) => {
+        // 1. Recargar catálogo completo de inventario en el cotizador
+        await cargarListasEquipos();
+
+        // Determinar prefijo según categoría
+        const prefijos = {
+            panel: 'pan',
+            inversor: 'inv',
+            bateria: 'bat',
+            producto: 'prod',
+            estructura: 'mat',
+            servicio: 'ser'
+        };
+        const prefijo = prefijos[nuevoEquipo.categoria] || 'prod';
+        const itemVal = `${prefijo}-${nuevoEquipo.id}`;
+
+        // 2. Re-renderizar el paso 2 para actualizar todos los selectores
+        if (stateCotizador.step === 2) {
+            renderStep();
+
+            // 3. Seleccionar automáticamente el nuevo producto en el dropdown
+            setTimeout(() => {
+                const selectExtra = document.getElementById('extra-item-id');
+                if (selectExtra) {
+                    selectExtra.value = itemVal;
+                    selectExtra.focus();
+                    selectExtra.classList.add('border-primary');
+                    setTimeout(() => selectExtra.classList.remove('border-primary'), 3000);
+                }
+
+                // Si es un panel o inversor, también dejarlo disponible / seleccionado en dimensionamiento
+                if (nuevoEquipo.categoria === 'panel') {
+                    const selPanel = document.getElementById('dim-panel');
+                    if (selPanel) {
+                        selPanel.value = nuevoEquipo.id;
+                        triggerDimensionamiento();
+                    }
+                } else if (nuevoEquipo.categoria === 'inversor') {
+                    const selInv = document.getElementById('dim-inversor');
+                    if (selInv) {
+                        selInv.value = nuevoEquipo.id;
+                        triggerDimensionamiento();
+                    }
+                }
+            }, 60);
+        }
+
+        const nombreMostrado = (nuevoEquipo.marca ? nuevoEquipo.marca + ' ' : '') + (nuevoEquipo.modelo || 'Producto');
+        showToast(`Producto "${nombreMostrado}" guardado en inventario y disponible en la cotización`, 'success');
+    }, defaultCat);
 }
 
 async function prepareAndGoToStep3() {

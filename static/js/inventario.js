@@ -179,10 +179,13 @@ async function fetchEquipos() {
     }
 }
 
-async function openEquipoModal(id = null) {
+let equipoModalCallback = null;
+
+async function openEquipoModal(id = null, callback = null, defaultCat = null) {
+    equipoModalCallback = callback;
     let e = {
         // En la vista TODOS no hay categoría de pestaña; 'producto' es la categoría genérica
-        categoria: stateInventario.categoria || 'producto', marca: '', modelo: '', descripcion: '',
+        categoria: defaultCat || stateInventario.categoria || 'producto', marca: '', modelo: '', descripcion: '',
         potencia_wp: 0, potencia_kw: 0, capacidad_kwh: 0, tipo: '',
         costo: 0, precio_venta: 0, unidad: 'und', peso_kg: 0, area_m2: 0, activo: 1, imagen_url: '', iva: true
     };
@@ -381,20 +384,28 @@ async function saveEquipo(e, id) {
     data.iva = fd.get('iva') ? true : false;
 
     try {
+        let createdId = id;
         if (id) {
             await API.put(`/equipos/${id}`, data);
             showToast('Actualizado', 'success');
         } else {
-            await API.post('/equipos', data);
+            const res = await API.post('/equipos', data);
+            createdId = res.id;
             showToast('Creado', 'success');
         }
         closeModal();
-        // Solo si el filtro actual es una categoría distinta a la del ítem se cambia el
-        // filtro para que el usuario lo vea; con "TODOS" el ítem ya es visible.
-        if (stateInventario.categoria && data.categoria && data.categoria !== stateInventario.categoria) {
-            switchInvCat(data.categoria);
-        } else {
-            fetchEquipos();
+        if (typeof equipoModalCallback === 'function') {
+            const cb = equipoModalCallback;
+            equipoModalCallback = null;
+            await cb({ id: createdId, ...data });
+        } else if (document.getElementById('equipos-grid')) {
+            // Solo si el filtro actual es una categoría distinta a la del ítem se cambia el
+            // filtro para que el usuario lo vea; con "TODOS" el ítem ya es visible.
+            if (stateInventario.categoria && data.categoria && data.categoria !== stateInventario.categoria) {
+                switchInvCat(data.categoria);
+            } else {
+                fetchEquipos();
+            }
         }
     } catch (error) {
         showToast(error.message, 'error');

@@ -9,8 +9,12 @@
 ::-webkit-scrollbar-thumb:hover { background: #9b9078; }
 
 /* ── Transitions ── */
-* { transition-property: background-color, border-color, color, opacity, transform;
-    transition-duration: 200ms; transition-timing-function: ease-out; }
+/* Solo animar elementos interactivos específicos, NUNCA usar el selector universal '*' */
+a, button, .sq-btn, .sq-input, .sq-tab, .nav-link, .sq-step {
+    transition-property: background-color, border-color, color, box-shadow, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
 
 /* ── Form Inputs ── */
 .sq-input {
@@ -302,18 +306,18 @@ select.sq-input {
 
 /* ── Animations ── */
 .fade-in {
-    animation: fadeIn 0.4s ease-out;
+    animation: fadeIn 0.15s ease-out;
 }
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .slide-up {
-    animation: slideUp 0.3s ease-out;
+    animation: slideUp 0.18s ease-out;
 }
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(30px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
