@@ -406,6 +406,18 @@ async function renderStep2(container) {
     container.innerHTML = `
         <div class="p-8 lg:p-10 fade-in flex flex-col gap-10">
 
+            <!-- Encabezado del Paso 2 con botón de acción destacado -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-outline-variant/30">
+                <div>
+                    <h2 class="font-headline-md text-headline-md text-on-surface">Diseño Técnico y Selección de Equipos</h2>
+                    <p class="text-sm text-on-surface-variant mt-1">Configura el dimensionamiento o añade nuevos equipos al catálogo sin salir del cotizador.</p>
+                </div>
+                <button type="button" onclick="openCrearProductoCotizador()" class="sq-btn sq-btn-primary flex items-center gap-2 shadow-lg" style="background:#ffc800; color:#3e2e00; font-weight:700;">
+                    <span class="material-symbols-outlined text-[20px]">add_circle</span>
+                    <span>+ AGREGAR AL INVENTARIO</span>
+                </button>
+            </div>
+
             <!-- Fila de Controles -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
@@ -417,12 +429,28 @@ async function renderStep2(container) {
                     </select>
                 </div>
                 <div>
-                    <label class="sq-label">Panel Solar</label>
-                    <select id="dim-panel" class="sq-input" onchange="triggerDimensionamiento()">${optsPanel}</select>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="sq-label !mb-0">Panel Solar</label>
+                        <button type="button" onclick="openCrearProductoCotizador('panel')" class="text-xs text-primary hover:underline flex items-center gap-0.5" title="Crear nuevo panel en inventario">
+                            <span class="material-symbols-outlined text-[14px]">add</span> Nuevo panel
+                        </button>
+                    </div>
+                    <select id="dim-panel" class="sq-input" onchange="if(this.value==='__nuevo_panel__'){openCrearProductoCotizador('panel');this.value='${d.panel.id}';}else{triggerDimensionamiento();}">
+                        ${optsPanel}
+                        <option value="__nuevo_panel__" style="color:#ffc800; font-weight:bold;">➕ Crear nuevo panel en inventario...</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="sq-label">Inversor</label>
-                    <select id="dim-inversor" class="sq-input" onchange="triggerDimensionamiento()">${invOptions}</select>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="sq-label !mb-0">Inversor</label>
+                        <button type="button" onclick="openCrearProductoCotizador('inversor')" class="text-xs text-primary hover:underline flex items-center gap-0.5" title="Crear nuevo inversor en inventario">
+                            <span class="material-symbols-outlined text-[14px]">add</span> Nuevo inversor
+                        </button>
+                    </div>
+                    <select id="dim-inversor" class="sq-input" onchange="if(this.value==='__nuevo_inversor__'){openCrearProductoCotizador('inversor');this.value='${d.inversor_sugerido ? d.inversor_sugerido.id : ''}';}else{triggerDimensionamiento();}">
+                        ${invOptions}
+                        <option value="__nuevo_inversor__" style="color:#ffc800; font-weight:bold;">➕ Crear nuevo inversor en inventario...</option>
+                    </select>
                 </div>
                 <div>
                     <label class="sq-label">Eficiencia (%)</label>
@@ -544,8 +572,9 @@ async function renderStep2(container) {
                                 <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
                             </button>
                         </div>
-                        <select id="extra-item-id" class="sq-input">
+                        <select id="extra-item-id" class="sq-input" onchange="if(this.value==='__nuevo_item__'){openCrearProductoCotizador();this.value='';}">
                             <option value="">-- Seleccionar --</option>
+                            <option value="__nuevo_item__" style="color:#ffc800; font-weight:bold;">➕ Crear nuevo producto / equipo en inventario...</option>
                             ${stateCotizador.paneles.length ? `<optgroup label="Paneles">
                                 ${stateCotizador.paneles.map(p => `<option value="pan-${p.id}">${p.marca} ${p.modelo}</option>`).join('')}
                             </optgroup>` : ''}
@@ -691,7 +720,11 @@ function renderStep2Suministro(container) {
                             <span class="material-symbols-outlined text-[14px]">add</span> Crear en inventario
                         </button>
                     </div>
-                    <select id="extra-item-id" class="sq-input"><option value="">-- Seleccionar --</option>${opciones}</select>
+                    <select id="extra-item-id" class="sq-input" onchange="if(this.value==='__nuevo_item__'){openCrearProductoCotizador();this.value='';}">
+                        <option value="">-- Seleccionar --</option>
+                        <option value="__nuevo_item__" style="color:#ffc800; font-weight:bold;">➕ Crear nuevo producto / equipo en inventario...</option>
+                        ${opciones}
+                    </select>
                 </div>
                 <div class="md:col-span-3"><label class="sq-label">Cantidad</label><input type="number" id="extra-item-qty" class="sq-input" value="1" min="0.1" step="any"></div>
                 <div class="md:col-span-3"><button onclick="addExtraItem()" class="sq-btn sq-btn-secondary w-full">Añadir ítem</button></div>
