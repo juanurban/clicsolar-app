@@ -205,6 +205,34 @@ function ensureSqliteProjectSchema(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_perfiles_energeticos_cliente ON perfiles_energeticos(cliente_id);
   `);
+
+  // Instalaciones: pasos de seguimiento en proyectos
+  addColumn('proyectos', 'tipo', "TEXT DEFAULT 'instalacion'");
+  addColumn('proyectos', 'pasos_json', "TEXT DEFAULT '[]'");
+  try { addColumn('proyectos', 'empresa_id', 'INTEGER'); } catch (e) {}
+  // Asegurar estados estándar de instalación si la tabla tiene los estados antiguos por defecto
+  try {
+    const hasInstalacionPaso = database.prepare("SELECT id FROM estados_proyecto WHERE nombre = 'Firma del contrato' LIMIT 1").get();
+    if (!hasInstalacionPaso) {
+      const pasos = [
+        ['Firma del contrato','border-l-4 border-blue-400 bg-surface-container',1],
+        ['Giro del anticipo','border-l-4 border-cyan-400 bg-surface-container',2],
+        ['Visita técnica','border-l-4 border-purple-400 bg-surface-container',3],
+        ['Diseño y dimensionamiento','border-l-4 border-indigo-400 bg-surface-container',4],
+        ['Lista de materiales','border-l-4 border-yellow-400 bg-surface-container',5],
+        ['Compra de materiales','border-l-4 border-orange-400 bg-surface-container',6],
+        ['Cronograma de instalación','border-l-4 border-teal-400 bg-surface-container',7],
+        ['Instalación','border-l-4 border-amber-500 bg-surface-container',8],
+        ['Pruebas','border-l-4 border-lime-500 bg-surface-container',9],
+        ['Entrega','border-l-4 border-green-500 bg-surface-container',10],
+        ['Legalización operador de red','border-l-4 border-emerald-600 bg-surface-container',11],
+        ['Conexión final','border-l-4 border-primary bg-surface-container',12]
+      ];
+      const ins = database.prepare('INSERT INTO estados_proyecto (nombre, color, orden) VALUES (?, ?, ?)');
+      const tx = database.transaction((items)=>{ for (const it of items) ins.run(...it); });
+      tx(pasos);
+    }
+  } catch (e) { /* best effort */ }
 }
 
 async function ensureMysqlSchema(p) {
@@ -324,6 +352,39 @@ async function ensureMysqlSchema(p) {
       }
     } catch (err) {
       console.error('⚠️ No se pudo migrar cotizaciones.titulo:', err.message);
+    }
+
+    // 5. Cargas off-grid del cliente (equipos, banco de baterías e inversor).
+    try {
+      const [cargaCols] = await p.query(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'clientes' AND COLUMN_NAME = 'cargas_offgrid_json'
+      `);
+      if (cargaCols.length === 0) {
+        console.log('🔧 MySQL: Añadiendo columna cargas_offgrid_json a tabla clientes...');
+        await p.query('ALTER TABLE clientes ADD COLUMN cargas_offgrid_json JSON AFTER archivos_json');
+      }
+    } catch (err) {
+      console.error('⚠️ No se pudo migrar clientes.cargas_offgrid_json:', err.message);
+    }
+
+    // 6. Instalaciones: pasos y tipo en proyectos
+    try {
+      const [pCols] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = 'pasos_json'`);
+      if (pCols.length === 0) {
+        await p.query('ALTER TABLE proyectos ADD COLUMN pasos_json LONGTEXT NULL');
+        console.log('🔧 MySQL: Añadida columna proyectos.pasos_json');
+      }
+      const [tCols] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = 'tipo'`);
+      if (tCols.length === 0) {
+        await p.query("ALTER TABLE proyectos ADD COLUMN tipo VARCHAR(50) DEFAULT 'instalacion'");
+      }
+      const [eCols] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = 'empresa_id'`);
+      if (eCols.length === 0) {
+        await p.query('ALTER TABLE proyectos ADD COLUMN empresa_id INT NULL');
+      }
+    } catch (err) {
+      console.error('⚠️ No se pudo migrar proyectos (instalaciones):', err.message);
     }
   } catch (err) {
     console.error('⚠️ Warning verificando/migrando esquema MySQL:', err.message);

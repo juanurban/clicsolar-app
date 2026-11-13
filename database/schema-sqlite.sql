@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     cargas_especiales_kwh_dia REAL DEFAULT 0,
     historial_consumo TEXT DEFAULT '[]',
     archivos_json TEXT DEFAULT '[]',
+    cargas_offgrid_json TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -152,6 +153,8 @@ CREATE TABLE IF NOT EXISTS proyectos (
     fecha_entrega_estimada TIMESTAMP,
     fecha_entrega_real TIMESTAMP,
     notas TEXT,
+    tipo TEXT DEFAULT 'instalacion',
+    pasos_json TEXT DEFAULT '[]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE SET NULL,

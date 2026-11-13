@@ -127,6 +127,9 @@ async function fetchPropuestas() {
                                         <button onclick="renombrarPropuesta(${c.id})" class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-white" title="Editar el título del consecutivo">
                                             <span class="material-symbols-outlined text-[20px]">title</span>
                                         </button>
+                                        ${c.estado === 'firmada' ? `<button onclick="crearInstalacionDesdePropuesta(${c.id})" class="p-2 hover:bg-primary/10 rounded-lg text-primary" title="Crear instalación desde esta cotización firmada">
+                                            <span class="material-symbols-outlined text-[20px]">solar_power</span>
+                                        </button>` : ''}
                                         <button onclick="cambiarEstadoModal(${c.id}, '${c.estado}')" class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-white" title="Cambiar Estado">
                                             <span class="material-symbols-outlined text-[20px]">swap_horiz</span>
                                         </button>
@@ -359,4 +362,30 @@ async function guardarTituloPropuesta(id) {
         showToast(e.message, 'error');
         if (boton) boton.disabled = false;
     }
+}
+
+
+async function crearInstalacionDesdePropuesta(id) {
+    const c = propuestaEnLista(id);
+    const nombre = `Instalación ${c.codigo || 'PROP-'+id}${c.titulo ? ' · '+c.titulo : ''} - ${c.cliente_nombre || ''}`;
+    confirmAction(`¿Crear instalación desde la cotización <b>${escaparHtml(c.codigo || '')}${c.titulo ? ' · '+escaparHtml(c.titulo):''}</b>?<br><small class="text-on-surface-variant">Se iniciará el seguimiento con los 12 pasos de instalación.</small>`, async () => {
+        try {
+            const res = await API.post('/proyectos', { cotizacion_id: id, nombre });
+            showToast(res.message || 'Instalación creada', 'success');
+            // navegar a instalaciones y abrir detalle si es posible
+            if (res.id) {
+                navigateTo('proyectos');
+                setTimeout(() => { if (window.ProyectosModule && ProyectosModule.openDetalle) ProyectosModule.openDetalle(res.id); }, 400);
+            } else {
+                navigateTo('proyectos');
+            }
+        } catch (e) {
+            if (String(e.message||'').includes('ya existe') || String(e.message||'').includes('UNIQUE')) {
+                showToast('Esta cotización ya tiene una instalación asociada', 'info');
+                navigateTo('proyectos');
+            } else {
+                showToast(e.message || 'No se pudo crear la instalación', 'error');
+            }
+        }
+    });
 }

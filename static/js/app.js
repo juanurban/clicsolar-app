@@ -300,7 +300,7 @@ function confirmAction(message, onConfirm) {
                 </div>
                 <h3 class="font-headline-md text-headline-md text-on-surface">Confirmar acción</h3>
             </div>
-            <p class="text-on-surface-variant mb-8">${message}</p>
+            <div class="text-on-surface-variant mb-8">${message}</div>
             <div class="flex justify-end gap-3">
                 <button class="sq-btn sq-btn-secondary" onclick="closeModal()">Cancelar</button>
                 <button class="sq-btn sq-btn-danger" id="confirm-action-btn">Eliminar</button>

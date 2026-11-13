@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS clientes (
     cargas_especiales_kwh_dia DECIMAL(10,2) DEFAULT 0,
     historial_consumo JSON,
     archivos_json JSON,
+    cargas_offgrid_json JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     empresa_id INT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -163,6 +164,8 @@ CREATE TABLE IF NOT EXISTS proyectos (
     fecha_entrega_estimada TIMESTAMP NULL,
     fecha_entrega_real TIMESTAMP NULL,
     notas TEXT,
+    tipo VARCHAR(50) DEFAULT 'instalacion',
+    pasos_json LONGTEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     empresa_id INT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
