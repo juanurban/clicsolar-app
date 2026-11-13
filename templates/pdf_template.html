@@ -443,7 +443,7 @@
             <thead>
                 <tr id="items-header">
                     <th style="width:18%">Ítem</th>
-                    <th style="width:52%">Descripción</th>
+                    <th style="width:42%">Descripción</th>
                     <th class="text-center" style="width:10%">Cant.</th>
                 </tr>
             </thead>
@@ -880,11 +880,8 @@
             // Hide/show precio column
             const headerRow = document.getElementById('items-header');
             if (mostrarPrecios) {
-                if (esSuministro) {
-                    headerRow.innerHTML += '<th class="text-right">V. Unitario</th><th class="text-right">Subtotal</th>';
-                } else {
-                    headerRow.innerHTML += '<th class="text-center">Subtotal</th>';
-                }
+                // Siempre: Vr. Unitario y Vr. Total (cantidad × vr. unitario)
+                headerRow.innerHTML += '<th class="text-right" style="width:15%">Vr. Unitario</th><th class="text-right" style="width:15%">Vr. Total</th>';
             }
 
             const tb = document.getElementById('items-tbody');
@@ -902,19 +899,19 @@
                 // Precio final editado por ítem (paso 2) manda sobre costo+margen
                 const pfItem = Number(item.precio_final);
                 const precioVenta = pfItem > 0 ? Math.round(pfItem) : Math.round(item.precio_unitario * (1 + margen / 100));
-                subtotalVentaTotal += precioVenta * (Number(item.cantidad) || 0);
+                const cantidad = Number(item.cantidad) || 0;
+                const vrTotal = precioVenta * cantidad;
+                subtotalVentaTotal += vrTotal;
                 // La categoría vigente del inventario manda sobre la guardada en el
                 // ítem, para que las reclasificaciones se reflejen en propuestas viejas.
                 const catItem = (item.equipo && item.equipo.categoria) ? item.equipo.categoria : item.categoria;
                 itemsHtml += '<tr>';
                 itemsHtml += `<td class="uppercase font-bold">${etiquetaCategoriaPdf(catItem)}</td>`;
                 itemsHtml += `<td class="uppercase">${item.nombre}</td>`;
-                itemsHtml += `<td class="text-center">${item.cantidad}</td>`;
+                itemsHtml += `<td class="text-center">${cantidad}</td>`;
                 if (mostrarPrecios) {
                     itemsHtml += `<td class="text-right">${formatCurrency(precioVenta)}</td>`;
-                    if (esSuministro) {
-                        itemsHtml += `<td class="text-right">${formatCurrency(precioVenta * (Number(item.cantidad) || 0))}</td>`;
-                    }
+                    itemsHtml += `<td class="text-right font-bold">${formatCurrency(vrTotal)}</td>`;
                 }
                 itemsHtml += '</tr>';
                 if (item.iva !== false) {
