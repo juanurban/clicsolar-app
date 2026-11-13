@@ -84,13 +84,18 @@ async function renderCotizador() {
 
     // Load initial data
     try {
-        const [resCl, resConf] = await Promise.all([
-            API.get('/clientes?limit=100'),
-            API.get('/configuracion'),
-            cargarListasEquipos()
-        ]);
+        const needClientes = !stateCotizador.clientes || stateCotizador.clientes.length === 0 || App.editCotizacionData;
+        const needEquipos = !stateCotizador.paneles || stateCotizador.paneles.length === 0 || !stateCotizador._equiposLoaded;
 
-        stateCotizador.clientes = resCl.data;
+        const promises = [];
+        promises.push(needClientes ? API.get('/clientes?limit=100') : Promise.resolve({ data: stateCotizador.clientes }));
+        promises.push(API.get('/configuracion'));
+        promises.push(needEquipos ? cargarListasEquipos() : Promise.resolve());
+
+        const [resCl, resConf] = await Promise.all(promises);
+
+        if (needClientes) stateCotizador.clientes = resCl.data || [];
+        stateCotizador._equiposLoaded = true;
 
         // Apply config
         if (resConf.margen_comercial) stateCotizador.config.margen = parseFloat(resConf.margen_comercial.valor);
@@ -618,84 +623,8 @@ async function renderStep2(container) {
                         <button onclick="addExtraItem()" class="sq-btn sq-btn-secondary w-full">Añadir</button>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1000px] text-left table-fixed">
-                        <thead class="text-xs uppercase text-on-surface-variant bg-surface-container border-b border-outline-variant/20">
-                            <tr>
-                                <th class="px-6 py-4 w-[175px]">Categoría</th>
-                                <th class="px-6 py-4 w-[330px]">Ítem</th>
-                                <th class="px-6 py-4 text-right">Cant.</th>
-                                <th class="px-6 py-4 text-right">Costo</th>
-                                <th class="px-6 py-4 text-right">Precio Venta</th>
-                                <th class="px-6 py-4 text-right">Subtotal</th>
-                                <th class="px-6 py-4 text-center">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${(stateCotizador.items || []).map(it => {
-                                const margen = stateCotizador.config.margen || 15;
-                                const hasIva = !!it.iva;
-                                const precioVenta = pvItem(it);
-                                const override = Number(it.precio_final) > 0;
-                                
-                                const cat = (it.categoria || '').toLowerCase();
-                                let options = [];
-                                if (cat === 'panel' || cat === 'paneles solares') options = stateCotizador.paneles;
-                                else if (cat === 'inversor' || cat === 'inversores') options = stateCotizador.inversores;
-                                else if (cat === 'bateria' || cat === 'baterías') options = stateCotizador.baterias;
-                                else if (cat === 'estructura' || cat === 'materiales') options = stateCotizador.materiales;
-                                else if (cat === 'producto' || cat === 'productos') options = stateCotizador.productos;
-                                else if (cat === 'servicio' || cat === 'servicios') options = stateCotizador.servicios;
-                                
-                                let nombreHtml = it.nombre;
-                                if (options && options.length > 0) {
-                                    nombreHtml = `<select class="sq-input py-2 px-3 text-sm w-full max-w-none" title="Seleccionar ${it.nombre}" onchange="changeItemEquipo('${it.id}', this.value)">`;
-                                    options.forEach(opt => {
-                                        const isSelected = opt.id === it.equipo_id ? 'selected' : '';
-                                        const optName = `${opt.marca || ''} ${opt.modelo}`.trim();
-                                        nombreHtml += `<option value="${opt.id}" ${isSelected}>${optName}</option>`;
-                                    });
-                                    nombreHtml += `</select>`;
-                                }
-
-                                return `
-                                <tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
-                                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${etiquetaCategoriaCotizador(it.categoria, it.equipo_id)}</td>
-                                    <td class="px-6 py-4 font-label-bold align-top whitespace-normal">
-                                        <div class="w-full">${nombreHtml}</div>
-                                        <div class="mt-2 text-sm leading-snug text-on-surface break-words" title="${it.nombre}">${it.nombre}</div>
-                                        ${hasIva ? '<span class="inline-block mt-2 text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">IVA</span>' : ''}
-                                    </td>
-                                    <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-20 text-right inline-block text-sm" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
-                                    <td class="px-6 py-4 text-right text-on-surface-variant align-top">${formatCurrency(it.precio_unitario)}</td>
-                                    <td class="px-6 py-4 text-right align-top">
-                                        <div class="flex items-center justify-end gap-1">
-                                            <input type="number" class="sq-input w-28 text-right inline-block text-sm ${override ? 'border-primary text-primary font-label-bold' : 'text-primary'}" value="${precioVenta}" min="1" step="1" onchange="setItemPrecioFinal('${it.id}', this.value)" title="${override ? 'Precio final editado. Cambie o borre el valor para volver al margen' : 'Precio sugerido = costo + margen ' + margen + '%. Puede escribir uno diferente'}">
-                                            ${override ? `<button onclick="setItemPrecioFinal('${it.id}', '')" class="text-on-surface-variant hover:text-primary transition-colors" title="Restaurar precio con margen del ${margen}%"><span class="material-symbols-outlined text-[16px]">restart_alt</span></button>` : ''}
-                                        </div>
-                                        ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
-                                    </td>
-                                    <td class="px-6 py-4 text-right text-primary font-label-bold align-top">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
-                                    <td class="px-6 py-4 text-center">
-                                        <div class="flex items-center justify-center gap-1">
-                                            ${it.equipo_id ? `<button type="button" onclick="openEditarProductoDesdeCotizador(${it.equipo_id}, '${it.id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar este producto en el inventario"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : ''}
-                                            <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Quitar de la cotización">
-                                                <span class="material-symbols-outlined text-[18px]">close</span>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>`;
-                            }).join('')}
-                        </tbody>
-                        <tfoot class="bg-surface-container-highest font-label-bold">
-                            <tr>
-                                <td colspan="4" class="px-6 py-5 text-right">SUBTOTAL VENTA ${(stateCotizador.items || []).some(i => Number(i.precio_final) > 0) ? '(con precios finales editados)' : '(Costo + Margen ' + (stateCotizador.config.margen || 15) + '%)'}</td>
-                                <td></td>
-                                <td class="px-6 py-5 text-right text-lg text-primary">${formatCurrency((stateCotizador.items || []).reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0))}</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                <div class="overflow-x-auto" id="bom-table-wrapper">
+                    ${getBOMTableHTML('solar')}
                 </div>
             </div>
 
@@ -758,31 +687,9 @@ function renderStep2Suministro(container) {
             </div>
             <div class="bg-surface-container-high rounded-xl overflow-hidden border border-outline-variant/20">
                 <div class="p-5 bg-surface-container-highest"><h3 class="font-headline-md text-on-surface">Detalle de la propuesta</h3></div>
-                <div class="overflow-x-auto"><table class="w-full min-w-[850px] text-left"><thead class="text-xs uppercase text-on-surface-variant bg-surface-container"><tr><th class="px-6 py-4">Categoría</th><th class="px-6 py-4">Ítem</th><th class="px-6 py-4 text-right">Cantidad</th><th class="px-6 py-4 text-right">Precio venta</th><th class="px-6 py-4 text-right">Subtotal</th><th class="px-6 py-4"></th></tr></thead><tbody>
-                    ${(stateCotizador.items || []).map(it => {
-                        const precioVenta = pvItem(it);
-                        const override = Number(it.precio_final) > 0;
-                        return `<tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
-                            <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${etiquetaCategoriaCotizador(it.categoria, it.equipo_id)}</td>
-                            <td class="px-6 py-4 font-label-bold">${it.nombre}${it.iva ? '<span class="ml-2 text-[10px] text-primary">IVA</span>' : ''}</td>
-                            <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-24 text-right inline-block" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
-                            <td class="px-6 py-4 text-right">
-                                <div class="flex items-center justify-end gap-1">
-                                    <input type="number" class="sq-input w-28 text-right inline-block text-sm ${override ? 'border-primary text-primary font-label-bold' : 'text-primary'}" value="${precioVenta}" min="1" step="1" onchange="setItemPrecioFinal('${it.id}', this.value)" title="${override ? 'Precio final editado. Cambie o borre el valor para volver al margen' : 'Precio sugerido = costo + margen ' + margen + '%. Puede escribir uno diferente'}">
-                                    ${override ? `<button onclick="setItemPrecioFinal('${it.id}', '')" class="text-on-surface-variant hover:text-primary transition-colors" title="Restaurar precio con margen del ${margen}%"><span class="material-symbols-outlined text-[16px]">restart_alt</span></button>` : ''}
-                                </div>
-                                ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
-                            </td>
-                            <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
-                            <td class="px-6 py-4 text-center">
-                                <div class="flex items-center justify-center gap-1">
-                                    ${it.equipo_id ? `<button type="button" onclick="openEditarProductoDesdeCotizador(${it.equipo_id}, '${it.id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar este producto en el inventario"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : ''}
-                                    <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Quitar de la cotización"><span class="material-symbols-outlined text-[18px]">close</span></button>
-                                </div>
-                            </td>
-                        </tr>`;
-                    }).join('')}
-                </tbody><tfoot><tr><td colspan="4" class="px-6 py-5 text-right font-label-bold">Subtotal venta ${(stateCotizador.items || []).some(i => Number(i.precio_final) > 0) ? '(con precios finales editados)' : '(con margen ' + margen + '%)'}</td><td class="px-6 py-5 text-right text-lg text-primary font-label-bold">${formatCurrency(total)}</td><td></td></tr></tfoot></table></div>
+                <div class="overflow-x-auto" id="bom-table-wrapper">
+                    ${getBOMTableHTML('suministro')}
+                </div>
             </div>
             <div class="flex justify-between"><button onclick="goToStep(1)" class="sq-btn sq-btn-ghost">Atrás</button><button onclick="prepareAndGoToStep3()" class="sq-btn sq-btn-primary">Continuar al Financiero <span class="material-symbols-outlined">arrow_forward</span></button></div>
         </div>`;
@@ -824,18 +731,40 @@ async function executeDimensionamiento(panel_id, inversor_id = null, eficiencia 
 }
 
 async function triggerDimensionamiento() {
-    const pId = document.getElementById('dim-panel').value;
-    const iId = document.getElementById('dim-inversor').value;
-    const ef = document.getElementById('dim-eficiencia').value;
-    const bC = document.getElementById('dim-base-consumo').value;
+    const pEl = document.getElementById('dim-panel');
+    const iEl = document.getElementById('dim-inversor');
+    const efEl = document.getElementById('dim-eficiencia');
+    const bcEl = document.getElementById('dim-base-consumo');
+    if (!pEl || !iEl || !efEl || !bcEl) return;
+
+    const pId = pEl.value;
+    const iId = iEl.value;
+    const ef = efEl.value;
+    const bC = bcEl.value;
 
     stateCotizador.baseConsumo = bC;
 
-    // Show quick loading state in right col
-    document.querySelectorAll('.font-display-lg').forEach(el => el.innerHTML = '...');
+    // Indicador sutil sin tocar inputs (evita parpadeo/foco perdido)
+    const container = document.getElementById('step-container');
+    if (container) {
+        container.style.opacity = '0.7';
+        container.style.pointerEvents = 'none';
+    }
 
     await executeDimensionamiento(pId, iId, ef, bC);
-    renderStep();
+
+    if (container) {
+        container.style.opacity = '';
+        container.style.pointerEvents = '';
+    }
+
+    if (stateCotizador.step === 2) {
+        renderBOMTable();
+        actualizarPreciosTabla();
+        actualizarCardsDimensionamiento();
+    } else {
+        renderStep();
+    }
 }
 
 function rebuildBOM() {
@@ -983,7 +912,15 @@ function addExtraItem() {
     });
 
     recalcularPotenciaPico();
-    renderStep();
+    renderBOMTable();
+    actualizarPreciosTabla();
+    actualizarCardsDimensionamiento();
+
+    // Limpiar selección/cantidad para seguir agregando rápido
+    const selectExtra = document.getElementById('extra-item-id');
+    if (selectExtra) selectExtra.value = '';
+    const qtyInput = document.getElementById('extra-item-qty');
+    if (qtyInput) qtyInput.value = '1';
 }
 
 function updateItemQty(id, val) {
@@ -997,6 +934,126 @@ function updateItemQty(id, val) {
     recalcularPotenciaPico();
     actualizarPreciosTabla();
     actualizarCardsDimensionamiento();
+}
+
+function getBOMTableHTML(mode = 'solar') {
+    const margen = stateCotizador.config.margen || 0;
+    const items = stateCotizador.items || [];
+    const total = items.reduce((s, i) => s + pvItem(i) * (Number(i.cantidad) || 0), 0);
+    const hasFinalPrice = items.some(i => Number(i.precio_final) > 0);
+
+    if (mode === 'suministro') {
+        return `<table class="w-full min-w-[850px] text-left"><thead class="text-xs uppercase text-on-surface-variant bg-surface-container"><tr><th class="px-6 py-4">Categoría</th><th class="px-6 py-4">Ítem</th><th class="px-6 py-4 text-right">Cantidad</th><th class="px-6 py-4 text-right">Precio venta</th><th class="px-6 py-4 text-right">Subtotal</th><th class="px-6 py-4"></th></tr></thead><tbody>
+            ${items.map(it => {
+                const precioVenta = pvItem(it);
+                const override = Number(it.precio_final) > 0;
+                return `<tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
+                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${etiquetaCategoriaCotizador(it.categoria, it.equipo_id)}</td>
+                    <td class="px-6 py-4 font-label-bold">${it.nombre}${it.iva ? '<span class="ml-2 text-[10px] text-primary">IVA</span>' : ''}</td>
+                    <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-24 text-right inline-block" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end gap-1">
+                            <input type="number" class="sq-input w-28 text-right inline-block text-sm ${override ? 'border-primary text-primary font-label-bold' : 'text-primary'}" value="${precioVenta}" min="1" step="1" onchange="setItemPrecioFinal('${it.id}', this.value)" title="${override ? 'Precio final editado. Cambie o borre el valor para volver al margen' : 'Precio sugerido = costo + margen ' + margen + '%. Puede escribir uno diferente'}">
+                            ${override ? `<button onclick="setItemPrecioFinal('${it.id}', '')" class="text-on-surface-variant hover:text-primary transition-colors" title="Restaurar precio con margen del ${margen}%"><span class="material-symbols-outlined text-[16px]">restart_alt</span></button>` : ''}
+                        </div>
+                        ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
+                    </td>
+                    <td class="px-6 py-4 text-right text-primary font-label-bold">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            ${it.equipo_id ? `<button type="button" onclick="openEditarProductoDesdeCotizador(${it.equipo_id}, '${it.id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar este producto en el inventario"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : ''}
+                            <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Quitar de la cotización"><span class="material-symbols-outlined text-[18px]">close</span></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('')}
+        </tbody><tfoot><tr><td colspan="4" class="px-6 py-5 text-right font-label-bold">Subtotal venta ${hasFinalPrice ? '(con precios finales editados)' : '(con margen ' + margen + '%)'}</td><td class="px-6 py-5 text-right text-lg text-primary font-label-bold">${formatCurrency(total)}</td><td></td></tr></tfoot></table>`;
+    }
+
+    return `<table class="w-full min-w-[1000px] text-left table-fixed">
+        <thead class="text-xs uppercase text-on-surface-variant bg-surface-container border-b border-outline-variant/20">
+            <tr>
+                <th class="px-6 py-4 w-[175px]">Categoría</th>
+                <th class="px-6 py-4 w-[330px]">Ítem</th>
+                <th class="px-6 py-4 text-right">Cant.</th>
+                <th class="px-6 py-4 text-right">Costo</th>
+                <th class="px-6 py-4 text-right">Precio Venta</th>
+                <th class="px-6 py-4 text-right">Subtotal</th>
+                <th class="px-6 py-4 text-center">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${items.map(it => {
+                const hasIva = !!it.iva;
+                const precioVenta = pvItem(it);
+                const override = Number(it.precio_final) > 0;
+
+                const cat = (it.categoria || '').toLowerCase();
+                let options = [];
+                if (cat === 'panel' || cat === 'paneles solares') options = stateCotizador.paneles;
+                else if (cat === 'inversor' || cat === 'inversores') options = stateCotizador.inversores;
+                else if (cat === 'bateria' || cat === 'baterías') options = stateCotizador.baterias;
+                else if (cat === 'estructura' || cat === 'materiales') options = stateCotizador.materiales;
+                else if (cat === 'producto' || cat === 'productos') options = stateCotizador.productos;
+                else if (cat === 'servicio' || cat === 'servicios') options = stateCotizador.servicios;
+
+                let nombreHtml = it.nombre;
+                if (options && options.length > 0) {
+                    nombreHtml = `<select class="sq-input py-2 px-3 text-sm w-full max-w-none" title="Seleccionar ${it.nombre}" onchange="changeItemEquipo('${it.id}', this.value)">`;
+                    options.forEach(opt => {
+                        const isSelected = opt.id === it.equipo_id ? 'selected' : '';
+                        const optName = `${opt.marca || ''} ${opt.modelo}`.trim();
+                        nombreHtml += `<option value="${opt.id}" ${isSelected}>${optName}</option>`;
+                    });
+                    nombreHtml += `</select>`;
+                }
+
+                return `
+                <tr draggable="true" ondragstart="dragItem(event, '${it.id}')" ondragover="allowDrop(event)" ondrop="dropItem(event, '${it.id}')" ondragend="dragEnd(event)" class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors cursor-move">
+                    <td class="px-6 py-4 text-sm text-on-surface-variant capitalize align-top"><span class="material-symbols-outlined text-[14px] align-middle mr-1 cursor-grab active:cursor-grabbing text-on-surface-variant/50">drag_indicator</span> ${etiquetaCategoriaCotizador(it.categoria, it.equipo_id)}</td>
+                    <td class="px-6 py-4 font-label-bold align-top whitespace-normal">
+                        <div class="w-full">${nombreHtml}</div>
+                        <div class="mt-2 text-sm leading-snug text-on-surface break-words" title="${it.nombre}">${it.nombre}</div>
+                        ${hasIva ? '<span class="inline-block mt-2 text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">IVA</span>' : ''}
+                    </td>
+                    <td class="px-6 py-4 text-right"><input type="number" class="sq-input w-20 text-right inline-block text-sm" value="${it.cantidad}" min="0.1" step="any" onchange="updateItemQty('${it.id}', this.value)"></td>
+                    <td class="px-6 py-4 text-right text-on-surface-variant align-top">${formatCurrency(it.precio_unitario)}</td>
+                    <td class="px-6 py-4 text-right align-top">
+                        <div class="flex items-center justify-end gap-1">
+                            <input type="number" class="sq-input w-28 text-right inline-block text-sm ${override ? 'border-primary text-primary font-label-bold' : 'text-primary'}" value="${precioVenta}" min="1" step="1" onchange="setItemPrecioFinal('${it.id}', this.value)" title="${override ? 'Precio final editado. Cambie o borre el valor para volver al margen' : 'Precio sugerido = costo + margen ' + margen + '%. Puede escribir uno diferente'}">
+                            ${override ? `<button onclick="setItemPrecioFinal('${it.id}', '')" class="text-on-surface-variant hover:text-primary transition-colors" title="Restaurar precio con margen del ${margen}%"><span class="material-symbols-outlined text-[16px]">restart_alt</span></button>` : ''}
+                        </div>
+                        ${override ? '<div class="text-[9px] uppercase tracking-wider text-primary mt-1">Precio final</div>' : ''}
+                    </td>
+                    <td class="px-6 py-4 text-right text-primary font-label-bold align-top">${formatCurrency(precioVenta * (Number(it.cantidad) || 0))}</td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            ${it.equipo_id ? `<button type="button" onclick="openEditarProductoDesdeCotizador(${it.equipo_id}, '${it.id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar este producto en el inventario"><span class="material-symbols-outlined text-[18px]">edit</span></button>` : ''}
+                            <button onclick="removeItem('${it.id}')" class="text-on-surface-variant hover:text-error transition-colors p-1" title="Quitar de la cotización">
+                                <span class="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+        <tfoot class="bg-surface-container-highest font-label-bold">
+            <tr>
+                <td colspan="4" class="px-6 py-5 text-right">SUBTOTAL VENTA ${hasFinalPrice ? '(con precios finales editados)' : '(Costo + Margen ' + margen + '%)'}</td>
+                <td></td>
+                <td class="px-6 py-5 text-right text-lg text-primary">${formatCurrency(total)}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>`;
+}
+
+function renderBOMTable() {
+    const wrapper = document.getElementById('bom-table-wrapper');
+    if (!wrapper) return false;
+    const mode = stateCotizador.tipoPropuesta === 'suministro' ? 'suministro' : 'solar';
+    wrapper.innerHTML = getBOMTableHTML(mode);
+    return true;
 }
 
 // ═══ Etiquetas de categoría ═══
@@ -1063,9 +1120,11 @@ function changeItemEquipo(itemId, newEquipoId) {
         item.iva = !!newEq.iva;
         item.subtotal = item.cantidad * newEq.costo;
         item.precio_final = null; // el costo cambió: se descarta el precio final editado
-        
+
         recalcularPotenciaPico();
-        renderStep();
+        renderBOMTable();
+        actualizarPreciosTabla();
+        actualizarCardsDimensionamiento();
     }
 }
 
@@ -1077,7 +1136,9 @@ function removeItem(id) {
     stateCotizador.items = stateCotizador.items.filter(i => i.id !== id);
     
     recalcularPotenciaPico();
-    renderStep();
+    renderBOMTable();
+    actualizarPreciosTabla();
+    actualizarCardsDimensionamiento();
 }
 
 function recalcularPotenciaPico() {
@@ -1303,7 +1364,13 @@ async function openEditarProductoDesdeCotizador(equipoId, itemId = null) {
         }
 
         recalcularPotenciaPico();
-        renderStep();
+        if (stateCotizador.step === 2) {
+            renderBOMTable();
+            actualizarPreciosTabla();
+            actualizarCardsDimensionamiento();
+        } else {
+            renderStep();
+        }
         showToast(`Producto "${updatedEq.marca ? updatedEq.marca + ' ' : ''}${updatedEq.modelo}" actualizado con éxito`, 'success');
     });
 }
@@ -2305,7 +2372,7 @@ function dropItem(e, targetId) {
     if (fromIdx !== -1 && toIdx !== -1) {
         const item = items.splice(fromIdx, 1)[0];
         items.splice(toIdx, 0, item);
-        renderStep();
+        renderBOMTable();
     }
 }
 function dragEnd(e) {

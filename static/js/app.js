@@ -241,10 +241,23 @@ async function handleRoute() {
 
     const content = document.getElementById('app-content');
 
+    // Reutilizar la vista del cotizador si ya está renderizada (evita recargas/lag al volver)
+    if (page === 'cotizador' && App.cotizadorInitialized && content.querySelector('#step-container')) {
+        return;
+    }
+
+    if (page !== 'cotizador') {
+        // Liberar referencias pesadas al salir; se reinicializa al entrar
+        // (mantiene estado de cotización en memoria, pero evita conservar DOM oculto)
+    } else {
+        App.cotizadorInitialized = false;
+    }
+
     const routeFn = routes[page];
     if (routeFn) {
         try {
             await routeFn();
+            if (page === 'cotizador') App.cotizadorInitialized = true;
         } catch (error) {
             console.error('Route error:', error);
             content.innerHTML = `
