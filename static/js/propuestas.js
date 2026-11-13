@@ -372,10 +372,8 @@ async function crearInstalacionDesdePropuesta(id) {
         try {
             const res = await API.post('/proyectos', { cotizacion_id: id, nombre });
             showToast(res.message || 'Instalación creada', 'success');
-            // navegar a instalaciones y abrir detalle si es posible
             if (res.id) {
-                navigateTo('proyectos');
-                setTimeout(() => { if (window.ProyectosModule && ProyectosModule.openDetalle) ProyectosModule.openDetalle(res.id); }, 400);
+                window.location.hash = '#proyectos/' + res.id;
             } else {
                 navigateTo('proyectos');
             }

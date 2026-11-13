@@ -2,172 +2,133 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-const PASOS_INSTALACION = [
-  'Firma del contrato',
-  'Giro del anticipo',
-  'Visita técnica',
-  'Diseño y dimensionamiento',
-  'Lista de materiales',
-  'Compra de materiales',
-  'Cronograma de instalación',
-  'Instalación',
-  'Pruebas',
-  'Entrega',
-  'Legalización operador de red',
-  'Conexión final'
-];
-
 async function ensureInstalacionesSchema() {
-  // Columnas adicionales en proyectos
-  const safeAlter = async (sql) => { try { await pool.execute(sql); } catch (e) { /* ignore if exists */ } };
+  const safeAlter = async (sql) => { try { await pool.execute(sql); } catch (e) { /* ignore */ } };
   await safeAlter("ALTER TABLE proyectos ADD COLUMN tipo TEXT DEFAULT 'instalacion'");
   await safeAlter("ALTER TABLE proyectos ADD COLUMN empresa_id INTEGER");
   await safeAlter("ALTER TABLE proyectos ADD COLUMN pasos_json TEXT DEFAULT '[]'");
-
-  // Asegurar tareas_proyecto tiene fecha_completada (no crítico, pero útil)
   await safeAlter("ALTER TABLE tareas_proyecto ADD COLUMN fecha_completada TEXT");
-
-  // Sembrar estados/pasos por defecto como estados_proyecto si no hay ninguno relevante
-  const [est] = await pool.execute('SELECT COUNT(*) as c FROM estados_proyecto');
-  if (est[0].c === 0) {
-    const colores = [
-      'border-l-4 border-blue-400 bg-surface-container',
-      'border-l-4 border-cyan-400 bg-surface-container',
-      'border-l-4 border-purple-400 bg-surface-container',
-      'border-l-4 border-indigo-400 bg-surface-container',
-      'border-l-4 border-yellow-400 bg-surface-container',
-      'border-l-4 border-orange-400 bg-surface-container',
-      'border-l-4 border-teal-400 bg-surface-container',
-      'border-l-4 border-amber-500 bg-surface-container',
-      'border-l-4 border-lime-500 bg-surface-container',
-      'border-l-4 border-green-500 bg-surface-container',
-      'border-l-4 border-emerald-600 bg-surface-container',
-      'border-l-4 border-primary bg-surface-container'
-    ];
-    for (let i = 0; i < PASOS_INSTALACION.length; i++) {
-      await pool.execute('INSERT INTO estados_proyecto (nombre, color, orden) VALUES (?, ?, ?)', [PASOS_INSTALACION[i], colores[i] || colores[0], i + 1]);
-    }
-  }
 }
 
-function buildPasosDefault(estadoId) {
-  return PASOS_INSTALACION.map((nombre, idx) => ({
-    orden: idx + 1,
-    nombre,
-    completado: false,
-    fecha: null,
-    notas: '',
-    estado_id: null
-  }));
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function normalizeSubtarea(s, i) {
+  return {
+    id: String(s?.id || uid() + 's' + i),
+    titulo: String(s?.titulo ?? s?.nombre ?? '').trim(),
+    completada: !!s?.completada
+  };
+}
+
+function normalizeTarea(t, i) {
+  const subtareas = Array.isArray(t?.subtareas) ? t.subtareas.map(normalizeSubtarea) : [];
+  const completada = subtareas.length > 0 ? subtareas.every(s => s.completada) : !!t?.completada;
+  return {
+    id: String(t?.id || uid() + 't' + i),
+    titulo: String(t?.titulo ?? t?.nombre ?? t?.descripcion ?? '').trim(),
+    completada,
+    subtareas
+  };
+}
+
+function normalizePaso(p, i) {
+  const tareas = Array.isArray(p?.tareas) ? p.tareas.map(normalizeTarea) : [];
+  const completado = tareas.length > 0 ? tareas.every(t => t.completada && (t.subtareas || []).every(s => s.completada)) : !!p?.completado;
+  return {
+    id: String(p?.id || uid() + 'p' + i),
+    nombre: String(p?.nombre ?? p?.titulo ?? `Etapa ${i + 1}`).trim() || `Etapa ${i + 1}`,
+    orden: Number(p?.orden) || (i + 1),
+    completado,
+    tareas
+  };
 }
 
 function parsePasos(row) {
   let pasos = [];
-  try { pasos = row.pasos_json ? (typeof row.pasos_json === 'string' ? JSON.parse(row.pasos_json) : row.pasos_json) : []; } catch (e) { pasos = []; }
-  if (!Array.isArray(pasos) || pasos.length === 0) {
-    pasos = buildPasosDefault(row.estado_id);
-  } else {
-    // asegurar que todos los pasos estándar existan en orden
-    const byName = new Map(pasos.map(p => [String(p.nombre || '').toLowerCase().trim(), p]));
-    pasos = PASOS_INSTALACION.map((nombre, idx) => {
-      const found = byName.get(nombre.toLowerCase()) || pasos[idx] || {};
-      return {
-        orden: idx + 1,
-        nombre,
-        completado: !!found.completado,
-        fecha: found.fecha || null,
-        notas: found.notas || ''
-      };
-    });
+  try {
+    pasos = row?.pasos_json ? (typeof row.pasos_json === 'string' ? JSON.parse(row.pasos_json) : row.pasos_json) : [];
+  } catch (e) { pasos = []; }
+  if (!Array.isArray(pasos)) pasos = [];
+  // Si vienen pasos antiguos (formato fijo sin tareas), convertirlos a etapas editables vacías preservando nombre/completado básico
+  const looksOld = pasos.length && pasos.every(p => p && !Array.isArray(p.tareas) && ('completado' in p) && ('nombre' in p) && !('subtareas' in p));
+  if (looksOld) {
+    pasos = pasos.map((p, i) => ({
+      id: String(p.id || uid() + 'p' + i),
+      nombre: String(p.nombre || `Etapa ${i + 1}`),
+      orden: i + 1,
+      completado: !!p.completado,
+      tareas: p.completado ? [{ id: uid() + 't0', titulo: 'Etapa completada (migrada)', completada: true, subtareas: [] }] : []
+    }));
   }
+  pasos = pasos.map(normalizePaso).sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  // reordenar
+  pasos = pasos.map((p, i) => ({ ...p, orden: i + 1 }));
   return pasos;
 }
 
-function syncEstadoFromPasos(pasos, estados) {
-  // estado = primer paso no completado, o último si todos completos
-  const idx = pasos.findIndex(p => !p.completado);
-  const nombrePaso = idx === -1 ? pasos[pasos.length - 1].nombre : pasos[idx].nombre;
-  const estado = (estados || []).find(e => (e.nombre || '').toLowerCase().trim() === nombrePaso.toLowerCase().trim());
-  return { nombre: nombrePaso, estado_id: estado ? estado.id : null, completado: idx === -1 };
+function calcProgreso(pasos) {
+  const tareas = pasos.flatMap(p => p.tareas || []);
+  const items = [];
+  tareas.forEach(t => {
+    if ((t.subtareas || []).length) t.subtareas.forEach(s => items.push(s.completada));
+    else items.push(t.completada);
+  });
+  const total = items.length;
+  const completados = items.filter(Boolean).length;
+  const pasosTotal = pasos.length;
+  const pasosCompletados = pasos.filter(p => p.completado).length;
+  return {
+    tareasCompletadas: completados,
+    tareasTotal: total,
+    pasosCompletados,
+    pasosTotal,
+    pct: total ? Math.round((completados / total) * 100) : (pasosTotal ? Math.round((pasosCompletados / pasosTotal) * 100) : 0)
+  };
 }
 
-// --- ESTADOS / PASOS ---
+function pasoActualNombre(pasos) {
+  if (!pasos.length) return 'Sin etapas';
+  const actual = pasos.find(p => !p.completado);
+  return actual ? actual.nombre : 'Completada';
+}
 
+// --- ESTADOS (compatibilidad, ya no definen pasos fijos) ---
 router.get('/estados', async (req, res) => {
   try {
     await ensureInstalacionesSchema();
     const [rows] = await pool.execute('SELECT * FROM estados_proyecto ORDER BY orden ASC');
     res.json(rows);
-  } catch (error) {
-    console.error('Error fetching estados:', error);
-    res.status(500).json({ error: 'Error fetching estados' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Error fetching estados' }); }
 });
-
 router.post('/estados', async (req, res) => {
   try {
     await ensureInstalacionesSchema();
     const { nombre, color, orden } = req.body;
     if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
-    const [result] = await pool.execute(
-      'INSERT INTO estados_proyecto (nombre, color, orden) VALUES (?, ?, ?)',
-      [nombre, color || 'border-l-4 border-gray-400 bg-surface-container', orden || 0]
-    );
+    const [result] = await pool.execute('INSERT INTO estados_proyecto (nombre, color, orden) VALUES (?, ?, ?)', [nombre, color || 'border-l-4 border-gray-400 bg-surface-container', orden || 0]);
     res.status(201).json({ id: result.insertId, message: 'Estado creado' });
-  } catch (error) {
-    console.error('Error creating estado:', error);
-    res.status(500).json({ error: 'Error al crear estado' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Error al crear estado' }); }
 });
 
-router.put('/estados/:id', async (req, res) => {
-  try {
-    const { nombre, color, orden } = req.body;
-    await pool.execute(
-      'UPDATE estados_proyecto SET nombre = COALESCE(?, nombre), color = COALESCE(?, color), orden = COALESCE(?, orden) WHERE id = ?',
-      [nombre !== undefined ? nombre : null, color !== undefined ? color : null, orden !== undefined ? orden : null, req.params.id]
-    );
-    res.json({ message: 'Estado actualizado' });
-  } catch (error) {
-    console.error('Error updating estado:', error);
-    res.status(500).json({ error: 'Error al actualizar estado' });
-  }
-});
-
-router.delete('/estados/:id', async (req, res) => {
-  try {
-    const [proyectos] = await pool.execute('SELECT id FROM proyectos WHERE estado_id = ?', [req.params.id]);
-    if (proyectos.length > 0) {
-      return res.status(400).json({ error: 'No se puede eliminar un estado que tiene instalaciones asignadas' });
-    }
-    await pool.execute('DELETE FROM estados_proyecto WHERE id = ?', [req.params.id]);
-    res.json({ message: 'Estado eliminado' });
-  } catch (error) {
-    console.error('Error deleting estado:', error);
-    res.status(500).json({ error: 'Error al eliminar estado' });
-  }
-});
-
-// --- INSTALACIONES (PROYECTOS) ---
+// --- INSTALACIONES ---
 
 router.get('/', async (req, res) => {
   try {
     await ensureInstalacionesSchema();
     const query = `
-      SELECT p.*, c.nombre as cliente_nombre, cot.codigo as cotizacion_codigo, cot.titulo as cotizacion_titulo,
-             e.nombre as estado_nombre, e.color as estado_color
+      SELECT p.*, c.nombre as cliente_nombre, cot.codigo as cotizacion_codigo, cot.titulo as cotizacion_titulo
       FROM proyectos p
       JOIN clientes c ON p.cliente_id = c.id
       LEFT JOIN cotizaciones cot ON p.cotizacion_id = cot.id
-      LEFT JOIN estados_proyecto e ON p.estado_id = e.id
       WHERE (p.empresa_id = ? OR ? = 1 OR p.empresa_id IS NULL)
       ORDER BY p.updated_at DESC, p.created_at DESC
     `;
     const [rows] = await pool.execute(query, [req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
     const data = rows.map(r => {
       const pasos = parsePasos(r);
-      const completados = pasos.filter(p => p.completado).length;
-      return { ...r, pasos, progreso: { completados, total: pasos.length, pct: pasos.length ? Math.round((completados / pasos.length) * 100) : 0 } };
+      return { ...r, pasos, progreso: calcProgreso(pasos), paso_actual: pasoActualNombre(pasos) };
     });
     res.json(data);
   } catch (error) {
@@ -184,7 +145,6 @@ router.get('/cotizaciones-disponibles', async (req, res) => {
        FROM cotizaciones c
        JOIN clientes cl ON c.cliente_id = cl.id
        WHERE (c.empresa_id = ? OR (c.empresa_id IS NULL AND cl.empresa_id = ?) OR ? = 1)
-         AND c.estado IN ('firmada','enviada','borrador')
          AND c.id NOT IN (SELECT cotizacion_id FROM proyectos WHERE cotizacion_id IS NOT NULL)
        ORDER BY c.fecha DESC`,
       [req.user.empresa_id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]
@@ -201,20 +161,17 @@ router.get('/:id', async (req, res) => {
     await ensureInstalacionesSchema();
     const [rows] = await pool.execute(
       `SELECT p.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.correo as cliente_correo, c.direccion as cliente_direccion,
-              cot.codigo as cotizacion_codigo, cot.titulo as cotizacion_titulo, cot.total_inversion, cot.potencia_kwp, cot.num_paneles,
-              e.nombre as estado_nombre, e.color as estado_color
+              cot.codigo as cotizacion_codigo, cot.titulo as cotizacion_titulo, cot.total_inversion, cot.potencia_kwp, cot.num_paneles
        FROM proyectos p
        JOIN clientes c ON p.cliente_id = c.id
        LEFT JOIN cotizaciones cot ON p.cotizacion_id = cot.id
-       LEFT JOIN estados_proyecto e ON p.estado_id = e.id
        WHERE p.id = ? AND (p.empresa_id = ? OR ? = 1 OR p.empresa_id IS NULL)`,
       [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
     const r = rows[0];
     const pasos = parsePasos(r);
-    const completados = pasos.filter(p => p.completado).length;
-    res.json({ ...r, pasos, progreso: { completados, total: pasos.length, pct: pasos.length ? Math.round((completados / pasos.length) * 100) : 0 } });
+    res.json({ ...r, pasos, progreso: calcProgreso(pasos), paso_actual: pasoActualNombre(pasos) });
   } catch (error) {
     console.error('Error fetching proyecto:', error);
     res.status(500).json({ error: 'Error al obtener instalación' });
@@ -242,9 +199,8 @@ router.post('/', async (req, res) => {
       if (!nombreProyecto) {
         nombreProyecto = `Instalación ${cot.codigo || 'PROP-' + cot.id}${cot.titulo ? ' · ' + cot.titulo : ''} - ${cot.cliente_nombre}`;
       }
-      // marcar cotización como firmada al convertir en instalación (si no lo está)
       if (cot.estado !== 'firmada') {
-        await pool.execute('UPDATE cotizaciones SET estado = ? WHERE id = ?', ['firmada', cotId]);
+        try { await pool.execute('UPDATE cotizaciones SET estado = ? WHERE id = ?', ['firmada', cotId]); } catch (e) {}
       }
     }
 
@@ -252,14 +208,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'El nombre y el cliente son obligatorios' });
     }
 
-    const [estados] = await pool.execute('SELECT * FROM estados_proyecto ORDER BY orden ASC');
-    const pasos = buildPasosDefault(estados[0]?.id);
-    const sync = syncEstadoFromPasos(pasos, estados);
-
+    const pasos = [];
     const [result] = await pool.execute(
       `INSERT INTO proyectos (nombre, cliente_id, cotizacion_id, estado_id, estado, fecha_entrega_estimada, notas, empresa_id, tipo, pasos_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'instalacion', ?)`,
-      [nombreProyecto, clienteId, cotId, sync.estado_id, sync.nombre, fecha_entrega_estimada || null, notas || '', req.user.empresa_id, JSON.stringify(pasos)]
+      [nombreProyecto, clienteId, cotId, null, 'En ejecución', fecha_entrega_estimada || null, notas || '', req.user.empresa_id, JSON.stringify(pasos)]
     );
 
     res.status(201).json({ id: result.insertId, message: 'Instalación creada exitosamente' });
@@ -267,11 +220,6 @@ router.post('/', async (req, res) => {
     console.error('Error creating proyecto:', error);
     res.status(500).json({ error: 'Error al crear la instalación' });
   }
-});
-
-router.post('/desde-cotizacion/:cotizacionId', async (req, res) => {
-  req.body = { ...(req.body || {}), cotizacion_id: req.params.cotizacionId };
-  return router.handle({ ...req, url: '/', method: 'POST' }, res);
 });
 
 router.put('/:id', async (req, res) => {
@@ -284,36 +232,18 @@ router.put('/:id', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
 
     let pasosFinal = parsePasos(rows[0]);
-    let estadoId = rows[0].estado_id;
-    let estadoNombre = rows[0].estado;
-
     if (Array.isArray(pasos)) {
-      const [estados] = await pool.execute('SELECT * FROM estados_proyecto ORDER BY orden ASC');
-      // merge por nombre/orden
-      const incoming = new Map();
-      pasos.forEach((p, i) => incoming.set((p.nombre || PASOS_INSTALACION[i] || '').toLowerCase().trim(), p));
-      pasosFinal = PASOS_INSTALACION.map((nombre, idx) => {
-        const prev = pasosFinal[idx] || {};
-        const inc = incoming.get(nombre.toLowerCase()) || pasos[idx] || {};
-        const completado = inc.completado !== undefined ? !!inc.completado : !!prev.completado;
-        return {
-          orden: idx + 1,
-          nombre,
-          completado,
-          fecha: inc.fecha !== undefined ? (inc.fecha || null) : (prev.fecha || null),
-          notas: inc.notas !== undefined ? (inc.notas || '') : (prev.notas || '')
-        };
-      });
-      const sync = syncEstadoFromPasos(pasosFinal, estados);
-      estadoId = sync.estado_id; estadoNombre = sync.nombre;
+      pasosFinal = pasos.map(normalizePaso).sort((a, b) => (a.orden || 0) - (b.orden || 0)).map((p, i) => ({ ...p, orden: i + 1 }));
     }
+
+    const progreso = calcProgreso(pasosFinal);
+    const estadoNombre = pasosFinal.length === 0 ? 'Sin etapas' : (pasosFinal.every(p => p.completado) ? 'Completada' : pasoActualNombre(pasosFinal));
 
     await pool.execute(
       `UPDATE proyectos SET
           nombre = COALESCE(?, nombre),
           cliente_id = COALESCE(?, cliente_id),
           cotizacion_id = COALESCE(?, cotizacion_id),
-          estado_id = ?,
           estado = ?,
           fecha_entrega_estimada = COALESCE(?, fecha_entrega_estimada),
           fecha_entrega_real = COALESCE(?, fecha_entrega_real),
@@ -321,13 +251,12 @@ router.put('/:id', async (req, res) => {
           pasos_json = ?,
           updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [nombre ?? null, cliente_id ?? null, cotizacion_id ?? null, estadoId, estadoNombre,
+      [nombre ?? null, cliente_id ?? null, cotizacion_id ?? null, estadoNombre,
        fecha_entrega_estimada ?? null, fecha_entrega_real ?? null, notas ?? null,
        JSON.stringify(pasosFinal), projectId]
     );
 
-    const completados = pasosFinal.filter(p => p.completado).length;
-    res.json({ message: 'Instalación actualizada', estado: estadoNombre, estado_id: estadoId, progreso: { completados, total: pasosFinal.length, pct: Math.round((completados / pasosFinal.length) * 100) } });
+    res.json({ message: 'Instalación actualizada', estado: estadoNombre, progreso, pasos: pasosFinal });
   } catch (error) {
     console.error('Error updating proyecto:', error);
     res.status(500).json({ error: 'Error al actualizar la instalación' });
@@ -336,6 +265,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    await ensureInstalacionesSchema();
     const [result] = await pool.execute('DELETE FROM proyectos WHERE id = ? AND (empresa_id = ? OR ? = 1 OR empresa_id IS NULL)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
     res.json({ message: 'Instalación eliminada' });
@@ -345,30 +275,10 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Compatibilidad tareas (no usadas en UI nueva, pero mantenidas)
-router.get('/:id/tareas', async (req, res) => {
-  try {
-    const [rows] = await pool.execute('SELECT t.* FROM tareas_proyecto t JOIN proyectos p ON p.id = t.proyecto_id WHERE t.proyecto_id = ? ORDER BY t.created_at ASC', [req.params.id]);
-    res.json(rows);
-  } catch (error) { res.status(500).json({ error: 'Error fetching tareas' }); }
-});
-router.post('/:id/tareas', async (req, res) => {
-  try {
-    const { descripcion } = req.body;
-    if (!descripcion) return res.status(400).json({ error: 'La descripción es obligatoria' });
-    const [result] = await pool.execute('INSERT INTO tareas_proyecto (proyecto_id, descripcion, completada) VALUES (?, ?, 0)', [req.params.id, descripcion]);
-    res.status(201).json({ id: result.insertId });
-  } catch (error) { res.status(500).json({ error: 'Error al crear tarea' }); }
-});
-router.put('/tareas/:tareaId', async (req, res) => {
-  try {
-    await pool.execute('UPDATE tareas_proyecto SET completada = ? WHERE id = ?', [req.body.completada ? 1 : 0, req.params.tareaId]);
-    res.json({ message: 'ok' });
-  } catch (error) { res.status(500).json({ error: 'Error al actualizar tarea' }); }
-});
-router.delete('/tareas/:tareaId', async (req, res) => {
-  try { await pool.execute('DELETE FROM tareas_proyecto WHERE id = ?', [req.params.tareaId]); res.json({ message: 'ok' }); }
-  catch (error) { res.status(500).json({ error: 'Error al eliminar tarea' }); }
-});
+// Compatibilidad tareas legacy
+router.get('/:id/tareas', async (req, res) => { res.json([]); });
+router.post('/:id/tareas', async (req, res) => { res.status(410).json({ error: 'Usa los pasos y tareas dentro de la instalación' }); });
+router.put('/tareas/:tareaId', async (req, res) => { res.status(410).json({ error: 'Usa los pasos y tareas dentro de la instalación' }); });
+router.delete('/tareas/:tareaId', async (req, res) => { res.status(410).json({ error: 'Usa los pasos y tareas dentro de la instalación' }); });
 
 module.exports = router;

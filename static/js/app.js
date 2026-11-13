@@ -217,7 +217,7 @@ const routes = {
     'clientes': () => renderClientes(),
     'inventario': () => renderInventario(),
     'propuestas': () => renderPropuestas(),
-    'proyectos': () => renderProyectos(),
+    'proyectos': (id) => renderProyectos(id),
     'configuracion': () => renderConfiguracion(),
     'usuarios': () => renderUsuarios(),
     'empresas': () => renderEmpresas(),
@@ -229,8 +229,11 @@ function navigateTo(page) {
 
 async function handleRoute() {
     const hash = window.location.hash.replace('#', '') || 'dashboard';
-    const page = hash.split('/')[0];
+    const parts = hash.split('/').filter(Boolean);
+    const page = parts[0] || 'dashboard';
+    const sub = parts.slice(1);
     App.currentPage = page;
+    App.currentRouteParams = sub;
     updateActiveNav(page);
 
     // Close mobile sidebar
@@ -242,22 +245,22 @@ async function handleRoute() {
     const content = document.getElementById('app-content');
 
     // Reutilizar la vista del cotizador si ya está renderizada (evita recargas/lag al volver)
-    if (page === 'cotizador' && App.cotizadorInitialized && content.querySelector('#step-container')) {
+    if (page === 'cotizador' && !sub.length && App.cotizadorInitialized && content.querySelector('#step-container')) {
         return;
     }
 
     if (page !== 'cotizador') {
         // Liberar referencias pesadas al salir; se reinicializa al entrar
         // (mantiene estado de cotización en memoria, pero evita conservar DOM oculto)
-    } else {
+    } else if (!sub.length) {
         App.cotizadorInitialized = false;
     }
 
     const routeFn = routes[page];
     if (routeFn) {
         try {
-            await routeFn();
-            if (page === 'cotizador') App.cotizadorInitialized = true;
+            await routeFn(...sub);
+            if (page === 'cotizador' && !sub.length) App.cotizadorInitialized = true;
         } catch (error) {
             console.error('Route error:', error);
             content.innerHTML = `
