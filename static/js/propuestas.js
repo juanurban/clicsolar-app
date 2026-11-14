@@ -373,8 +373,7 @@ async function crearInstalacionDesdePropuesta(id) {
             const res = await API.post('/proyectos', { cotizacion_id: id, nombre });
             showToast(res.message || 'Instalación creada', 'success');
             if (res.id) {
-                window.__openInstalacionId = res.id;
-                navigateTo('proyectos');
+                window.location.hash = '#proyectos/' + res.id;
             } else {
                 navigateTo('proyectos');
             }
