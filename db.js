@@ -209,6 +209,9 @@ function ensureSqliteProjectSchema(database) {
   // Instalaciones: pasos de seguimiento en proyectos
   addColumn('proyectos', 'tipo', "TEXT DEFAULT 'instalacion'");
   addColumn('proyectos', 'pasos_json', "TEXT DEFAULT '[]'");
+  addColumn('proyectos', 'bom_json', "TEXT DEFAULT '[]'");
+  addColumn('proyectos', 'bitacora_json', "TEXT DEFAULT '[]'");
+  addColumn('proyectos', 'costos_reales_json', "TEXT DEFAULT '{}'");
   try { addColumn('proyectos', 'empresa_id', 'INTEGER'); } catch (e) {}
   // Asegurar estados estándar de instalación si la tabla tiene los estados antiguos por defecto
   try {
@@ -370,18 +373,16 @@ async function ensureMysqlSchema(p) {
 
     // 6. Instalaciones: pasos y tipo en proyectos
     try {
-      const [pCols] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = 'pasos_json'`);
-      if (pCols.length === 0) {
-        await p.query('ALTER TABLE proyectos ADD COLUMN pasos_json LONGTEXT NULL');
-        console.log('🔧 MySQL: Añadida columna proyectos.pasos_json');
-      }
-      const [tCols] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = 'tipo'`);
-      if (tCols.length === 0) {
-        await p.query("ALTER TABLE proyectos ADD COLUMN tipo VARCHAR(50) DEFAULT 'instalacion'");
-      }
-      const [eCols] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = 'empresa_id'`);
-      if (eCols.length === 0) {
-        await p.query('ALTER TABLE proyectos ADD COLUMN empresa_id INT NULL');
+      for (const [col, sql] of [
+        ['pasos_json', 'ALTER TABLE proyectos ADD COLUMN pasos_json LONGTEXT NULL'],
+        ['bom_json', 'ALTER TABLE proyectos ADD COLUMN bom_json LONGTEXT NULL'],
+        ['bitacora_json', 'ALTER TABLE proyectos ADD COLUMN bitacora_json LONGTEXT NULL'],
+        ['costos_reales_json', 'ALTER TABLE proyectos ADD COLUMN costos_reales_json LONGTEXT NULL'],
+        ['tipo', "ALTER TABLE proyectos ADD COLUMN tipo VARCHAR(50) DEFAULT 'instalacion'"],
+        ['empresa_id', 'ALTER TABLE proyectos ADD COLUMN empresa_id INT NULL'],
+      ]) {
+        const [c] = await p.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'proyectos' AND COLUMN_NAME = ?`, [col]);
+        if (c.length === 0) { await p.query(sql); console.log('🔧 MySQL: Añadida columna proyectos.' + col); }
       }
     } catch (err) {
       console.error('⚠️ No se pudo migrar proyectos (instalaciones):', err.message);
