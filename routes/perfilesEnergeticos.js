@@ -25,8 +25,10 @@ const receiptUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /\.pdf$/i.test(file.originalname) || file.mimetype === 'application/pdf';
-    cb(allowed ? null : new Error('El recibo debe estar en formato PDF'), allowed);
+    const allowed = /\.(pdf|jpe?g|png)$/i.test(file.originalname) ||
+      file.mimetype === 'application/pdf' ||
+      /^image\/(jpeg|png)$/.test(file.mimetype);
+    cb(allowed ? null : new Error('El recibo debe estar en formato PDF, JPG o PNG'), allowed);
   }
 });
 
@@ -387,29 +389,53 @@ function extraerPromedioSeisMeses(texto) {
   return null;
 }
 
-async function analyzeReceipt(buffer, originalName) {
-  const extracted = await pdfParse(buffer);
-  const extractedText = String(extracted.text || '').trim();
-  const enelReceipt = /ENEL|CODENSA/i.test(extractedText);
-  let text = extractedText;
+async function ocrImage(buffer, originalName = 'receipt.png') {
+  const ext = (originalName.match(/\.(jpe?g|png)$/i)?.[1] || 'png').toLowerCase();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sunquote-receipt-img-'));
+  const imagePath = path.join(dir, `receipt.${ext === 'jpeg' ? 'jpg' : ext}`);
+  let worker;
+  try {
+    fs.writeFileSync(imagePath, buffer);
+    worker = await createWorker('spa');
+    const result = await worker.recognize(imagePath);
+    return result.data.text || '';
+  } finally {
+    if (worker) await worker.terminate();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function analyzeReceipt(buffer, originalName, mimetype = '') {
+  const isImage = /^image\//.test(mimetype) || /\.(jpe?g|png)$/i.test(originalName);
+  let extractedText = '';
+  let text = '';
   let ocrUsado = false;
-  // ENEL and other providers often draw the six-month history as a chart.
-  // OCR supplements the PDF text so those chart labels are available to the model.
-  if (process.env.RECEIPT_OCR !== 'false') {
-    try {
-      const ocrText = await ocrPdf(buffer, enelReceipt);
-      ocrUsado = true;
-      // For ENEL, never send the full page text: it contains a second graph
-      // for municipal waste/aseo with unrelated monthly values.
-      text = enelReceipt
-        ? `ENEL - BLOQUE EXCLUSIVO DE CONSUMO DE ENERGÍA:\n${ocrText}`
-        : `${text}\n\nOCR del recibo:\n${ocrText}`.trim();
-    } catch (error) {
-      console.warn('OCR del recibo no disponible:', error.message);
+  if (isImage) {
+    text = await ocrImage(buffer);
+    ocrUsado = true;
+    extractedText = text;
+  } else {
+    const extracted = await pdfParse(buffer);
+    extractedText = String(extracted.text || '').trim();
+    const enelReceipt = /ENEL|CODENSA/i.test(extractedText);
+    text = extractedText;
+    if (process.env.RECEIPT_OCR !== 'false') {
+      try {
+        const ocrText = await ocrPdf(buffer, enelReceipt);
+        ocrUsado = true;
+        text = enelReceipt
+          ? `ENEL - BLOQUE EXCLUSIVO DE CONSUMO DE ENERGÍA:\n${ocrText}`
+          : `${text}\n\nOCR del recibo:\n${ocrText}`.trim();
+      } catch (error) {
+        console.warn('OCR del recibo no disponible:', error.message);
+      }
+    }
+    if (text.length < 40) {
+      throw new Error('El PDF no contiene texto legible. Exporta el recibo como PDF con texto o utiliza un recibo digital.');
     }
   }
   if (text.length < 40) {
-    throw new Error('El PDF no contiene texto legible. Exporta el recibo como PDF con texto o utiliza un recibo digital.');
+    throw new Error('No se pudo extraer texto legible de la imagen. Usa una foto más nítida.');
   }
   const apiKey = (process.env.GROQ_API_KEY || '').trim().replace(/[\'"]/g, '');
   if (!apiKey) throw new Error('GROQ_API_KEY no está configurado en el servidor.');
@@ -427,24 +453,16 @@ Receipt text (${originalName}):\n${text.slice(0, 30000)}`;
   if (!response.ok) throw new Error(`Groq API Error: ${await response.text()}`);
   const completion = await response.json();
   const parsed = validarLecturaRecibo(parseReceiptResponse(completion.choices?.[0]?.message?.content));
-  // Prefer an explicit tariff written next to kWh in the receipt text over an
-  // inferred or misclassified value returned by the model.
   const explicitTariff = findTariffInText(text);
   if (explicitTariff) parsed.tarifa_kwh = explicitTariff;
-  // Cuando el modelo no devolvió el histórico (típico si el gráfico es una
-  // imagen y el OCR no está disponible), se intenta leer la secuencia de meses
-  // directamente de la capa de texto del PDF.
   if (!parsed.historial_mensual.length) {
     const delTexto = extraerHistorialDelTexto(`${extractedText}\n${text}`).filter(item => esConsumoPlausible(item.consumo_kwh));
     if (delTexto.length) {
       parsed.historial_mensual = delTexto.map(item => ({ ...item, tarifa_kwh: parsed.tarifa_kwh }));
-      parsed.advertencias = (parsed.advertencias || []).filter(texto => !texto.startsWith('No pude leer el gráfico'));
+      parsed.advertencias = (parsed.advertencias || []).filter(t => !t.startsWith('No pude leer el gráfico'));
       parsed.advertencias.push(`Histórico de meses recuperado del texto del recibo (${delTexto.length} meses).`);
     }
   }
-  // Ancla determinista: el propio recibo anuncia su promedio de los últimos
-  // 6 meses. Si difiere mucho de lo que se tomó como consumo mensual, se avisa
-  // (no se reemplaza: el usuario decide cuál corresponde a su proyecto).
   const promedioSeisMeses = extraerPromedioSeisMeses(`${extractedText}\n${text}`);
   if (promedioSeisMeses) {
     parsed.promedio_seis_meses = promedioSeisMeses;
@@ -507,7 +525,7 @@ router.post('/recibo/:clienteId', receiptUpload.single('file'), async (req, res)
     const [clients] = await pool.execute('SELECT id FROM clientes WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.clienteId, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
     if (!clients.length) return res.status(404).json({ detail: 'Cliente no encontrado' });
 
-    const receipt = await analyzeReceipt(req.file.buffer, req.file.originalname);
+    const receipt = await analyzeReceipt(req.file.buffer, req.file.originalname, req.file.mimetype);
     const advertencias = receipt.advertencias || [];
     const monthlyHistory = receipt.historial_mensual.length
       ? receipt.historial_mensual

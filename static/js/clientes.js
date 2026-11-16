@@ -315,14 +315,14 @@ async function openClienteModal(id = null) {
                                 <span class="material-symbols-outlined text-primary">receipt_long</span>
                                 <div>
                                     <h3 class="font-label-bold text-on-surface">Crear perfil desde recibo</h3>
-                                    <p class="text-sm text-on-surface-variant mt-1">Carga un recibo PDF digital para extraer consumo mensual, tarifa y valor facturado.</p>
+                                    <p class="text-sm text-on-surface-variant mt-1">Carga un recibo PDF digital o una foto (JPG/PNG) para extraer consumo mensual, tarifa y valor facturado.</p>
                                 </div>
                             </div>
                             <div class="mt-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                                <input type="file" id="recibo-energetico-input" class="hidden" accept="application/pdf,.pdf">
-                                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="document.getElementById('recibo-energetico-input').click()">
-                                    <span class="material-symbols-outlined">upload_file</span> Seleccionar recibo PDF
-                                </button>
+<input type="file" id="recibo-energetico-input" class="hidden" accept="application/pdf,.pdf,image/jpeg,image/png,.jpg,.jpeg,.png">
+<button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="document.getElementById('recibo-energetico-input').click()">
+<span class="material-symbols-outlined">upload_file</span> Seleccionar recibo (PDF o foto)
+</button>
                                 <span id="recibo-energetico-file-name" class="text-sm text-on-surface-variant">Ningún recibo seleccionado</span>
                             </div>
                         </div>
@@ -377,6 +377,63 @@ async function openClienteModal(id = null) {
                         </div>
                     </div>
 
+                    <div class="md:col-span-3 bg-surface-container-high p-5 rounded-xl">
+                        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-primary">battery_charging_full</span>
+                                <div>
+                                    <h3 class="font-label-bold text-on-surface">Cargas del sistema off-grid</h3>
+                                    <p class="text-sm text-on-surface-variant mt-1">Agrega cada equipo con su potencia y las horas que funciona de día y de noche. La energía de las 24 h define el consumo, la energía sin sol el banco de baterías y la potencia simultánea el inversor.</p>
+                                </div>
+                            </div>
+                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="agregarCargaOffgrid()">
+                                <span class="material-symbols-outlined">add</span> Agregar equipo
+                            </button>
+                        </div>
+                        <div class="mt-4 overflow-x-auto">
+                            <table class="sq-table sq-table-compact" id="offgrid-table">
+                                <thead>
+                                    <tr>
+                                        <th>Equipo</th>
+                                        <th>Cant.</th>
+                                        <th>Potencia (W)</th>
+                                        <th>Horas día</th>
+                                        <th>Horas noche</th>
+                                        <th>kWh/día</th>
+                                        <th title="Marcado: puede estar encendido al mismo tiempo que los demás equipos marcados">Simult.</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="offgrid-rows"></tbody>
+                            </table>
+                        </div>
+                        <p id="offgrid-empty" class="text-sm text-on-surface-variant py-3">Aún no hay equipos en la lista.</p>
+
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4 pt-4 border-t border-outline-variant/60">
+                            <div>
+                                <label class="sq-label text-[11px]">Voltaje banco (V)</label>
+                                <input type="number" min="1" step="any" id="offgrid-voltaje" class="sq-input sq-input-compact" value="48" oninput="recalcularCargasOffgrid()">
+                            </div>
+                            <div>
+                                <label class="sq-label text-[11px]">Días autonomía</label>
+                                <input type="number" min="1" step="1" id="offgrid-autonomia" class="sq-input sq-input-compact" value="1" oninput="recalcularCargasOffgrid()">
+                            </div>
+                            <div>
+                                <label class="sq-label text-[11px]">Descarga máx. (%)</label>
+                                <input type="number" min="10" max="100" step="any" id="offgrid-dod" class="sq-input sq-input-compact" value="80" oninput="recalcularCargasOffgrid()">
+                            </div>
+                            <div>
+                                <label class="sq-label text-[11px]">Eficiencia (%)</label>
+                                <input type="number" min="10" max="100" step="any" id="offgrid-eficiencia" class="sq-input sq-input-compact" value="85" oninput="recalcularCargasOffgrid()">
+                            </div>
+                            <div>
+                                <label class="sq-label text-[11px]">Margen inversor (%)</label>
+                                <input type="number" min="0" max="100" step="any" id="offgrid-margen" class="sq-input sq-input-compact" value="25" oninput="recalcularCargasOffgrid()">
+                            </div>
+                        </div>
+                        <div id="offgrid-resumen" class="mt-4"></div>
+                    </div>
+
                     <div>
                         <label class="sq-label">Costo Actual $/kWh *</label>
                         <input type="number" min="0" step="any" name="costo_kwh" class="sq-input" required value="${c.costo_kwh}">
@@ -423,6 +480,7 @@ async function openClienteModal(id = null) {
     toggleHistorial(true);
     renderClientArchivos();
     initSelectoresUbicacion(c);
+    renderCargasOffgrid(c.cargas_offgrid_json);
     if (id) initPerfilEnergeticoUpload(id);
     else actualizarAvisoPromedio();
 }
@@ -627,6 +685,9 @@ function recolectarDatosCliente() {
     });
     data.historial_consumo = historial;
     data.archivos_json = currentArchivos;
+    // La lista off-grid se lee del DOM porque sus filas se agregan y eliminan
+    // dinámicamente y no participan del FormData.
+    if (typeof leerCargasOffgrid === 'function') data.cargas_offgrid_json = leerCargasOffgrid();
     return data;
 }
 
