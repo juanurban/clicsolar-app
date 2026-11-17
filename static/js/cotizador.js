@@ -2017,11 +2017,11 @@ function renderStep4(container) {
         stateCotizador.cronograma = [
             {fecha_inicio: addBusinessDays(base_date, 0), fecha_fin: addBusinessDays(base_date, 2), actividad: 'Firma de contrato y anticipo', completado: false},
             {fecha_inicio: addBusinessDays(base_date, 3), fecha_fin: addBusinessDays(base_date, 4), actividad: 'Compra de equipos y materiales', completado: false},
-            {fecha_inicio: addBusinessDays(base_date, 3), fecha_fin: addBusinessDays(base_date, 4), actividad: 'Diseño eléctrico y memorias de cálculo', completado: false},
-            {fecha_inicio: addBusinessDays(base_date, 5), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Instalación de estructura y paneles', completado: false},
-            {fecha_inicio: addBusinessDays(base_date, 6), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Instalación eléctrica e inversor', completado: false},
-            {fecha_inicio: addBusinessDays(base_date, 8), fecha_fin: addBusinessDays(base_date, 8), actividad: 'Pruebas y puesta en marcha', completado: false},
-            {fecha_inicio: addBusinessDays(base_date, 9), fecha_fin: addBusinessDays(base_date, 10), actividad: 'Entrega y último pago', completado: false}
+            {fecha_inicio: addBusinessDays(base_date, 5), fecha_fin: addBusinessDays(base_date, 6), actividad: 'Diseño eléctrico y memorias de cálculo', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 7), fecha_fin: addBusinessDays(base_date, 9), actividad: 'Instalación de estructura y paneles', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 10), fecha_fin: addBusinessDays(base_date, 11), actividad: 'Instalación eléctrica e inversor', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 12), fecha_fin: addBusinessDays(base_date, 12), actividad: 'Pruebas y puesta en marcha', completado: false},
+            {fecha_inicio: addBusinessDays(base_date, 13), fecha_fin: addBusinessDays(base_date, 14), actividad: 'Entrega y último pago', completado: false}
         ];
     }
 
