@@ -638,3 +638,5 @@ router.delete('/:clienteId', async (req, res) => {
     res.status(500).json({ detail: 'No se pudo borrar el perfil' });
   }
 });
+
+module.exports = router;
