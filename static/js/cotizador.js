@@ -2021,7 +2021,7 @@ function renderStep4(container) {
             {fecha_inicio: addBusinessDays(base_date, 5), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Instalación de estructura y paneles', completado: false},
             {fecha_inicio: addBusinessDays(base_date, 6), fecha_fin: addBusinessDays(base_date, 7), actividad: 'Instalación eléctrica e inversor', completado: false},
             {fecha_inicio: addBusinessDays(base_date, 8), fecha_fin: addBusinessDays(base_date, 8), actividad: 'Pruebas y puesta en marcha', completado: false},
-            {fecha_inicio: addBusinessDays(base_date, 9), fecha_fin: addBusinessDays(base_date, 9), actividad: 'Entrega y último pago', completado: false}
+            {fecha_inicio: addBusinessDays(base_date, 9), fecha_fin: addBusinessDays(base_date, 10), actividad: 'Entrega y último pago', completado: false}
         ];
     }
 
