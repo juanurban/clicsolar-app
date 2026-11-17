@@ -321,7 +321,10 @@ async function openClienteModal(id = null) {
                             <div class="mt-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
 <input type="file" id="recibo-energetico-input" class="hidden" accept="application/pdf,.pdf,image/jpeg,image/png,.jpg,.jpeg,.png">
 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="document.getElementById('recibo-energetico-input').click()">
-<span class="material-symbols-outlined">upload_file</span> Seleccionar recibo (PDF o foto)
+<span class="material-symbols-outlined">upload_file</span> Seleccionar recibo
+</button>
+<button type="button" class="sq-btn sq-btn-primary sq-btn-sm whitespace-nowrap" onclick="leerReciboEnergetico()">
+<span class="material-symbols-outlined">document_scanner</span> Leer recibo
 </button>
                                 <span id="recibo-energetico-file-name" class="text-sm text-on-surface-variant">Ningún recibo seleccionado</span>
                             </div>

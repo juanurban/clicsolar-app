@@ -138,16 +138,20 @@ async function initPerfilEnergeticoUpload(clienteId) {
         }
     });
 
-    if (receiptInput) receiptInput.addEventListener('change', async () => {
+    window._receiptClienteId = clienteId;
+    if (receiptInput) receiptInput.addEventListener('change', () => {
         const file = receiptInput.files?.[0];
-        if (!file) return;
-        // Analizar un recibo escribe en el cliente los valores del PDF. Si el
-        // usuario ya había capturado los meses a mano, eso se pierde sin aviso
-        // (era la queja de "escribo los meses y al reabrir aparece el del PDF").
+        if (file) document.getElementById('recibo-energetico-file-name').textContent = file.name;
+    });
+
+    window.leerReciboEnergetico = async function () {
+        const cid = window._receiptClienteId;
+        const input = document.getElementById('recibo-energetico-input');
+        const file = input?.files?.[0];
+        if (!cid || !file) { showToast('Selecciona un recibo primero.', 'error'); return; }
         const mesesYaEscritos = [...document.querySelectorAll('.h-historial')]
             .some(campo => String(campo.value || '').trim() !== '');
         if (mesesYaEscritos && !confirm('El cliente ya tiene meses de consumo escritos. Analizar este recibo los reemplazará por los valores del PDF. ¿Continuar?')) {
-            receiptInput.value = '';
             return;
         }
         document.getElementById('recibo-energetico-file-name').textContent = file.name;
@@ -155,7 +159,7 @@ async function initPerfilEnergeticoUpload(clienteId) {
         formData.append('file', file);
         showToast('Leyendo recibo de energía...', 'info');
         try {
-            const response = await fetch(`/api/perfiles-energeticos/recibo/${clienteId}`, { method: 'POST', body: formData });
+            const response = await fetch(`/api/perfiles-energeticos/recibo/${cid}`, { method: 'POST', body: formData });
             const data = await response.json();
             if (!response.ok) throw new Error(data.detail || 'No se pudo analizar el recibo');
             renderPerfilEnergeticoSummary(data);
@@ -175,7 +179,264 @@ async function initPerfilEnergeticoUpload(clienteId) {
         } catch (error) {
             showToast(error.message, 'error');
         } finally {
-            receiptInput.value = '';
+            if (input) input.value = '';
         }
+    };
+}
+
+/**
+ * SunQuote — Cargas eléctricas de un sistema off-grid.
+ *
+ * Cada equipo declara potencia y horas de funcionamiento de día (con sol) y de
+ * noche (sin sol). La suma de las 24 h es la energía diaria que el sistema debe
+ * cubrir; con la energía nocturna se dimensiona el banco de baterías y con la
+ * potencia simultánea, el inversor.
+ */
+
+const CARGAS_OFFGRID_DEFECTO = {
+    voltaje_banco_v: 48,
+    dias_autonomia: 1,
+    profundidad_descarga_pct: 80,
+    eficiencia_sistema_pct: 85,
+    margen_inversor_pct: 25
+};
+
+function cargasOffgridNumero(valor, defecto = 0) {
+    if (valor === null || valor === undefined || valor === '') return defecto;
+    const numero = Number(String(valor).replace(',', '.'));
+    return Number.isFinite(numero) ? numero : defecto;
+}
+
+function cargasOffgridLimitar(valor, minimo, maximo) {
+    return Math.min(maximo, Math.max(minimo, valor));
+}
+
+function cargasOffgridRedondear(valor, decimales = 2) {
+    const factor = 10 ** decimales;
+    return Math.round(valor * factor) / factor;
+}
+
+// El formato global de la app fija un decimal; en una lista off-grid eso oculta
+// consumos pequeños (una lámpara de 9 W son 0,36 kWh/día), así que aquí se elige
+// la precisión de cada cifra.
+function cargasOffgridFormatear(valor, decimales = 1) {
+    return Number(valor || 0).toLocaleString('es-CO', {
+        minimumFractionDigits: decimales,
+        maximumFractionDigits: decimales
     });
+}
+
+function escaparAtributoOffgrid(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// Acepta el objeto guardado ({ equipos, parametros }) o el arreglo de versiones
+// anteriores, igual que el servidor.
+function normalizarCargasOffgridCliente(cargas) {
+    let data = cargas;
+    while (typeof data === 'string') {
+        try {
+            const parsed = JSON.parse(data);
+            if (parsed === data) break;
+            data = parsed;
+        } catch { break; }
+    }
+    const equipos = Array.isArray(data) ? data : (Array.isArray(data?.equipos) ? data.equipos : []);
+    return {
+        equipos: equipos.map(equipo => ({
+            nombre: String(equipo?.nombre || '').trim(),
+            cantidad: Math.max(1, cargasOffgridNumero(equipo?.cantidad, 1)),
+            potencia_w: Math.max(0, cargasOffgridNumero(equipo?.potencia_w)),
+            horas_dia: cargasOffgridLimitar(cargasOffgridNumero(equipo?.horas_dia), 0, 24),
+            horas_noche: cargasOffgridLimitar(cargasOffgridNumero(equipo?.horas_noche), 0, 24),
+            simultaneo: equipo?.simultaneo !== false
+        })),
+        parametros: {
+            ...CARGAS_OFFGRID_DEFECTO,
+            ...(Array.isArray(data) ? {} : (data?.parametros || {}))
+        }
+    };
+}
+
+function filaCargaOffgridHtml(carga = {}) {
+    const equipo = {
+        nombre: '',
+        cantidad: 1,
+        potencia_w: '',
+        horas_dia: '',
+        horas_noche: '',
+        simultaneo: true,
+        ...carga
+    };
+    return `
+        <tr data-carga>
+            <td><input type="text" class="sq-input sq-input-compact offgrid-nombre" placeholder="Ej. Nevera" style="min-width:140px" value="${escaparAtributoOffgrid(equipo.nombre)}" oninput="recalcularCargasOffgrid()"></td>
+            <td><input type="number" min="1" step="1" class="sq-input sq-input-compact offgrid-cantidad" style="min-width:60px" value="${equipo.cantidad}" oninput="recalcularCargasOffgrid()"></td>
+            <td><input type="number" min="0" step="any" class="sq-input sq-input-compact offgrid-potencia" style="min-width:85px" value="${equipo.potencia_w}" oninput="recalcularCargasOffgrid()"></td>
+            <td><input type="number" min="0" max="24" step="any" class="sq-input sq-input-compact offgrid-horas-dia" style="min-width:70px" value="${equipo.horas_dia}" oninput="recalcularCargasOffgrid()"></td>
+            <td><input type="number" min="0" max="24" step="any" class="sq-input sq-input-compact offgrid-horas-noche" style="min-width:70px" value="${equipo.horas_noche}" oninput="recalcularCargasOffgrid()"></td>
+            <td class="offgrid-kwh font-bold text-primary whitespace-nowrap">-</td>
+            <td class="text-center"><input type="checkbox" class="offgrid-simultaneo w-4 h-4" title="Puede estar encendido junto con los demás equipos marcados" ${equipo.simultaneo ? 'checked' : ''} onchange="recalcularCargasOffgrid()"></td>
+            <td class="text-right"><button type="button" class="p-1 text-on-surface-variant hover:text-error" title="Quitar equipo" onclick="eliminarCargaOffgrid(this)"><span class="material-symbols-outlined text-lg">close</span></button></td>
+        </tr>
+    `;
+}
+
+function actualizarEstadoTablaOffgrid() {
+    const hayFilas = !!document.querySelector('#offgrid-rows tr[data-carga]');
+    const vacio = document.getElementById('offgrid-empty');
+    if (vacio) vacio.classList.toggle('hidden', hayFilas);
+}
+
+function renderFilasCargasOffgrid(equipos = []) {
+    const tbody = document.getElementById('offgrid-rows');
+    if (!tbody) return;
+    tbody.innerHTML = equipos.map(filaCargaOffgridHtml).join('');
+    actualizarEstadoTablaOffgrid();
+}
+
+// Pinta la lista guardada del cliente (o una fila vacía si es un cliente nuevo)
+// y deja los parámetros de cálculo en sus campos.
+function renderCargasOffgrid(cargas) {
+    const data = normalizarCargasOffgridCliente(cargas);
+    renderFilasCargasOffgrid(data.equipos.length ? data.equipos : [{}]);
+    const parametros = data.parametros;
+    const asignar = (id, valor) => { const campo = document.getElementById(id); if (campo) campo.value = valor; };
+    asignar('offgrid-voltaje', parametros.voltaje_banco_v);
+    asignar('offgrid-autonomia', parametros.dias_autonomia);
+    asignar('offgrid-dod', parametros.profundidad_descarga_pct);
+    asignar('offgrid-eficiencia', parametros.eficiencia_sistema_pct);
+    asignar('offgrid-margen', parametros.margen_inversor_pct);
+    recalcularCargasOffgrid();
+}
+
+function agregarCargaOffgrid() {
+    const tbody = document.getElementById('offgrid-rows');
+    if (!tbody) return;
+    tbody.insertAdjacentHTML('beforeend', filaCargaOffgridHtml({}));
+    actualizarEstadoTablaOffgrid();
+    recalcularCargasOffgrid();
+}
+
+function eliminarCargaOffgrid(boton) {
+    const fila = boton.closest('tr[data-carga]');
+    if (fila) fila.remove();
+    actualizarEstadoTablaOffgrid();
+    recalcularCargasOffgrid();
+}
+
+function leerCargasOffgrid() {
+    const equipos = [...document.querySelectorAll('#offgrid-rows tr[data-carga]')].map(fila => {
+        const campo = selector => fila.querySelector(selector);
+        return {
+            nombre: String(campo('.offgrid-nombre')?.value || '').trim(),
+            cantidad: Math.max(1, cargasOffgridNumero(campo('.offgrid-cantidad')?.value, 1)),
+            potencia_w: Math.max(0, cargasOffgridNumero(campo('.offgrid-potencia')?.value)),
+            horas_dia: cargasOffgridLimitar(cargasOffgridNumero(campo('.offgrid-horas-dia')?.value), 0, 24),
+            horas_noche: cargasOffgridLimitar(cargasOffgridNumero(campo('.offgrid-horas-noche')?.value), 0, 24),
+            simultaneo: campo('.offgrid-simultaneo')?.checked ?? true
+        };
+    }).filter(equipo => equipo.nombre || equipo.potencia_w > 0);
+
+    const parametros = {
+        voltaje_banco_v: Math.max(1, cargasOffgridNumero(document.getElementById('offgrid-voltaje')?.value, 48)),
+        dias_autonomia: Math.max(1, cargasOffgridNumero(document.getElementById('offgrid-autonomia')?.value, 1)),
+        profundidad_descarga_pct: cargasOffgridLimitar(cargasOffgridNumero(document.getElementById('offgrid-dod')?.value, 80), 10, 100),
+        eficiencia_sistema_pct: cargasOffgridLimitar(cargasOffgridNumero(document.getElementById('offgrid-eficiencia')?.value, 85), 10, 100),
+        margen_inversor_pct: cargasOffgridLimitar(cargasOffgridNumero(document.getElementById('offgrid-margen')?.value, 25), 0, 100)
+    };
+    return { activo: equipos.length > 0, equipos, parametros };
+}
+
+function calcularCargasOffgrid(equipos, parametros) {
+    let energiaDia = 0;
+    let energiaNoche = 0;
+    let potenciaInstalada = 0;
+    let potenciaSimultanea = 0;
+
+    for (const equipo of equipos) {
+        const potenciaTotal = equipo.potencia_w * equipo.cantidad;
+        energiaDia += potenciaTotal / 1000 * equipo.horas_dia;
+        energiaNoche += potenciaTotal / 1000 * equipo.horas_noche;
+        potenciaInstalada += potenciaTotal;
+        if (equipo.simultaneo) potenciaSimultanea += potenciaTotal;
+    }
+
+    const energiaDiaria = energiaDia + energiaNoche;
+    const rendimiento = (parametros.profundidad_descarga_pct / 100) * (parametros.eficiencia_sistema_pct / 100);
+    const capacidadBanco = rendimiento > 0 ? (energiaNoche * parametros.dias_autonomia) / rendimiento : 0;
+
+    return {
+        energia_diaria_kwh: cargasOffgridRedondear(energiaDiaria),
+        energia_dia_kwh: cargasOffgridRedondear(energiaDia),
+        energia_noche_kwh: cargasOffgridRedondear(energiaNoche),
+        consumo_mensual_kwh: cargasOffgridRedondear(energiaDiaria * 30, 1),
+        potencia_instalada_w: cargasOffgridRedondear(potenciaInstalada, 1),
+        potencia_simultanea_w: cargasOffgridRedondear(potenciaSimultanea, 1),
+        potencia_inversor_w: cargasOffgridRedondear(potenciaSimultanea * (1 + parametros.margen_inversor_pct / 100), 1),
+        capacidad_banco_kwh: cargasOffgridRedondear(capacidadBanco),
+        capacidad_banco_ah: parametros.voltaje_banco_v > 0 ? cargasOffgridRedondear(capacidadBanco * 1000 / parametros.voltaje_banco_v, 1) : 0
+    };
+}
+
+function recalcularCargasOffgrid() {
+    const contenedor = document.getElementById('offgrid-resumen');
+    if (!contenedor) return;
+
+    // Energía de cada fila, incluso las que aún no tienen nombre.
+    const filas = [...document.querySelectorAll('#offgrid-rows tr[data-carga]')];
+    filas.forEach(fila => {
+        const cantidad = Math.max(1, cargasOffgridNumero(fila.querySelector('.offgrid-cantidad')?.value, 1));
+        const potencia = Math.max(0, cargasOffgridNumero(fila.querySelector('.offgrid-potencia')?.value));
+        const horasDia = cargasOffgridLimitar(cargasOffgridNumero(fila.querySelector('.offgrid-horas-dia')?.value), 0, 24);
+        const horasNoche = cargasOffgridLimitar(cargasOffgridNumero(fila.querySelector('.offgrid-horas-noche')?.value), 0, 24);
+        const celda = fila.querySelector('.offgrid-kwh');
+        if (celda) celda.textContent = potencia > 0 ? `${cargasOffgridFormatear(potencia * cantidad / 1000 * (horasDia + horasNoche), 2)}` : '-';
+    });
+
+    const { equipos, parametros } = leerCargasOffgrid();
+    if (!equipos.length) {
+        contenedor.innerHTML = `<p class="text-sm text-on-surface-variant">Completa la lista para calcular la energía diaria, el banco de baterías y el inversor.</p>`;
+        return;
+    }
+
+    const r = calcularCargasOffgrid(equipos, parametros);
+    const tarjeta = (titulo, valor, detalle) => `
+        <div class="bg-surface-container p-3 rounded-lg">
+            <div class="text-xs text-on-surface-variant">${titulo}</div>
+            <div class="text-lg font-bold text-primary">${valor}</div>
+            <div class="text-xs text-on-surface-variant mt-0.5">${detalle}</div>
+        </div>`;
+
+    contenedor.innerHTML = `
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            ${tarjeta('Energía diaria (24 h)', `${cargasOffgridFormatear(r.energia_diaria_kwh, 2)} kWh`, `Día ${cargasOffgridFormatear(r.energia_dia_kwh, 2)} kWh · Noche ${cargasOffgridFormatear(r.energia_noche_kwh, 2)} kWh`)}
+            ${tarjeta('Banco de baterías', `${cargasOffgridFormatear(r.capacidad_banco_kwh, 2)} kWh`, `${cargasOffgridFormatear(r.capacidad_banco_ah, 0)} Ah @ ${cargasOffgridFormatear(parametros.voltaje_banco_v, 0)} V · ${cargasOffgridFormatear(parametros.dias_autonomia, 0)} día(s)`)}
+            ${tarjeta('Potencia simultánea', `${cargasOffgridFormatear(r.potencia_simultanea_w, 0)} W`, `Instalada ${cargasOffgridFormatear(r.potencia_instalada_w, 0)} W`)}
+            ${tarjeta('Inversor recomendado', `${cargasOffgridFormatear(r.potencia_inversor_w / 1000, 2)} kW`, `Incluye ${cargasOffgridFormatear(parametros.margen_inversor_pct, 0)}% de margen`)}
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
+            <p class="text-xs text-on-surface-variant">Banco = energía nocturna × autonomía ÷ (descarga máx. × eficiencia). Inversor = potencia simultánea + margen.</p>
+            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="aplicarConsumoOffgrid()">
+                <span class="material-symbols-outlined">sync</span> Usar ${cargasOffgridFormatear(r.consumo_mensual_kwh, 1)} kWh/mes como consumo
+            </button>
+        </div>
+    `;
+}
+
+// Lleva la energía diaria × 30 al consumo mensual que usa el dimensionamiento
+// solar, sin sobrescribirlo en silencio: solo cuando el usuario lo pide.
+function aplicarConsumoOffgrid() {
+    const { equipos, parametros } = leerCargasOffgrid();
+    if (!equipos.length) return;
+    const { consumo_mensual_kwh } = calcularCargasOffgrid(equipos, parametros);
+    const campo = document.getElementById('inp-consumo');
+    if (!campo) return;
+    campo.value = Number(consumo_mensual_kwh).toFixed(1);
+    if (typeof actualizarAvisoPromedio === 'function') actualizarAvisoPromedio();
+    showToast(`Consumo mensual actualizado: ${cargasOffgridFormatear(consumo_mensual_kwh, 1)} kWh`, 'success');
 }
