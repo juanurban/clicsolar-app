@@ -1014,7 +1014,6 @@
                     const dates = crono.map(c => parseDate(c.fecha_inicio));
                     const minStart = new Date(Math.min(...dates));
                     const maxEnd = new Date(Math.max(...crono.map(c => parseDate(c.fecha_fin))));
-maxEnd.setDate(maxEnd.getDate() + 3);
 
                     function countWeekdays(d1, d2) {
                         let c = 0;
