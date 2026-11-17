@@ -626,4 +626,15 @@ router.post('/:clienteId', upload.single('file'), async (req, res) => {
   }
 });
 
-module.exports = router;
+router.delete('/:clienteId', async (req, res) => {
+  try {
+    const [clients] = await pool.execute('SELECT id FROM clientes WHERE id = ? AND (empresa_id = ? OR ? = 1)', [req.params.clienteId, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    if (!clients.length) return res.status(404).json({ detail: 'Cliente no encontrado' });
+    await pool.execute('DELETE FROM perfiles_energeticos WHERE cliente_id = ?', [req.params.clienteId]);
+    await pool.execute('UPDATE clientes SET consumo_mensual_kwh = NULL, historial_consumo = NULL, costo_kwh = costo_kwh WHERE id = ?', [req.params.clienteId]);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error borrando perfil energético:', error);
+    res.status(500).json({ detail: 'No se pudo borrar el perfil' });
+  }
+});

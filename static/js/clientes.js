@@ -323,8 +323,8 @@ async function openClienteModal(id = null) {
 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="document.getElementById('recibo-energetico-input').click()">
 <span class="material-symbols-outlined">upload_file</span> Seleccionar recibo
 </button>
-<button type="button" class="sq-btn sq-btn-primary sq-btn-sm whitespace-nowrap" onclick="leerReciboEnergetico()">
-<span class="material-symbols-outlined">document_scanner</span> Leer recibo
+<button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap" onclick="borrarPerfilEnergetico()">
+<span class="material-symbols-outlined">delete</span> Borrar lectura
 </button>
                                 <span id="recibo-energetico-file-name" class="text-sm text-on-surface-variant">Ningún recibo seleccionado</span>
                             </div>

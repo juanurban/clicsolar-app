@@ -182,6 +182,26 @@ async function initPerfilEnergeticoUpload(clienteId) {
             if (input) input.value = '';
         }
     };
+
+    window.borrarPerfilEnergetico = async function () {
+        const cid = window._receiptClienteId;
+        if (!cid) return;
+        if (!confirm('¿Borrar la lectura del recibo y dejar el perfil en blanco?')) return;
+        try {
+            await fetch(`/api/perfiles-energeticos/${cid}`, { method: 'DELETE' });
+            document.getElementById('perfil-energetico-summary').innerHTML = '';
+            document.getElementById('recibo-energetico-file-name').textContent = 'Ningún recibo seleccionado';
+            document.querySelectorAll('.h-historial').forEach(f => { f.value = ''; });
+            const consumo = document.getElementById('inp-consumo'); if (consumo) consumo.value = '';
+            const tarifa = document.querySelector('[name="costo_kwh"]'); if (tarifa) tarifa.value = '';
+            if (typeof actualizarAvisoPromedio === 'function') actualizarAvisoPromedio();
+            clienteFormSucio = true;
+            showToast('Lectura borrada.', 'success');
+            if (typeof fetchClientes === 'function') fetchClientes();
+        } catch (error) {
+            showToast(error.message || 'No se pudo borrar', 'error');
+        }
+    };
 }
 
 /**
