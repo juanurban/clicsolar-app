@@ -299,21 +299,20 @@ window.ProyectosModule = (function () {
         const cot = current.cotizacion;
         if (!bom.length) return `<div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. ${cot?'La cotización no tiene ítems.':'Vincula una cotización o agrega ítems.'}</p></div>`;
         return `<div class="space-y-4">
-            <p class="text-sm text-on-surface-variant">Lista heredada de la cotización ${cot?`<span class="text-primary font-mono">${escapeHtml(cot.codigo||'')}</span>`:''}. Marca el estado logístico de cada ítem.</p>
+            <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
                 <table class="sq-table w-full">
-                    <thead><tr><th>Ítem</th><th class="text-center">Cant.</th><th class="text-center">Comprado</th><th class="text-center">Despachado</th><th class="text-center">Instalado</th></tr></thead>
+                    <thead><tr><th>Ítem</th><th class="text-center">Cant.</th><th class="text-right">Precio unitario</th><th class="text-right">Precio total</th></tr></thead>
                     <tbody>${bom.map((b,i)=>`
                         <tr>
                             <td><div class="font-label-bold text-on-surface">${escapeHtml(b.nombre||'-')}</div><div class="text-xs text-on-surface-variant">${escapeHtml(b.categoria||'')}</div></td>
-                            <td class="text-center">${b.cantidad||0} ${escapeHtml(b.unidad||'')}</td>
-                            ${['comprado','despachado','instalado'].map(k=>`<td class="text-center"><input type="checkbox" class="w-5 h-5 accent-primary cursor-pointer" ${b[k]?'checked':''} onchange="ProyectosModule.toggleBom(${i},'${k}',this.checked)"></td>`).join('')}
+                            <td class="text-center"><input type="number" class="sq-input w-20 text-center" value="${b.cantidad||0}" min="0" step="any" onchange="ProyectosModule.updateBomQty(${i}, this.value)"></td>
+                            <td class="text-right"><input type="number" class="sq-input w-24 text-right" value="${b.precio_unitario||b.costo_unitario||0}" min="0" step="any" onchange="ProyectosModule.updateBomPrecio(${i}, this.value)"></td>
+                            <td class="text-right font-label-bold text-primary">${formatCurrency((Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0))}</td>
                         </tr>`).join('')}
                     </tbody>
+                    <tfoot><tr><td colspan="3" class="text-right font-bold">Total materiales</td><td class="text-right font-bold text-primary">${formatCurrency(bom.reduce((s,b)=>s+(Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0),0))}</td></tr></tfoot>
                 </table>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                ${['comprado','despachado','instalado'].map(k=>{ const n=bom.filter(b=>b[k]).length; return `<div class="bg-surface-container-low rounded-xl p-4 text-center border border-outline-variant/20"><div class="text-on-surface-variant capitalize mb-1">${k}</div><div class="font-headline-md text-on-surface">${n}/${bom.length}</div></div>`; }).join('')}
             </div>
         </div>`;
     }
@@ -427,6 +426,8 @@ window.ProyectosModule = (function () {
     async function updateTareaField(pid,tid,field,val){ const t=findTarea(pid,tid); if(!t)return; t[field]=val||null; await saveCurrent(['pasos']); const st=document.getElementById('save-status'); if(st){st.textContent='Guardado'; setTimeout(()=>st.textContent='',1200);} }
 
     async function toggleBom(idx,key,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx][key]=!!val; await saveCurrent(['bom']); }
+    async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); render(); }
+    async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); render(); }
 
     async function agregarBitacora(){
         const nota=(document.getElementById('bit-nota')?.value||'').trim();
@@ -478,7 +479,7 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
