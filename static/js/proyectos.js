@@ -496,7 +496,9 @@ window.ProyectosModule = (function () {
         const eq = (window._invItems||[]).find(e=>String(e.id)===String(id));
         if(!eq){ showToast('No encontrado','error'); return; }
         if(!current.bom) current.bom=[];
-        current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:Number(qtyInput?.value)||1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
+        const basePrice = Number(eq.costo||eq.precio||0);
+        const priceIva = eq.iva ? Math.round(basePrice*1.19*100)/100 : basePrice;
+        current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:Number(qtyInput?.value)||1, precio_unitario:priceIva, categoria:eq.categoria||'', equipo_id:eq.id, iva:!!eq.iva});
         await saveCurrent(['bom']); renderDetalle();
     }
     async function updateBomNombre(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].nombre=val; await saveCurrent(['bom']); }
