@@ -448,14 +448,33 @@ window.ProyectosModule = (function () {
         try {
             const items = await API.get('/equipos');
             const list = Array.isArray(items) ? items : (items?.items || []);
-            const opts = list.map(e=>`${e.id}|${e.marca||''} ${e.modelo||e.nombre||''}`.trim()).join('\n');
-            const sel = prompt('ID del equipo a agregar:\n'+list.map(e=>`${e.id} - ${e.marca||''} ${e.modelo||e.nombre||''}`).join('\n'));
-            if(!sel) return;
-            const eq = list.find(e=>String(e.id)===String(sel.trim()));
-            if(!eq){ showToast('No encontrado','error'); return; }
-            if(!current.bom) current.bom=[];
-            current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
-            await saveCurrent(['bom']); render();
+            // Modal con buscador
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+            overlay.innerHTML = `<div style="background:#fff;border-radius:12px;width:90%;max-width:600px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
+                <div style="padding:16px;border-bottom:1px solid #eee;"><input id="bom-inv-search" class="sq-input w-full" placeholder="Buscar producto..." autofocus></div>
+                <div id="bom-inv-list" style="overflow:auto;flex:1;padding:8px;"></div>
+                <div style="padding:12px;text-align:right;border-top:1px solid #eee;"><button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="this.closest('div').parentElement.parentElement.remove()">Cerrar</button></div>
+            </div>`;
+            document.body.appendChild(overlay);
+            const search = overlay.querySelector('#bom-inv-search');
+            const listEl = overlay.querySelector('#bom-inv-list');
+            function renderList(q){
+                const filtered = list.filter(e => (`${e.marca||''} ${e.modelo||e.nombre||''} ${e.categoria||''}`).toLowerCase().includes(q.toLowerCase()));
+                listEl.innerHTML = filtered.slice(0,50).map(e=>`<div style="padding:8px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''" onclick="window._bomInvSelect(${e.id})">${e.marca||''} ${e.modelo||e.nombre||''} <span style="color:#888;font-size:12px;">(${e.categoria||''}) - ${e.costo||e.precio||0}</span></div>`).join('') || '<div style="padding:16px;color:#888;">Sin resultados</div>';
+            }
+            window._bomInvSelect = async (id) => {
+                const eq = list.find(e=>String(e.id)===String(id));
+                if(!eq) return;
+                if(!current.bom) current.bom=[];
+                current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
+                await saveCurrent(['bom']); render();
+                overlay.remove();
+                delete window._bomInvSelect;
+            };
+            search.addEventListener('input', ()=>renderList(search.value));
+            renderList('');
+            search.focus();
         } catch(e){ showToast(e.message||'Error','error'); }
     }
 
