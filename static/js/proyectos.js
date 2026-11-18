@@ -295,21 +295,46 @@ window.ProyectosModule = (function () {
 
     // ── TAB 2: BOM ───────────────────────────────────────────────────────
     function renderTabBOM() {
+        loadBomInventory();
         const bom = current.bom || [];
         const cot = current.cotizacion;
         if (!bom.length) return `<div class="space-y-4">
-            <div class="flex flex-wrap gap-2">
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">add</span> Agregar ítem</button>
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomFromInventario()"><span class="material-symbols-outlined">inventory_2</span> Agregar desde inventario</button>
+            <div class="flex flex-wrap gap-2 items-end bg-surface-container-low rounded-xl p-3 border border-outline-variant/30">
+                <div class="flex flex-col">
+                    <label class="text-xs text-on-surface-variant mb-1">Categoría</label>
+                    <select id="bom-cat-filter" class="sq-input text-sm" onchange="ProyectosModule.onBomCatChange()"><option value="">Todas</option></select>
+                </div>
+                <div class="flex flex-col flex-1 min-w-[200px]">
+                    <label class="text-xs text-on-surface-variant mb-1">Ítem</label>
+                    <select id="bom-item-filter" class="sq-input text-sm"><option value="">Seleccione...</option></select>
+                </div>
+                <div class="flex flex-col w-24">
+                    <label class="text-xs text-on-surface-variant mb-1">Cantidad</label>
+                    <input id="bom-qty-filter" type="number" class="sq-input text-sm" value="1" min="1" step="any">
+                </div>
+                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window.location.hash='#inventario'"><span class="material-symbols-outlined">add_box</span> Nuevo en inventario</button>
             </div>
             <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
         </div>`;
         return `<div class="space-y-4">
             <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
-            <div class="flex flex-wrap gap-2">
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">add</span> Agregar ítem</button>
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomFromInventario()"><span class="material-symbols-outlined">inventory_2</span> Agregar desde inventario</button>
+            <div class="flex flex-wrap gap-2 items-end bg-surface-container-low rounded-xl p-3 border border-outline-variant/30">
+                <div class="flex flex-col">
+                    <label class="text-xs text-on-surface-variant mb-1">Categoría</label>
+                    <select id="bom-cat-filter" class="sq-input text-sm" onchange="ProyectosModule.onBomCatChange()"><option value="">Todas</option></select>
+                </div>
+                <div class="flex flex-col flex-1 min-w-[200px]">
+                    <label class="text-xs text-on-surface-variant mb-1">Ítem</label>
+                    <select id="bom-item-filter" class="sq-input text-sm"><option value="">Seleccione...</option></select>
+                </div>
+                <div class="flex flex-col w-24">
+                    <label class="text-xs text-on-surface-variant mb-1">Cantidad</label>
+                    <input id="bom-qty-filter" type="number" class="sq-input text-sm" value="1" min="1" step="any">
+                </div>
+                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window.location.hash='#inventario'"><span class="material-symbols-outlined">add_box</span> Nuevo en inventario</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
@@ -441,6 +466,41 @@ window.ProyectosModule = (function () {
     async function toggleBom(idx,key,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx][key]=!!val; await saveCurrent(['bom']); }
     async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); render(); }
     async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); render(); }
+    async function loadBomInventory(){
+        if(window._invItems) return;
+        try {
+            const items = await API.get('/equipos');
+            window._invItems = Array.isArray(items) ? items : (items?.items || []);
+            populateBomCategories();
+        } catch(e){}
+    }
+    function populateBomCategories(){
+        const sel = document.getElementById('bom-cat-filter');
+        if(!sel || !window._invItems) return;
+        const cats = [...new Set(window._invItems.map(e=>e.categoria).filter(Boolean))];
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">Todas</option>' + cats.map(c=>`<option value="${escapeHtml(c)}" ${c===cur?'selected':''}>${escapeHtml(c)}</option>`).join('');
+        onBomCatChange();
+    }
+    function onBomCatChange(){
+        const catSel = document.getElementById('bom-cat-filter');
+        const itemSel = document.getElementById('bom-item-filter');
+        if(!itemSel || !window._invItems) return;
+        const cat = catSel ? catSel.value : '';
+        const filtered = window._invItems.filter(e => !cat || e.categoria===cat);
+        itemSel.innerHTML = '<option value="">Seleccione...</option>' + filtered.map(e=>`<option value="${e.id}">${escapeHtml((e.marca||'')+' '+(e.modelo||e.nombre||''))}</option>`).join('');
+    }
+    async function addBomFiltered(){
+        const itemSel = document.getElementById('bom-item-filter');
+        const qtyInput = document.getElementById('bom-qty-filter');
+        const id = itemSel ? itemSel.value : '';
+        if(!id){ showToast('Seleccione un ítem','error'); return; }
+        const eq = (window._invItems||[]).find(e=>String(e.id)===String(id));
+        if(!eq){ showToast('No encontrado','error'); return; }
+        if(!current.bom) current.bom=[];
+        current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:Number(qtyInput?.value)||1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
+        await saveCurrent(['bom']); render();
+    }
     async function updateBomNombre(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].nombre=val; await saveCurrent(['bom']); }
     async function addBomItem(){ if(!current.bom) current.bom=[]; current.bom.push({nombre:'', cantidad:1, precio_unitario:0, categoria:''}); await saveCurrent(['bom']); render(); }
     async function removeBomItem(idx){ if(!current.bom) return; current.bom.splice(idx,1); await saveCurrent(['bom']); render(); }
@@ -528,7 +588,7 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
