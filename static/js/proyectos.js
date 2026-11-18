@@ -464,8 +464,8 @@ window.ProyectosModule = (function () {
     async function updateTareaField(pid,tid,field,val){ const t=findTarea(pid,tid); if(!t)return; t[field]=val||null; await saveCurrent(['pasos']); const st=document.getElementById('save-status'); if(st){st.textContent='Guardado'; setTimeout(()=>st.textContent='',1200);} }
 
     async function toggleBom(idx,key,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx][key]=!!val; await saveCurrent(['bom']); }
-    async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); render(); }
-    async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); render(); }
+    async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); renderDetalle(); }
+    async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); renderDetalle(); }
     async function loadBomInventory(){
         if(window._invItems) return;
         try {
@@ -499,11 +499,11 @@ window.ProyectosModule = (function () {
         if(!eq){ showToast('No encontrado','error'); return; }
         if(!current.bom) current.bom=[];
         current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:Number(qtyInput?.value)||1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
-        await saveCurrent(['bom']); render();
+        await saveCurrent(['bom']); renderDetalle();
     }
     async function updateBomNombre(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].nombre=val; await saveCurrent(['bom']); }
-    async function addBomItem(){ if(!current.bom) current.bom=[]; current.bom.push({nombre:'', cantidad:1, precio_unitario:0, categoria:''}); await saveCurrent(['bom']); render(); }
-    async function removeBomItem(idx){ if(!current.bom) return; current.bom.splice(idx,1); await saveCurrent(['bom']); render(); }
+    async function addBomItem(){ if(!current.bom) current.bom=[]; current.bom.push({nombre:'', cantidad:1, precio_unitario:0, categoria:''}); await saveCurrent(['bom']); renderDetalle(); }
+    async function removeBomItem(idx){ if(!current.bom) return; current.bom.splice(idx,1); await saveCurrent(['bom']); renderDetalle(); }
     async function addBomFromInventario(){
         try {
             const items = await API.get('/equipos');
@@ -528,7 +528,7 @@ window.ProyectosModule = (function () {
                 if(!eq) return;
                 if(!current.bom) current.bom=[];
                 current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
-                await saveCurrent(['bom']); render();
+                await saveCurrent(['bom']); renderDetalle();
                 overlay.remove();
                 delete window._bomInvSelect;
             };
