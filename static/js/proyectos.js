@@ -300,18 +300,24 @@ window.ProyectosModule = (function () {
         if (!bom.length) return `<div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. ${cot?'La cotización no tiene ítems.':'Vincula una cotización o agrega ítems.'}</p></div>`;
         return `<div class="space-y-4">
             <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">add</span> Agregar ítem</button>
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomFromInventario()"><span class="material-symbols-outlined">inventory_2</span> Agregar desde inventario</button>
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window.location.hash='#inventario'"><span class="material-symbols-outlined">add_box</span> Nuevo en inventario</button>
+            </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
                 <table class="sq-table w-full">
-                    <thead><tr><th>Ítem</th><th class="text-center">Cant.</th><th class="text-right">Precio unitario</th><th class="text-right">Precio total</th></tr></thead>
+                    <thead><tr><th>Ítem</th><th class="text-center">Cant.</th><th class="text-right">Precio unitario</th><th class="text-right">Precio total</th><th class="text-center">Acciones</th></tr></thead>
                     <tbody>${bom.map((b,i)=>`
                         <tr>
-                            <td><div class="font-label-bold text-on-surface">${escapeHtml(b.nombre||'-')}</div><div class="text-xs text-on-surface-variant">${escapeHtml(b.categoria||'')}</div></td>
+                            <td><input type="text" class="sq-input w-full" value="${escapeHtml(b.nombre||'')}" onchange="ProyectosModule.updateBomNombre(${i}, this.value)" placeholder="Nombre del ítem"><div class="text-xs text-on-surface-variant mt-1">${escapeHtml(b.categoria||'')}</div></td>
                             <td class="text-center"><input type="number" class="sq-input w-20 text-center" value="${b.cantidad||0}" min="0" step="any" onchange="ProyectosModule.updateBomQty(${i}, this.value)"></td>
                             <td class="text-right"><input type="number" class="sq-input w-24 text-right" value="${b.precio_unitario||b.costo_unitario||0}" min="0" step="any" onchange="ProyectosModule.updateBomPrecio(${i}, this.value)"></td>
                             <td class="text-right font-label-bold text-primary">${formatCurrency((Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0))}</td>
+                            <td class="text-center"><button type="button" class="p-1 text-on-surface-variant hover:text-error" onclick="ProyectosModule.removeBomItem(${i})" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
                         </tr>`).join('')}
                     </tbody>
-                    <tfoot><tr><td colspan="3" class="text-right font-bold">Total materiales</td><td class="text-right font-bold text-primary">${formatCurrency(bom.reduce((s,b)=>s+(Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0),0))}</td></tr></tfoot>
+                    <tfoot><tr><td colspan="3" class="text-right font-bold">Total materiales</td><td class="text-right font-bold text-primary">${formatCurrency(bom.reduce((s,b)=>s+(Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0),0))}</td><td></td></tr></tfoot>
                 </table>
             </div>
         </div>`;
@@ -428,6 +434,23 @@ window.ProyectosModule = (function () {
     async function toggleBom(idx,key,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx][key]=!!val; await saveCurrent(['bom']); }
     async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); render(); }
     async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); render(); }
+    async function updateBomNombre(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].nombre=val; await saveCurrent(['bom']); }
+    async function addBomItem(){ if(!current.bom) current.bom=[]; current.bom.push({nombre:'', cantidad:1, precio_unitario:0, categoria:''}); await saveCurrent(['bom']); render(); }
+    async function removeBomItem(idx){ if(!current.bom) return; current.bom.splice(idx,1); await saveCurrent(['bom']); render(); }
+    async function addBomFromInventario(){
+        try {
+            const items = await API.get('/equipos');
+            const list = Array.isArray(items) ? items : (items?.items || []);
+            const opts = list.map(e=>`${e.id}|${e.marca||''} ${e.modelo||e.nombre||''}`.trim()).join('\n');
+            const sel = prompt('ID del equipo a agregar:\n'+list.map(e=>`${e.id} - ${e.marca||''} ${e.modelo||e.nombre||''}`).join('\n'));
+            if(!sel) return;
+            const eq = list.find(e=>String(e.id)===String(sel.trim()));
+            if(!eq){ showToast('No encontrado','error'); return; }
+            if(!current.bom) current.bom=[];
+            current.bom.push({nombre:`${eq.marca||''} ${eq.modelo||eq.nombre||''}`.trim(), cantidad:1, precio_unitario:Number(eq.costo||eq.precio||0), categoria:eq.categoria||'', equipo_id:eq.id});
+            await saveCurrent(['bom']); render();
+        } catch(e){ showToast(e.message||'Error','error'); }
+    }
 
     async function agregarBitacora(){
         const nota=(document.getElementById('bit-nota')?.value||'').trim();
@@ -479,7 +502,7 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
