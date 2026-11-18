@@ -295,7 +295,7 @@ window.ProyectosModule = (function () {
 
     // ── TAB 2: BOM ───────────────────────────────────────────────────────
     function renderTabBOM() {
-        loadBomInventory();
+        loadBomInventory().then(()=>{ setTimeout(()=>populateBomCategories(),0); });
         const bom = current.bom || [];
         const cot = current.cotizacion;
         if (!bom.length) return `<div class="space-y-4">
@@ -465,12 +465,13 @@ window.ProyectosModule = (function () {
     async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); renderDetalle(); }
     async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); renderDetalle(); }
     async function loadBomInventory(){
-        if(window._invItems) return;
-        try {
-            const res = await API.get('/equipos');
-            window._invItems = Array.isArray(res) ? res : (res?.data || res?.items || []);
-            populateBomCategories();
-        } catch(e){}
+        if(!window._invItems){
+            try {
+                const res = await API.get('/equipos');
+                window._invItems = Array.isArray(res) ? res : (res?.data || res?.items || []);
+            } catch(e){ window._invItems=[]; }
+        }
+        setTimeout(()=>populateBomCategories(),0);
     }
     function populateBomCategories(){
         const sel = document.getElementById('bom-cat-filter');
