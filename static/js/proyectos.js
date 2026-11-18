@@ -314,7 +314,6 @@ window.ProyectosModule = (function () {
                 </div>
                 <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window.location.hash='#inventario'"><span class="material-symbols-outlined">add_box</span> Nuevo en inventario</button>
             </div>
             <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
         </div>`;
@@ -335,7 +334,6 @@ window.ProyectosModule = (function () {
                 </div>
                 <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window.location.hash='#inventario'"><span class="material-symbols-outlined">add_box</span> Nuevo en inventario</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
                 <table class="sq-table w-full">
@@ -469,8 +467,8 @@ window.ProyectosModule = (function () {
     async function loadBomInventory(){
         if(window._invItems) return;
         try {
-            const items = await API.get('/equipos');
-            window._invItems = Array.isArray(items) ? items : (items?.items || []);
+            const res = await API.get('/equipos');
+            window._invItems = Array.isArray(res) ? res : (res?.data || res?.items || []);
             populateBomCategories();
         } catch(e){}
     }
@@ -506,8 +504,8 @@ window.ProyectosModule = (function () {
     async function removeBomItem(idx){ if(!current.bom) return; current.bom.splice(idx,1); await saveCurrent(['bom']); renderDetalle(); }
     async function addBomFromInventario(){
         try {
-            const items = await API.get('/equipos');
-            const list = Array.isArray(items) ? items : (items?.items || []);
+            const res = await API.get('/equipos');
+            const list = Array.isArray(res) ? res : (res?.data || res?.items || []);
             // Modal con buscador
             const overlay = document.createElement('div');
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
