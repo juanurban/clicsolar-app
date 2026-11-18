@@ -297,7 +297,14 @@ window.ProyectosModule = (function () {
     function renderTabBOM() {
         const bom = current.bom || [];
         const cot = current.cotizacion;
-        if (!bom.length) return `<div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. ${cot?'La cotización no tiene ítems.':'Vincula una cotización o agrega ítems.'}</p></div>`;
+        if (!bom.length) return `<div class="space-y-4">
+            <div class="flex flex-wrap gap-2">
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">add</span> Agregar ítem</button>
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomFromInventario()"><span class="material-symbols-outlined">inventory_2</span> Agregar desde inventario</button>
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window.location.hash='#inventario'"><span class="material-symbols-outlined">add_box</span> Nuevo en inventario</button>
+            </div>
+            <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
+        </div>`;
         return `<div class="space-y-4">
             <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
             <div class="flex flex-wrap gap-2">
@@ -312,7 +319,7 @@ window.ProyectosModule = (function () {
                         <tr>
                             <td><input type="text" class="sq-input w-full" value="${escapeHtml(b.nombre||'')}" onchange="ProyectosModule.updateBomNombre(${i}, this.value)" placeholder="Nombre del ítem"><div class="text-xs text-on-surface-variant mt-1">${escapeHtml(b.categoria||'')}</div></td>
                             <td class="text-center"><input type="number" class="sq-input w-20 text-center" value="${b.cantidad||0}" min="0" step="any" onchange="ProyectosModule.updateBomQty(${i}, this.value)"></td>
-                            <td class="text-right"><input type="number" class="sq-input w-24 text-right" value="${b.precio_unitario||b.costo_unitario||0}" min="0" step="any" onchange="ProyectosModule.updateBomPrecio(${i}, this.value)"></td>
+                            <td class="text-right"><input type="number" class="sq-input w-32 text-right" value="${b.precio_unitario||b.costo_unitario||0}" min="0" step="any" onchange="ProyectosModule.updateBomPrecio(${i}, this.value)"></td>
                             <td class="text-right font-label-bold text-primary">${formatCurrency((Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0))}</td>
                             <td class="text-center"><button type="button" class="p-1 text-on-surface-variant hover:text-error" onclick="ProyectosModule.removeBomItem(${i})" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
                         </tr>`).join('')}
