@@ -411,8 +411,11 @@ window.ProyectosModule = (function () {
         const cot = current.cotizacion;
         const cr = current.costos_reales || {};
         const bom = current.bom || [];
-        const costoMaterialesBom = bom.reduce((s,b)=> s + (Number(b.costo_unitario||b.precio_unitario||0) * Number(b.cantidad||0)), 0);
-        const presupuesto = Number(cot?.total_inversion || cot?.subtotal || 0);
+        const costoMaterialesBom = bom.reduce((s,b)=> {
+            const pu = Number(b.costo_unitario || 0) || (b.iva ? Number(b.precio_unitario||0)/1.19 : Number(b.precio_unitario||0));
+            return s + pu * Number(b.cantidad||0);
+        }, 0);
+        const presupuesto = (Number(cot?.total_inversion || cot?.subtotal || 0)) / 1.19;
         const realMateriales = Number(cr.materiales ?? costoMaterialesBom) || 0;
         const realManoObra = Number(cr.mano_obra)||0;
         const realLogistica = Number(cr.logistica)||0;
@@ -423,7 +426,7 @@ window.ProyectosModule = (function () {
         return `<div class="space-y-6">
             ${!cot ? `<div class="p-4 rounded-xl bg-surface-container-low text-on-surface-variant text-sm">Esta instalación no tiene cotización vinculada; ingresa los valores manualmente.</div>` : ''}
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Presupuesto cotizado</div><div class="font-headline-md text-on-surface">${formatCurrency(presupuesto)}</div>${cot?`<div class="text-xs text-primary mt-1">${escapeHtml(cot.codigo||'')}</div>`:''}</div>
+                <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Presupuesto cotizado (sin IVA)</div><div class="font-headline-md text-on-surface">${formatCurrency(presupuesto)}</div>${cot?`<div class="text-xs text-primary mt-1">${escapeHtml(cot.codigo||'')}</div>`:''}</div>
                 <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Costo real ejecutado</div><div class="font-headline-md text-on-surface">${formatCurrency(totalReal)}</div><div class="text-xs text-on-surface-variant mt-1">${pct}% del presupuesto</div></div>
                 <div class="bg-surface-container-low rounded-xl p-5 border ${diff>=0?'border-primary/30':'border-error/30'}"><div class="text-xs text-on-surface-variant mb-1">${diff>=0?'Margen / ahorro':'Sobrecosto'}</div><div class="font-headline-md ${diff>=0?'text-primary':'text-error'}">${formatCurrency(Math.abs(diff))}</div></div>
             </div>
