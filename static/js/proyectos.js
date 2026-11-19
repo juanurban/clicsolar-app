@@ -580,15 +580,15 @@ window.ProyectosModule = (function () {
         const tags = current.tags||[];
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        overlay.innerHTML = `<div style="background:#fff;border-radius:12px;width:90%;max-width:500px;padding:20px;">
+        overlay.innerHTML = `<div style="background:#1a1a1a;border-radius:12px;width:90%;max-width:500px;padding:20px;color:#f4bf00;">
             <h3 style="margin-bottom:12px;font-weight:bold;">Editar entrada</h3>
-            <textarea id="eb-nota" class="sq-input w-full" rows="4">${escapeHtml(e.nota||'')}</textarea>
+            <textarea id="eb-nota" class="sq-input w-full" rows="4" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">${escapeHtml(e.nota||'')}</textarea>
             <div style="margin-top:12px;">
                 <div style="font-size:12px;margin-bottom:4px;">Etiquetas:</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
                     ${tags.map(t=>`<label style="font-size:12px;"><input type="checkbox" value="${escapeAttr(t)}" ${(e.etiquetas||[]).includes(t)?'checked':''}> ${escapeHtml(t)}</label>`).join(' ')}
                 </div>
-                <input id="eb-newtag" class="sq-input w-full text-sm" placeholder="Nueva etiqueta">
+                <input id="eb-newtag" class="sq-input w-full text-sm" placeholder="Nueva etiqueta" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">
             </div>
             <div style="margin-top:16px;text-align:right;display:flex;gap:8px;justify-content:flex-end;">
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="this.closest('div').parentElement.parentElement.remove()">Cancelar</button>
