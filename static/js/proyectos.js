@@ -370,6 +370,7 @@ window.ProyectosModule = (function () {
                             <option value="documento">Otro documento</option>
                         </select>
                         <input type="file" id="bit-file" class="text-sm text-on-surface-variant file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-surface-container-high file:text-on-surface hover:file:bg-surface-variant" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+                        <input type="text" id="bit-tags" class="sq-input text-sm" placeholder="Etiquetas (separadas por coma)">
                         <button onclick="ProyectosModule.agregarBitacora()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">send</span>Publicar</button>
                     </div>
                 </div>
@@ -390,7 +391,9 @@ window.ProyectosModule = (function () {
                     <span class="text-[11px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold">${tipoLabels[e.tipo]||e.tipo||'Nota'}</span>
                     <span class="text-xs text-on-surface-variant">${fecha}</span>
                     ${e.autor?`<span class="text-xs text-on-surface-variant">· ${escapeHtml(e.autor)}</span>`:''}
+                    ${(e.etiquetas||[]).map(t=>`<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">${escapeHtml(t)}</span>`).join('')}
                 </div>
+                <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-error" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
             </div>
             ${e.nota?`<p class="text-sm text-on-surface whitespace-pre-wrap mb-2">${escapeHtml(e.nota)}</p>`:''}
             ${e.archivo ? (isImg ? `<a href="${e.archivo.path}" target="_blank"><img src="${e.archivo.path}" alt="${escapeAttr(e.archivo.nombre||'')}" class="max-h-72 rounded-lg border border-outline-variant/20 object-cover"></a><div class="text-xs text-on-surface-variant mt-1">${escapeHtml(e.archivo.nombre||'')}</div>` : `<a href="${e.archivo.path}" target="_blank" class="inline-flex items-center gap-2 text-primary hover:underline text-sm"><span class="material-symbols-outlined text-[18px]">description</span>${escapeHtml(e.archivo.nombre||'Archivo')}</a>`) : ''}
@@ -543,19 +546,27 @@ window.ProyectosModule = (function () {
         const nota=(document.getElementById('bit-nota')?.value||'').trim();
         const tipo=document.getElementById('bit-tipo')?.value||'nota';
         const file=document.getElementById('bit-file')?.files?.[0];
+        const tags=(document.getElementById('bit-tags')?.value||'').trim();
         if(!nota && !file){ showToast('Agrega una nota o un archivo','error'); return; }
         try{
             if(file){
-                const fd=new FormData(); fd.append('file',file); fd.append('tipo',tipo); fd.append('nota',nota);
+                const fd=new FormData(); fd.append('file',file); fd.append('tipo',tipo); fd.append('nota',nota); fd.append('etiquetas',tags);
                 const res=await fetch(`${App.API_BASE_URL}/api/proyectos/${current.id}/documentos`,{method:'POST',body:fd,credentials:'include'});
                 const data=await res.json(); if(!res.ok) throw new Error(data.error||data.detail||'Error al subir');
                 current.bitacora=data.bitacora||current.bitacora; showToast('Entrada agregada','success');
             } else {
-                const data=await API.post(`/proyectos/${current.id}/bitacora-nota`,{nota});
+                const data=await API.post(`/proyectos/${current.id}/bitacora-nota`,{nota, etiquetas: tags});
                 current.bitacora=data.bitacora||current.bitacora; showToast('Nota agregada','success');
             }
             renderDetalle();
         } catch(e){ showToast(e.message||'Error al agregar entrada','error'); }
+    }
+    async function deleteBitacora(id){
+        if(!confirm('¿Eliminar esta entrada?')) return;
+        try {
+            const data=await API.delete(`/proyectos/${current.id}/bitacora/${id}`);
+            current.bitacora=data.bitacora||current.bitacora; renderDetalle();
+        } catch(e){ showToast(e.message||'Error','error'); }
     }
 
     function recalcCostos(){ const v=id=>Number(document.getElementById(id)?.value)||0; const total=v('cr-materiales')+v('cr-mano')+v('cr-logistica')+v('cr-otros'); const el=document.getElementById('cr-total'); if(el) el.textContent=formatCurrency(total); }
@@ -589,7 +600,7 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };

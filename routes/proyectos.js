@@ -240,10 +240,12 @@ router.post('/:id/documentos', upload.single('file'), async (req, res) => {
     const bit = parseJsonField(rows[0], 'bitacora_json', []);
     const tipo = req.body.tipo || 'documento';
     const nota = String(req.body.nota || '').trim();
+    const etiquetas = String(req.body.etiquetas || '').split(',').map(t=>t.trim()).filter(Boolean);
     const entry = {
       id: uid(),
       tipo,
       nota,
+      etiquetas,
       fecha: new Date().toISOString(),
       autor: req.user?.nombre_completo || req.user?.username || '',
       archivo: {
@@ -267,7 +269,8 @@ router.post('/:id/bitacora-nota', async (req, res) => {
     const bit = parseJsonField(rows[0], 'bitacora_json', []);
     const nota = String(req.body.nota || '').trim();
     if (!nota) return res.status(400).json({ error: 'La nota es obligatoria' });
-    const entry = { id: uid(), tipo: 'nota', nota, fecha: new Date().toISOString(), autor: req.user?.nombre_completo || req.user?.username || '' };
+    const etiquetas = String(req.body.etiquetas || '').split(',').map(t=>t.trim()).filter(Boolean);
+    const entry = { id: uid(), tipo: 'nota', nota, etiquetas, fecha: new Date().toISOString(), autor: req.user?.nombre_completo || req.user?.username || '' };
     bit.unshift(entry);
     await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(bit), req.params.id]);
     res.json({ message: 'Nota agregada', entry, bitacora: bit });
@@ -285,5 +288,18 @@ router.delete('/:id', async (req, res) => {
 
 // compat
 router.get('/estados', async (req, res) => { try { await ensureInstalacionesSchema(); const [r]=await pool.execute('SELECT * FROM estados_proyecto ORDER BY orden ASC'); res.json(r);} catch(e){res.status(500).json({error:'err'});} });
+
+
+router.delete('/:id/bitacora/:entryId', async (req, res) => {
+  try {
+    await ensureInstalacionesSchema();
+    const [rows] = await pool.execute('SELECT * FROM proyectos WHERE id = ? AND (empresa_id = ? OR ? = 1 OR empresa_id IS NULL)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
+    const bit = parseJsonField(rows[0], 'bitacora_json', []);
+    const filtered = bit.filter(e => e.id !== req.params.entryId);
+    await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(filtered), req.params.id]);
+    res.json({ message: 'Entrada eliminada', bitacora: filtered });
+  } catch (error) { res.status(500).json({ error: 'Error al eliminar entrada' }); }
+});
 
 module.exports = router;
