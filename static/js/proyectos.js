@@ -393,6 +393,7 @@ window.ProyectosModule = (function () {
                     ${e.autor?`<span class="text-xs text-on-surface-variant">· ${escapeHtml(e.autor)}</span>`:''}
                     ${(e.etiquetas||[]).map(t=>`<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">${escapeHtml(t)}</span>`).join('')}
                 </div>
+                <button onclick="ProyectosModule.editBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-primary" title="Editar"><span class="material-symbols-outlined text-[18px]">edit</span></button>
                 <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-error" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
             </div>
             ${e.nota?`<p class="text-sm text-on-surface whitespace-pre-wrap mb-2">${escapeHtml(e.nota)}</p>`:''}
@@ -568,6 +569,18 @@ window.ProyectosModule = (function () {
             current.bitacora=data.bitacora||current.bitacora; renderDetalle();
         } catch(e){ showToast(e.message||'Error','error'); }
     }
+    async function editBitacora(id){
+        const e=(current.bitacora||[]).find(x=>x.id===id);
+        if(!e) return;
+        const nota=prompt('Editar nota:', e.nota||'');
+        if(nota===null) return;
+        const tags=prompt('Etiquetas (coma):', (e.etiquetas||[]).join(', '));
+        if(tags===null) return;
+        try {
+            const data=await API.put(`/proyectos/${current.id}/bitacora/${id}`, {nota, etiquetas: tags});
+            current.bitacora=data.bitacora||current.bitacora; renderDetalle();
+        } catch(err){ showToast(err.message||'Error','error'); }
+    }
 
     function recalcCostos(){ const v=id=>Number(document.getElementById(id)?.value)||0; const total=v('cr-materiales')+v('cr-mano')+v('cr-logistica')+v('cr-otros'); const el=document.getElementById('cr-total'); if(el) el.textContent=formatCurrency(total); }
     async function guardarCostosReales(){
@@ -600,7 +613,7 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };

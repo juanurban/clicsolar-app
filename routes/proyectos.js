@@ -302,4 +302,20 @@ router.delete('/:id/bitacora/:entryId', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Error al eliminar entrada' }); }
 });
 
+
+router.put('/:id/bitacora/:entryId', async (req, res) => {
+  try {
+    await ensureInstalacionesSchema();
+    const [rows] = await pool.execute('SELECT * FROM proyectos WHERE id = ? AND (empresa_id = ? OR ? = 1 OR empresa_id IS NULL)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
+    const bit = parseJsonField(rows[0], 'bitacora_json', []);
+    const idx = bit.findIndex(e => e.id === req.params.entryId);
+    if (idx < 0) return res.status(404).json({ error: 'Entrada no encontrada' });
+    if (req.body.nota !== undefined) bit[idx].nota = String(req.body.nota).trim();
+    if (req.body.etiquetas !== undefined) bit[idx].etiquetas = String(req.body.etiquetas).split(',').map(t=>t.trim()).filter(Boolean);
+    await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(bit), req.params.id]);
+    res.json({ message: 'Entrada actualizada', bitacora: bit });
+  } catch (error) { res.status(500).json({ error: 'Error al actualizar entrada' }); }
+});
+
 module.exports = router;
