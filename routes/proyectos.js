@@ -30,6 +30,7 @@ async function ensureInstalacionesSchema() {
   await safeAlter("ALTER TABLE proyectos ADD COLUMN bom_json TEXT DEFAULT '[]'");
   await safeAlter("ALTER TABLE proyectos ADD COLUMN bitacora_json TEXT DEFAULT '[]'");
   await safeAlter("ALTER TABLE proyectos ADD COLUMN costos_reales_json TEXT DEFAULT '{}'");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN tags_json TEXT DEFAULT '[]'");
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -103,6 +104,7 @@ async function enrichProyecto(r, req) {
   const pasos = parsePasos(r);
   let bom = parseJsonField(r, 'bom_json', []);
   const bitacora = parseJsonField(r, 'bitacora_json', []);
+  const tags = parseJsonField(r, 'tags_json', []);
   const costos_reales = parseJsonField(r, 'costos_reales_json', {});
   let cotizacion = null;
   if (r.cotizacion_id) {
@@ -125,7 +127,7 @@ async function enrichProyecto(r, req) {
   }
   if (!Array.isArray(bom)) bom = [];
   if (!Array.isArray(bitacora)) bitacora.sort ? bitacora : [];
-  return { ...r, pasos, bom, bitacora: Array.isArray(bitacora)?bitacora:[], costos_reales: (costos_reales && typeof costos_reales==='object' && !Array.isArray(costos_reales))?costos_reales:{}, cotizacion, progreso: calcProgreso(pasos), paso_actual: pasoActualNombre(pasos) };
+  return { ...r, pasos, bom, bitacora: Array.isArray(bitacora)?bitacora:[], costos_reales: (costos_reales && typeof costos_reales==='object' && !Array.isArray(costos_reales))?costos_reales:{}, tags: Array.isArray(tags)?tags:[], cotizacion, progreso: calcProgreso(pasos), paso_actual: pasoActualNombre(pasos) };
 }
 
 // --- LIST/GET ---
@@ -198,7 +200,7 @@ router.post('/', async (req, res) => {
     const [result] = await pool.execute(
       `INSERT INTO proyectos (nombre, cliente_id, cotizacion_id, estado_id, estado, fecha_entrega_estimada, notas, empresa_id, tipo, pasos_json, bom_json, bitacora_json, costos_reales_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'instalacion', ?, ?, ?, ?)`,
-      [nombreProyecto, clienteId, cotId, null, 'En ejecución', fecha_entrega_estimada || null, notas || '', req.user.empresa_id, '[]', JSON.stringify(bom), '[]', '{}']
+      [nombreProyecto, clienteId, cotId, null, 'En ejecución', fecha_entrega_estimada || null, notas || '', req.user.empresa_id, '[]', JSON.stringify(bom), '[]', '{}', '[]']
     );
     res.status(201).json({ id: result.insertId, message: 'Instalación creada exitosamente' });
   } catch (error) { console.error('Error creating proyecto:', error); res.status(500).json({ error: 'Error al crear la instalación' }); }
@@ -210,12 +212,14 @@ router.put('/:id', async (req, res) => {
     const [rows] = await pool.execute('SELECT * FROM proyectos WHERE id = ? AND (empresa_id = ? OR ? = 1 OR empresa_id IS NULL)', [req.params.id, req.user.empresa_id, req.user.es_superadmin ? 1 : 0]);
     if (rows.length === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
     const cur = rows[0];
-    const { nombre, notas, fecha_entrega_estimada, pasos, bom, bitacora, costos_reales } = req.body;
+    const { nombre, notas, fecha_entrega_estimada, pasos, bom, bitacora, costos_reales, tags } = req.body;
     let pasosFinal = parsePasos(cur);
     if (Array.isArray(pasos)) pasosFinal = pasos.map(normalizePaso);
     let bomFinal = parseJsonField(cur, 'bom_json', []);
     if (Array.isArray(bom)) bomFinal = bom;
     let bitFinal = parseJsonField(cur, 'bitacora_json', []);
+    let tagsFinal = parseJsonField(cur, 'tags_json', []);
+    if (Array.isArray(tags)) tagsFinal = tags;
     if (Array.isArray(bitacora)) bitFinal = bitacora;
     let costFinal = parseJsonField(cur, 'costos_reales_json', {});
     if (costos_reales && typeof costos_reales === 'object') costFinal = costos_reales;
@@ -223,8 +227,8 @@ router.put('/:id', async (req, res) => {
     const progreso = calcProgreso(pasosFinal);
     const estadoNombre = pasosFinal.length === 0 ? 'Sin etapas' : (pasosFinal.every(p => p.completado) ? 'Completada' : pasoActualNombre(pasosFinal));
     await pool.execute(
-      `UPDATE proyectos SET nombre=COALESCE(?,nombre), estado=?, notas=COALESCE(?,notas), fecha_entrega_estimada=COALESCE(?,fecha_entrega_estimada), pasos_json=?, bom_json=?, bitacora_json=?, costos_reales_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-      [nombre ?? null, estadoNombre, notas ?? null, fecha_entrega_estimada ?? null, JSON.stringify(pasosFinal), JSON.stringify(bomFinal), JSON.stringify(bitFinal), JSON.stringify(costFinal), req.params.id]
+      `UPDATE proyectos SET nombre=COALESCE(?,nombre), estado=?, notas=COALESCE(?,notas), fecha_entrega_estimada=COALESCE(?,fecha_entrega_estimada), pasos_json=?, bom_json=?, bitacora_json=?, costos_reales_json=?, tags_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+      [nombre ?? null, estadoNombre, notas ?? null, fecha_entrega_estimada ?? null, JSON.stringify(pasosFinal), JSON.stringify(bomFinal), JSON.stringify(bitFinal), JSON.stringify(costFinal), JSON.stringify(tagsFinal), req.params.id]
     );
     const [rows2] = await pool.execute('SELECT p.*, c.nombre as cliente_nombre, c.telefono as cliente_telefono, c.correo as cliente_correo, c.direccion as cliente_direccion, cot.codigo as cotizacion_codigo, cot.titulo as cotizacion_titulo FROM proyectos p JOIN clientes c ON p.cliente_id=c.id LEFT JOIN cotizaciones cot ON p.cotizacion_id=cot.id WHERE p.id=?', [req.params.id]);
     res.json(await enrichProyecto(rows2[0], req));

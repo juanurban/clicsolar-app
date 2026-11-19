@@ -375,6 +375,11 @@ window.ProyectosModule = (function () {
                     </div>
                 </div>
             </div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/30">
+                <h3 class="font-label-bold text-on-surface mb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">label</span>Etiquetas</h3>
+                <div class="flex gap-2 mb-2"><input id="tag-new" class="sq-input text-sm" placeholder="Nueva etiqueta"><button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.createTag()">Crear</button></div>
+                <div class="flex flex-wrap gap-2">${(current.tags||[]).map(t=>`<span class="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary flex items-center gap-1">${escapeHtml(t)} <button onclick="ProyectosModule.deleteTag('${escapeAttr(t)}')" class="hover:text-error"><span class="material-symbols-outlined text-[14px]">close</span></button></span>`).join('')||'<span class="text-xs text-on-surface-variant">Sin etiquetas</span>'}</div>
+            </div>
             <div class="space-y-3">
                 <h3 class="font-label-bold text-on-surface">Historial (${bit.length})</h3>
                 ${!bit.length ? `<div class="text-sm text-on-surface-variant py-8 text-center border border-dashed border-outline-variant/30 rounded-xl">Sin entradas aún. Registra avances, sube evidencias, planos o certificados.</div>` : bit.map(e => renderBitEntry(e)).join('')}
@@ -572,14 +577,58 @@ window.ProyectosModule = (function () {
     async function editBitacora(id){
         const e=(current.bitacora||[]).find(x=>x.id===id);
         if(!e) return;
-        const nota=prompt('Editar nota:', e.nota||'');
-        if(nota===null) return;
-        const tags=prompt('Etiquetas (coma):', (e.etiquetas||[]).join(', '));
-        if(tags===null) return;
-        try {
-            const data=await API.put(`/proyectos/${current.id}/bitacora/${id}`, {nota, etiquetas: tags});
-            current.bitacora=data.bitacora||current.bitacora; renderDetalle();
-        } catch(err){ showToast(err.message||'Error','error'); }
+        const tags = current.tags||[];
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML = `<div style="background:#fff;border-radius:12px;width:90%;max-width:500px;padding:20px;">
+            <h3 style="margin-bottom:12px;font-weight:bold;">Editar entrada</h3>
+            <textarea id="eb-nota" class="sq-input w-full" rows="4">${escapeHtml(e.nota||'')}</textarea>
+            <div style="margin-top:12px;">
+                <div style="font-size:12px;margin-bottom:4px;">Etiquetas:</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                    ${tags.map(t=>`<label style="font-size:12px;"><input type="checkbox" value="${escapeAttr(t)}" ${(e.etiquetas||[]).includes(t)?'checked':''}> ${escapeHtml(t)}</label>`).join(' ')}
+                </div>
+                <input id="eb-newtag" class="sq-input w-full text-sm" placeholder="Nueva etiqueta">
+            </div>
+            <div style="margin-top:16px;text-align:right;display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="this.closest('div').parentElement.parentElement.remove()">Cancelar</button>
+                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="eb-save">Guardar</button>
+            </div>
+        </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#eb-save').onclick = async () => {
+            const nota = overlay.querySelector('#eb-nota').value;
+            const checked = [...overlay.querySelectorAll('input[type=checkbox]:checked')].map(c=>c.value);
+            const newTag = overlay.querySelector('#eb-newtag').value.trim();
+            if(newTag && !checked.includes(newTag)){ checked.push(newTag); }
+            try {
+                const data = await API.put(`/proyectos/${current.id}/bitacora/${id}`, {nota, etiquetas: checked});
+                // if new tag, persist tags catalog
+                if(newTag && !(current.tags||[]).includes(newTag)){
+                    current.tags = (current.tags||[]).concat(newTag);
+                    await API.put(`/proyectos/${current.id}`, {tags: current.tags});
+                }
+                current.bitacora = data.bitacora||current.bitacora;
+                overlay.remove();
+                renderDetalle();
+            } catch(err){ showToast(err.message||'Error','error'); }
+        };
+    }
+    async function createTag(){
+        const inp=document.getElementById('tag-new');
+        const v=(inp?.value||'').trim();
+        if(!v) return;
+        if((current.tags||[]).includes(v)){ showToast('Ya existe','error'); return; }
+        current.tags=(current.tags||[]).concat(v);
+        await API.put(`/proyectos/${current.id}`, {tags: current.tags});
+        if(inp) inp.value='';
+        renderDetalle();
+    }
+    async function deleteTag(t){
+        if(!confirm('¿Eliminar etiqueta?')) return;
+        current.tags=(current.tags||[]).filter(x=>x!==t);
+        await API.put(`/proyectos/${current.id}`, {tags: current.tags});
+        renderDetalle();
     }
 
     function recalcCostos(){ const v=id=>Number(document.getElementById(id)?.value)||0; const total=v('cr-materiales')+v('cr-mano')+v('cr-logistica')+v('cr-otros'); const el=document.getElementById('cr-total'); if(el) el.textContent=formatCurrency(total); }
@@ -613,7 +662,7 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
