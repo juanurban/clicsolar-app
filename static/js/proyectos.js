@@ -229,102 +229,84 @@ window.ProyectosModule = (function () {
         return '';
     }
 
-    // ── TAB 1: TAREAS POR ETAPAS ─────────────────────────────────────────
+    // ── TAB 1: TAREAS POR ETAPAS (Data Grid) ─────────────────────────────
+    let taskSort={key:'id',dir:'asc'};
+    let taskPage=1;
+    let taskPageSize=10;
+    function flattenTasks(){
+        const out=[];
+        (current.pasos||[]).forEach(p=>{
+            (p.tareas||[]).forEach(t=>{
+                out.push({id:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.completada?'Completado':'Hacer', tags:[]});
+            });
+        });
+        return out;
+    }
     function renderTabTareas() {
-        const pasos = current.pasos || [];
+        const tasks = flattenTasks();
+        // sort
+        tasks.sort((a,b)=>{
+            let va=a[taskSort.key], vb=b[taskSort.key];
+            if(va==null) va=''; if(vb==null) vb='';
+            if(va<vb) return taskSort.dir==='asc'?-1:1;
+            if(va>vb) return taskSort.dir==='asc'?1:-1;
+            return 0;
+        });
+        const total=tasks.length;
+        const pages=Math.max(1,Math.ceil(total/taskPageSize));
+        if(taskPage>pages) taskPage=pages;
+        const slice=tasks.slice((taskPage-1)*taskPageSize, taskPage*taskPageSize);
+        const sortIcon=(k)=> taskSort.key===k ? (taskSort.dir==='asc'?'↑':'↓') : '';
+        const today=new Date().toISOString().slice(0,10);
+        const rows=slice.map(t=>{
+            const overdue = t.dueDate && t.dueDate < today && !t.isCompleted;
+            return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50">
+                <td class="px-2 py-2"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.id}')"></td>
+                <td class="px-2 py-2 text-xs text-on-surface-variant">${t.id}</td>
+                <td class="px-2 py-2"><a href="#" onclick="ProyectosModule.editTarea('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
+                <td class="px-2 py-2 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
+                <td class="px-2 py-2 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
+                <td class="px-2 py-2 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
+                <td class="px-2 py-2 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
+                <td class="px-2 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
+                <td class="px-2 py-2 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.id}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
+            </tr>`;
+        }).join('');
         return `<div class="space-y-4">
             <div class="flex justify-between items-center">
-                <p class="text-sm text-on-surface-variant">Crea etapas y gestiona tareas con fecha límite, responsable y subtareas.</p>
+                <p class="text-sm text-on-surface-variant">Gestión de tareas en grilla.</p>
                 <button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Nueva etapa</button>
             </div>
-            ${!pasos.length ? `<div class="border border-dashed border-outline-variant/40 rounded-xl p-12 text-center text-on-surface-variant"><p class="mb-4">Aún no hay etapas. Crea la primera para comenzar el seguimiento.</p><button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-secondary">Crear etapa</button></div>` : ''}
-            ${pasos.map((p, idx) => renderPasoBlock(p, idx)).join('')}
-        </div>`;
-    }
-    function renderPasoBlock(p, idx) {
-        const tareas = p.tareas || [];
-        const done = tareas.length ? tareas.every(t=>t.completada) : false;
-        const doneCount = tareas.filter(t=>t.completada).length;
-        return `<div class="rounded-xl border ${done && tareas.length?'border-primary/30 bg-primary/5':'border-outline-variant/30 bg-surface-container-low'} overflow-hidden">
-            <div class="px-4 lg:px-5 py-3 flex items-center justify-between gap-3 border-b border-outline-variant/20">
-                <div class="flex items-center gap-3 min-w-0">
-                    <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-label-bold ${done && tareas.length?'bg-primary text-on-primary':'bg-surface-container-high text-on-surface-variant'}">${done && tareas.length?'✓':idx+1}</span>
-                    <div class="min-w-0"><div class="font-label-bold text-on-surface truncate ${done && tareas.length?'opacity-80':''}">${escapeHtml(p.nombre)}</div><div class="text-[11px] text-on-surface-variant">${doneCount}/${tareas.length} tareas completadas</div></div>
+            <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
+                <table class="sq-table w-full text-sm">
+                    <thead><tr>
+                        <th class="px-2 py-2"></th>
+                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
+                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('title')">Título ${sortIcon('title')}</th>
+                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('startDate')">Inicio ${sortIcon('startDate')}</th>
+                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('dueDate')">Límite ${sortIcon('dueDate')}</th>
+                        <th class="px-2 py-2">Hito</th>
+                        <th class="px-2 py-2">Asignado</th>
+                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
+                        <th class="px-2 py-2">Acciones</th>
+                    </tr></thead>
+                    <tbody>${rows||'<tr><td colspan="9" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
+                </table>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="text-on-surface-variant">Por página:</span>
+                    <select class="sq-input text-sm w-20" onchange="ProyectosModule.setTaskPageSize(this.value)">
+                        <option value="10" ${taskPageSize==10?'selected':''}>10</option>
+                        <option value="25" ${taskPageSize==25?'selected':''}>25</option>
+                        <option value="50" ${taskPageSize==50?'selected':''}>50</option>
+                    </select>
                 </div>
-                <div class="flex items-center gap-1 flex-shrink-0">
-                    <button onclick="ProyectosModule.agregarTarea('${p.id}')" class="p-1.5 rounded hover:bg-surface-container text-primary" title="Agregar tarea"><span class="material-symbols-outlined text-[18px]">add_task</span></button>
-                    <button onclick="ProyectosModule.renamePaso('${p.id}')" class="p-1.5 rounded hover:bg-surface-container text-on-surface-variant" title="Renombrar etapa"><span class="material-symbols-outlined text-[18px]">edit</span></button>
-                    <button onclick="ProyectosModule.deletePaso('${p.id}')" class="p-1.5 rounded hover:bg-surface-container text-error" title="Eliminar etapa"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                <div class="text-on-surface-variant">${(taskPage-1)*taskPageSize+1}-${Math.min(taskPage*taskPageSize,total)} / ${total}</div>
+                <div class="flex gap-1">
+                    <button class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.prevTaskPage()" ${taskPage<=1?'disabled':''}>&lt;</button>
+                    <button class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.nextTaskPage()" ${taskPage>=pages?'disabled':''}>&gt;</button>
                 </div>
-            </div>
-            <div class="p-3 lg:p-4 space-y-2">
-                ${!tareas.length ? `<div class="text-sm text-on-surface-variant text-center py-4">Sin tareas. <button onclick="ProyectosModule.agregarTarea('${p.id}')" class="text-primary underline">Agregar tarea</button></div>` : tareas.map(t => renderTareaRow(p.id, t)).join('')}
-            </div>
-        </div>`;
-    }
-    function renderTareaRow(pasoId, t) {
-        const subs = t.subtareas || []; const hasSubs = subs.length>0;
-        const done = hasSubs ? subs.every(s=>s.completada) : !!t.completada;
-        return `<div class="rounded-lg border border-outline-variant/20 bg-surface p-3 lg:p-4">
-            <div class="flex flex-wrap items-start gap-2">
-                ${!hasSubs ? `<button onclick="ProyectosModule.toggleTarea('${pasoId}','${t.id}',null)" class="mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${done?'bg-primary border-primary text-on-primary':'border-outline-variant hover:border-primary'}"><span class="material-symbols-outlined text-[14px]">${done?'check':''}</span></button>` : `<span class="mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${done?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}"><span class="material-symbols-outlined text-[14px]">checklist</span></span>`}
-                <div class="flex-1 min-w-[180px]">
-                    <div class="font-label-bold text-sm ${done?'line-through opacity-70':''}">${escapeHtml(t.titulo||'')}</div>
-                    ${hasSubs ? `<div class="text-[11px] text-on-surface-variant">${subs.filter(s=>s.completada).length}/${subs.length} subtareas</div>` : ''}
-                </div>
-                <div class="flex flex-wrap items-center gap-2 text-xs">
-                    <label class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-[14px]">event</span><input type="date" class="bg-surface-container border border-outline-variant/30 rounded px-2 py-1 text-on-surface text-xs" value="${t.fecha_limite?String(t.fecha_limite).slice(0,10):''}" onchange="ProyectosModule.updateTareaField('${pasoId}','${t.id}','fecha_limite',this.value)"></label>
-                    <label class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-[14px]">person</span><input type="text" class="bg-surface-container border border-outline-variant/30 rounded px-2 py-1 text-on-surface text-xs w-36" placeholder="Responsable" value="${escapeAttr(t.responsable||'')}" onchange="ProyectosModule.updateTareaField('${pasoId}','${t.id}','responsable',this.value)"></label>
-                </div>
-                <div class="flex items-center gap-1">
-                    <button onclick="ProyectosModule.agregarSubtarea('${pasoId}','${t.id}')" class="p-1 text-primary hover:bg-primary/10 rounded" title="Subtarea"><span class="material-symbols-outlined text-[16px]">playlist_add</span></button>
-                    <button onclick="ProyectosModule.editTarea('${pasoId}','${t.id}')" class="p-1 text-on-surface-variant hover:text-primary rounded" title="Editar"><span class="material-symbols-outlined text-[16px]">edit</span></button>
-                    <button onclick="ProyectosModule.deleteTarea('${pasoId}','${t.id}')" class="p-1 text-on-surface-variant hover:text-error rounded" title="Eliminar"><span class="material-symbols-outlined text-[16px]">delete</span></button>
-                </div>
-            </div>
-            ${hasSubs ? `<div class="mt-2 ml-7 space-y-1">${subs.map(s=>`
-                <div class="flex items-center gap-2 group/sub text-sm">
-                    <button onclick="ProyectosModule.toggleTarea('${pasoId}','${t.id}','${s.id}')" class="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${s.completada?'bg-primary border-primary text-on-primary':'border-outline-variant'}"><span class="material-symbols-outlined text-[12px]">${s.completada?'check':''}</span></button>
-                    <span class="flex-1 ${s.completada?'line-through text-on-surface-variant':''}">${escapeHtml(s.titulo||'')}</span>
-                    <button onclick="ProyectosModule.editSubtarea('${pasoId}','${t.id}','${s.id}')" class="opacity-0 group-hover/sub:opacity-100 text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined text-[14px]">edit</span></button>
-                    <button onclick="ProyectosModule.deleteSubtarea('${pasoId}','${t.id}','${s.id}')" class="opacity-0 group-hover/sub:opacity-100 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[14px]">close</span></button>
-                </div>`).join('')}</div>` : ''}
-        </div>`;
-    }
-
-    function renderFinancieroResumen() {
-        const cot = current.cotizacion;
-        const cr = current.costos_reales || {};
-        const bom = current.bom || [];
-        const costoMaterialesBom = bom.reduce((s,b)=> {
-            const pu = Number(b.costo_unitario || 0) || (b.iva ? Number(b.precio_unitario||0)/1.19 : Number(b.precio_unitario||0));
-            return s + pu * Number(b.cantidad||0);
-        }, 0);
-        const presupuesto = (Number(cot?.total_inversion || cot?.subtotal || 0)) / 1.19;
-        const realMateriales = Number(cr.materiales ?? costoMaterialesBom) || 0;
-        const realManoObra = Number(cr.mano_obra)||0;
-        const realLogistica = Number(cr.logistica)||0;
-        const realOtros = Number(cr.otros)||0;
-        const totalReal = realMateriales + realManoObra + realLogistica + realOtros;
-        const diff = presupuesto - totalReal;
-        return `<div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Presupuesto cotizado (sin IVA)</div><div class="font-headline-md text-on-surface">${formatCurrency(presupuesto)}</div></div>
-            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Costo real ejecutado</div><div class="font-headline-md text-on-surface">${formatCurrency(totalReal)}</div></div>
-            <div class="bg-surface-container-low rounded-xl p-5 border ${diff>=0?'border-primary/30':'border-error/30'}"><div class="text-xs text-on-surface-variant mb-1">${diff>=0?'Ganancia final':'Sobrecosto'}</div><div class="font-headline-md ${diff>=0?'text-primary':'text-error'}">${formatCurrency(Math.abs(diff))}</div></div>
-        </div>
-        <div class="mt-4 grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
-                ${costInput('Mano de obra','cr-mano', realManoObra)}
-            </div>
-            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
-                ${costInput('Logística / transporte','cr-logistica', realLogistica)}
-            </div>
-            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
-                ${costInput('Otros costos','cr-otros', realOtros)}
-            </div>
-            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 flex flex-col justify-between">
-                <div class="flex justify-between font-label-bold text-sm"><span>Total real</span><span id="cr-total">${formatCurrency(totalReal)}</span></div>
-                <button onclick="ProyectosModule.guardarCostosReales()" class="sq-btn sq-btn-primary sq-btn-sm mt-2">Guardar costos</button>
             </div>
         </div>`;
     }
@@ -704,7 +686,12 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
+    function sortTasks(key){ if(taskSort.key===key) taskSort.dir=taskSort.dir==='asc'?'desc':'asc'; else {taskSort.key=key; taskSort.dir='asc';} renderDetalle(); }
+    function setTaskPageSize(v){ taskPageSize=Number(v)||10; taskPage=1; renderDetalle(); }
+    function prevTaskPage(){ if(taskPage>1){taskPage--;renderDetalle();} }
+    function nextTaskPage(){ const total=flattenTasks().length; const pages=Math.max(1,Math.ceil(total/taskPageSize)); if(taskPage<pages){taskPage++;renderDetalle();} }
+
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
