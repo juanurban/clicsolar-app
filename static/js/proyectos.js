@@ -261,15 +261,15 @@ window.ProyectosModule = (function () {
         const rows=slice.map(t=>{
             const overdue = t.dueDate && t.dueDate < today && !t.isCompleted;
             return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50">
-                <td class="px-2 py-2"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.id}')"></td>
-                <td class="px-2 py-2 text-xs text-on-surface-variant">${t.id}</td>
-                <td class="px-2 py-2"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
-                <td class="px-2 py-2 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
-                <td class="px-2 py-2 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
-                <td class="px-2 py-2 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
-                <td class="px-2 py-2 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
-                <td class="px-2 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
-                <td class="px-2 py-2 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.id}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
+                <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.id}')"></td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant">${t.id}</td>
+                <td class="px-4 py-3"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
+                <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
+                <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
+                <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.id}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
             </tr>`;
         }).join('');
         return `<div class="space-y-4">
@@ -280,15 +280,15 @@ window.ProyectosModule = (function () {
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
                 <table class="sq-table w-full text-sm">
                     <thead><tr>
-                        <th class="px-2 py-2"></th>
-                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
-                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('title')">Título ${sortIcon('title')}</th>
-                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('startDate')">Inicio ${sortIcon('startDate')}</th>
-                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('dueDate')">Límite ${sortIcon('dueDate')}</th>
-                        <th class="px-2 py-2">Hito</th>
-                        <th class="px-2 py-2">Asignado</th>
-                        <th class="px-2 py-2 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
-                        <th class="px-2 py-2">Acciones</th>
+                        <th class="px-4 py-3"></th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('title')">Título ${sortIcon('title')}</th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('startDate')">Inicio ${sortIcon('startDate')}</th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('dueDate')">Límite ${sortIcon('dueDate')}</th>
+                        <th class="px-4 py-3">Hito</th>
+                        <th class="px-4 py-3">Asignado</th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
+                        <th class="px-4 py-3">Acciones</th>
                     </tr></thead>
                     <tbody>${rows||'<tr><td colspan="9" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
                 </table>
@@ -492,30 +492,30 @@ window.ProyectosModule = (function () {
         const p=findPaso(pid);
         const overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        overlay.innerHTML=`<div style="background:#1a1a1a;color:#f4bf00;border-radius:12px;width:90%;max-width:700px;max-height:85vh;overflow:auto;padding:20px;">
+        overlay.innerHTML=`<div class="bg-surface-container-low text-on-surface rounded-xl w-[90%] max-w-[700px] max-h-[85vh] overflow-auto p-5 border border-outline-variant/30">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <h3 style="font-weight:bold;font-size:18px;">Tarea #${t.id}</h3>
                 <button onclick="this.closest('div').parentElement.parentElement.remove()" style="color:#f4bf00;"><span class="material-symbols-outlined">close</span></button>
             </div>
-            <input id="tm-title" class="sq-input w-full" value="${escapeAttr(t.titulo||'')}" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">
-            <textarea id="tm-desc" class="sq-input w-full mt-2" rows="3" placeholder="Descripción..." style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">${escapeHtml(t.descripcion||'')}</textarea>
+            <input id="tm-title" class="sq-input w-full" value="${escapeAttr(t.titulo||'')}" class="sq-input">
+            <textarea id="tm-desc" class="sq-input w-full mt-2" rows="3" placeholder="Descripción..." class="sq-input">${escapeHtml(t.descripcion||'')}</textarea>
             <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
-                <label class="text-xs">Estado: <select id="tm-status" class="sq-input text-sm" style="background:#2a2a2a;color:#f4bf00;"><option ${t.completada?'':'selected'} value="Hacer">Hacer</option><option value="En progreso">En progreso</option><option value="Completado" ${t.completada?'selected':''}>Completado</option></select></label>
-                <label class="text-xs">Límite: <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;"></label>
-                <label class="text-xs">Responsable: <input id="tm-resp" class="sq-input text-sm" value="${escapeAttr(t.responsable||'')}" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;"></label>
+                <label class="text-xs">Estado: <select id="tm-status" class="sq-input text-sm" ><option ${t.completada?'':'selected'} value="Hacer">Hacer</option><option value="En progreso">En progreso</option><option value="Completado" ${t.completada?'selected':''}>Completado</option></select></label>
+                <label class="text-xs">Límite: <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}" class="sq-input"></label>
+                <label class="text-xs">Responsable: <input id="tm-resp" class="sq-input text-sm" value="${escapeAttr(t.responsable||'')}" class="sq-input"></label>
             </div>
             <div style="margin-top:16px;">
                 <div style="font-weight:bold;margin-bottom:6px;">Checklist</div>
                 <div id="tm-checklist"></div>
                 <div style="display:flex;gap:8px;margin-top:8px;">
-                    <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar artículo" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">
+                    <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar artículo" class="sq-input">
                     <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-check-add">Agregar</button>
                 </div>
             </div>
             <div style="margin-top:16px;">
                 <div style="font-weight:bold;margin-bottom:6px;">Comentarios</div>
                 <div id="tm-comments" style="max-height:200px;overflow:auto;margin-bottom:8px;"></div>
-                <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario..." style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;"></textarea>
+                <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario..." class="sq-input"></textarea>
                 <button type="button" class="sq-btn sq-btn-primary sq-btn-sm mt-2" id="tm-comment-pub">Publicar</button>
             </div>
             <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
@@ -686,13 +686,13 @@ window.ProyectosModule = (function () {
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
         overlay.innerHTML = `<div style="background:#1a1a1a;border-radius:12px;width:90%;max-width:500px;padding:20px;color:#f4bf00;">
             <h3 style="margin-bottom:12px;font-weight:bold;">Editar entrada</h3>
-            <textarea id="eb-nota" class="sq-input w-full" rows="4" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">${escapeHtml(e.nota||'')}</textarea>
+            <textarea id="eb-nota" class="sq-input w-full" rows="4" class="sq-input">${escapeHtml(e.nota||'')}</textarea>
             <div style="margin-top:12px;">
                 <div style="font-size:12px;margin-bottom:4px;">Etiquetas:</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
                     ${tags.map(t=>`<label style="font-size:12px;"><input type="checkbox" value="${escapeAttr(t)}" ${(e.etiquetas||[]).includes(t)?'checked':''}> ${escapeHtml(t)}</label>`).join(' ')}
                 </div>
-                <input id="eb-newtag" class="sq-input w-full text-sm" placeholder="Nueva etiqueta" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">
+                <input id="eb-newtag" class="sq-input w-full text-sm" placeholder="Nueva etiqueta" class="sq-input">
             </div>
             <div style="margin-top:16px;text-align:right;display:flex;gap:8px;justify-content:flex-end;">
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="this.closest('div').parentElement.parentElement.remove()">Cancelar</button>
@@ -762,7 +762,7 @@ window.ProyectosModule = (function () {
         confirmAction('¿Eliminar esta instalación y todo su seguimiento?', async ()=>{ try{ await API.delete(`/proyectos/${id}`); showToast('Instalación eliminada','success'); if(fromList){ await cargar(); renderLista(); } else { window.location.hash='#proyectos'; } } catch(e){ showToast(e.message||'Error','error'); } });
     }
 
-    function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+    function genId(){ return Date.now(); }
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
