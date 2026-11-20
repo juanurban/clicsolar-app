@@ -44,9 +44,13 @@ function normalizeTarea(t, i) {
   return {
     id: String(t?.id || uid() + 't' + i),
     titulo: String(t?.titulo ?? t?.nombre ?? t?.descripcion ?? '').trim(),
+    descripcion: String(t?.descripcion ?? '').trim(),
     completada,
+    fecha_inicio: t?.fecha_inicio || null,
     fecha_limite: t?.fecha_limite || t?.fecha || null,
     responsable: String(t?.responsable ?? '').trim(),
+    checklist: Array.isArray(t?.checklist) ? t.checklist : [],
+    comments: Array.isArray(t?.comments) ? t.comments : [],
     subtareas
   };
 }
