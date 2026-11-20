@@ -215,7 +215,7 @@ window.ProyectosModule = (function () {
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto">
-                <div class="max-w-7xl mx-auto p-4 lg:p-10" id="tab-content">${renderTabContent()}</div>
+                <div class="w-full p-4 lg:p-10" id="tab-content">${renderTabContent()}</div>
             </div>
         </div>`;
     }
