@@ -506,7 +506,7 @@ window.ProyectosModule = (function () {
                 <label class="text-xs">Responsable: <select id="tm-resp" class="sq-input text-sm"><option value="">Sin asignar</option></select></label>
             </div>
             <div style="margin-top:16px;">
-                <div style="font-weight:bold;margin-bottom:6px;">Checklist</div>
+                <div style="font-weight:bold;margin-bottom:6px;">Checklist <span id="tm-check-progress" style="font-weight:normal;font-size:12px;color:#888;"></span></div>
                 <div id="tm-checklist"></div>
                 <div style="display:flex;gap:8px;margin-top:8px;">
                     <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar artículo" class="sq-input">
@@ -529,10 +529,13 @@ window.ProyectosModule = (function () {
         const comments = t.comments || (t.comments=[]);
         const renderChecklist = () => {
             const el = overlay.querySelector('#tm-checklist');
+            const done = checklist.filter(c=>c.completed).length;
+            const prog = overlay.querySelector('#tm-check-progress');
+            if (prog) prog.textContent = `(${done}/${checklist.length})`;
             el.innerHTML = checklist.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <input type="checkbox" ${c.completed?'checked':''} onchange="this.parentElement.querySelector('span').style.textDecoration=this.checked?'line-through':'none';">
+                <input type="checkbox" ${c.completed?'checked':''} onchange="checklist[${i}].completed=this.checked; renderChecklist();">
                 <span style="flex:1;${c.completed?'text-decoration:line-through;opacity:.6;':''}">${escapeHtml(c.text)}</span>
-                <button onclick="this.parentElement.remove();" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
+                <button onclick="checklist.splice(${i},1); renderChecklist();" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
             </div>`).join('') || '<div style="color:#888;font-size:12px;">Sin ítems</div>';
         };
         let replyTo = null;
