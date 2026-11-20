@@ -181,7 +181,6 @@ window.ProyectosModule = (function () {
             { id: 'bom', label: 'Equipos y materiales', icon: 'inventory_2' },
             { id: 'bitacora', label: 'Bitácora y documentos', icon: 'photo_library' },
         ];
-        if (canSeeFinanciero()) tabs.push({ id: 'financiero', label: 'Control financiero', icon: 'payments' });
         if (!tabs.find(t=>t.id===activeTab)) activeTab = 'tareas';
 
         container.innerHTML = `
@@ -293,6 +292,37 @@ window.ProyectosModule = (function () {
         </div>`;
     }
 
+    function renderFinancieroResumen() {
+        const cot = current.cotizacion;
+        const cr = current.costos_reales || {};
+        const bom = current.bom || [];
+        const costoMaterialesBom = bom.reduce((s,b)=> {
+            const pu = Number(b.costo_unitario || 0) || (b.iva ? Number(b.precio_unitario||0)/1.19 : Number(b.precio_unitario||0));
+            return s + pu * Number(b.cantidad||0);
+        }, 0);
+        const presupuesto = (Number(cot?.total_inversion || cot?.subtotal || 0)) / 1.19;
+        const realMateriales = Number(cr.materiales ?? costoMaterialesBom) || 0;
+        const realManoObra = Number(cr.mano_obra)||0;
+        const realLogistica = Number(cr.logistica)||0;
+        const realOtros = Number(cr.otros)||0;
+        const totalReal = realMateriales + realManoObra + realLogistica + realOtros;
+        const diff = presupuesto - totalReal;
+        return `<div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Presupuesto cotizado (sin IVA)</div><div class="font-headline-md text-on-surface">${formatCurrency(presupuesto)}</div></div>
+            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Costo real ejecutado</div><div class="font-headline-md text-on-surface">${formatCurrency(totalReal)}</div></div>
+            <div class="bg-surface-container-low rounded-xl p-5 border ${diff>=0?'border-primary/30':'border-error/30'}"><div class="text-xs text-on-surface-variant mb-1">${diff>=0?'Ganancia final':'Sobrecosto'}</div><div class="font-headline-md ${diff>=0?'text-primary':'text-error'}">${formatCurrency(Math.abs(diff))}</div></div>
+        </div>
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 space-y-2">
+                ${costInput('Mano de obra','cr-mano', realManoObra)}
+                ${costInput('Logística / transporte','cr-logistica', realLogistica)}
+                ${costInput('Otros costos','cr-otros', realOtros)}
+                <div class="flex justify-between pt-2 border-t border-outline-variant/20 font-label-bold text-sm"><span>Total real</span><span id="cr-total">${formatCurrency(totalReal)}</span></div>
+                <button onclick="ProyectosModule.guardarCostosReales()" class="sq-btn sq-btn-primary sq-btn-sm mt-2">Guardar costos</button>
+            </div>
+        </div>`;
+    }
+
     // ── TAB 2: BOM ───────────────────────────────────────────────────────
     function renderTabBOM() {
         loadBomInventory().then(()=>{ setTimeout(()=>populateBomCategories(),0); });
@@ -316,6 +346,7 @@ window.ProyectosModule = (function () {
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
             </div>
             <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
+            ${renderFinancieroResumen()}
         </div>`;
         return `<div class="space-y-4">
             <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
@@ -350,6 +381,7 @@ window.ProyectosModule = (function () {
                     <tfoot><tr><td colspan="3" class="text-right font-bold">Total materiales</td><td class="text-right font-bold text-primary">${formatCurrency(bom.reduce((s,b)=>s+(Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0),0))}</td><td></td></tr></tfoot>
                 </table>
             </div>
+            ${renderFinancieroResumen()}
         </div>`;
     }
 
