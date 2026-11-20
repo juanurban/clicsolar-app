@@ -535,9 +535,19 @@ window.ProyectosModule = (function () {
                 <button onclick="this.parentElement.remove();" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
             </div>`).join('') || '<div style="color:#888;font-size:12px;">Sin ítems</div>';
         };
+        let replyTo = null;
         const renderComments = () => {
             const el = overlay.querySelector('#tm-comments');
-            el.innerHTML = comments.map(c=>`<div style="border-bottom:1px solid #333;padding:6px 0;font-size:13px;"><b>${escapeHtml(c.autor||'Tú')}</b>: ${escapeHtml(c.text)} <span style="color:#888;font-size:10px;">${c.fecha||''}</span></div>`).join('') || '<div style="color:#888;font-size:12px;">Sin comentarios</div>';
+            const topLevel = comments.filter(c=>!c.parentId);
+            const renderOne = (c, depth) => {
+                const replies = comments.filter(r=>r.parentId===c.id);
+                return `<div style="margin-left:${depth*16}px;border-bottom:1px solid #333;padding:6px 0;font-size:13px;">
+                    <b>${escapeHtml(c.autor||'Tú')}</b>: ${escapeHtml(c.text)} <span style="color:#888;font-size:10px;">${c.fecha||''}</span>
+                    <button type="button" style="color:#f4bf00;font-size:11px;margin-left:8px;" onclick="(function(){const i=document.getElementById('tm-comment'); i.dataset.reply='${c.id}'; i.placeholder='Responder a ${escapeHtml(c.autor||'')}...'; i.focus();})()">Responder</button>
+                    ${replies.map(r=>renderOne(r,depth+1)).join('')}
+                </div>`;
+            };
+            el.innerHTML = topLevel.map(c=>renderOne(c,0)).join('') || '<div style="color:#888;font-size:12px;">Sin comentarios</div>';
         };
         // populate users
         (async () => {
@@ -558,10 +568,12 @@ window.ProyectosModule = (function () {
             renderChecklist();
         };
         overlay.querySelector('#tm-comment-pub').onclick = () => {
-            const v = overlay.querySelector('#tm-comment').value.trim();
+            const inp = overlay.querySelector('#tm-comment');
+            const v = inp.value.trim();
             if(!v) return;
-            comments.push({autor:'Tú', text:v, fecha:new Date().toLocaleString('es-CO')});
-            overlay.querySelector('#tm-comment').value='';
+            const parentId = inp.dataset.reply || null;
+            comments.push({id:Date.now(), autor:'Tú', text:v, fecha:new Date().toLocaleString('es-CO'), parentId: parentId?Number(parentId):null});
+            inp.value=''; inp.dataset.reply=''; inp.placeholder='Escribe un comentario...';
             renderComments();
         };
         overlay.querySelector('#tm-save').onclick = async () => {
