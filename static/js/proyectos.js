@@ -350,6 +350,7 @@ window.ProyectosModule = (function () {
             <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
         </div>`;
         return `<div class="space-y-4">
+            ${renderFinancieroResumen()}
             <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
             <div class="flex flex-wrap gap-2 items-end bg-surface-container-low rounded-xl p-3 border border-outline-variant/30">
                 <div class="flex flex-col">
