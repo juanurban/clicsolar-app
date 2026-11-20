@@ -179,7 +179,7 @@ window.ProyectosModule = (function () {
         const tabs = [
             { id: 'tareas', label: 'Tareas por etapas', icon: 'checklist' },
             { id: 'bom', label: 'Equipos y materiales', icon: 'inventory_2' },
-            { id: 'bitacora', label: 'Bitácora y documentos', icon: 'photo_library' },
+            { id: 'bitacora', label: 'Archivos', icon: 'folder' },
         ];
         if (!tabs.find(t=>t.id===activeTab)) activeTab = 'tareas';
 
