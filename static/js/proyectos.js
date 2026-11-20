@@ -329,6 +329,7 @@ window.ProyectosModule = (function () {
         const bom = current.bom || [];
         const cot = current.cotizacion;
         if (!bom.length) return `<div class="space-y-4">
+            ${renderFinancieroResumen()}
             <div class="flex flex-wrap gap-2 items-end bg-surface-container-low rounded-xl p-3 border border-outline-variant/30">
                 <div class="flex flex-col">
                     <label class="text-xs text-on-surface-variant mb-1">Categoría</label>
@@ -345,8 +346,8 @@ window.ProyectosModule = (function () {
                 <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
             </div>
-            <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
             ${renderFinancieroResumen()}
+            <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
         </div>`;
         return `<div class="space-y-4">
             <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
@@ -381,7 +382,6 @@ window.ProyectosModule = (function () {
                     <tfoot><tr><td colspan="3" class="text-right font-bold">Total materiales</td><td class="text-right font-bold text-primary">${formatCurrency(bom.reduce((s,b)=>s+(Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0),0))}</td><td></td></tr></tfoot>
                 </table>
             </div>
-            ${renderFinancieroResumen()}
         </div>`;
     }
 
