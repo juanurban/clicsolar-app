@@ -312,12 +312,18 @@ window.ProyectosModule = (function () {
             <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Costo real ejecutado</div><div class="font-headline-md text-on-surface">${formatCurrency(totalReal)}</div></div>
             <div class="bg-surface-container-low rounded-xl p-5 border ${diff>=0?'border-primary/30':'border-error/30'}"><div class="text-xs text-on-surface-variant mb-1">${diff>=0?'Ganancia final':'Sobrecosto'}</div><div class="font-headline-md ${diff>=0?'text-primary':'text-error'}">${formatCurrency(Math.abs(diff))}</div></div>
         </div>
-        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 space-y-2">
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
                 ${costInput('Mano de obra','cr-mano', realManoObra)}
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
                 ${costInput('Logística / transporte','cr-logistica', realLogistica)}
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">
                 ${costInput('Otros costos','cr-otros', realOtros)}
-                <div class="flex justify-between pt-2 border-t border-outline-variant/20 font-label-bold text-sm"><span>Total real</span><span id="cr-total">${formatCurrency(totalReal)}</span></div>
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 flex flex-col justify-between">
+                <div class="flex justify-between font-label-bold text-sm"><span>Total real</span><span id="cr-total">${formatCurrency(totalReal)}</span></div>
                 <button onclick="ProyectosModule.guardarCostosReales()" class="sq-btn sq-btn-primary sq-btn-sm mt-2">Guardar costos</button>
             </div>
         </div>`;
