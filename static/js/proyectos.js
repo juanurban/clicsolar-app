@@ -275,10 +275,11 @@ window.ProyectosModule = (function () {
         return `<div class="space-y-4">
             <div class="flex justify-between items-center">
                 <p class="text-sm text-on-surface-variant">Gestión de tareas en grilla.</p>
-                <button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Nueva etapa</button>
+                <button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Nueva etapa</button>
+                <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
-                <table class="sq-table w-full text-sm">
+                <table class="sq-table w-full text-sm" style="min-width:900px;">
                     <thead><tr>
                         <th class="px-4 py-3"></th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
@@ -766,12 +767,23 @@ window.ProyectosModule = (function () {
     function escapeHtml(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function escapeAttr(v){ return escapeHtml(v).replace(/"/g,'&quot;'); }
 
+    async function agregarTareaRapida(){
+        const titulo=prompt('Título de la tarea:'); if(!titulo?.trim()) return;
+        current.pasos=current.pasos||[];
+        let p=current.pasos[0];
+        if(!p){ p={id:genId(),nombre:'General',orden:1,completado:false,tareas:[]}; current.pasos.push(p); }
+        p.tareas=p.tareas||[];
+        p.tareas.push({id:genId(),titulo:titulo.trim(),completada:false,fecha_limite:null,responsable:'',subtareas:[]});
+        recompute(p);
+        await saveCurrent(['pasos']);
+        renderDetalle();
+    }
     function sortTasks(key){ if(taskSort.key===key) taskSort.dir=taskSort.dir==='asc'?'desc':'asc'; else {taskSort.key=key; taskSort.dir='asc';} renderDetalle(); }
     function setTaskPageSize(v){ taskPageSize=Number(v)||10; taskPage=1; renderDetalle(); }
     function prevTaskPage(){ if(taskPage>1){taskPage--;renderDetalle();} }
     function nextTaskPage(){ const total=flattenTasks().length; const pages=Math.max(1,Math.ceil(total/taskPageSize)); if(taskPage<pages){taskPage++;renderDetalle();} }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
