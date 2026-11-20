@@ -503,7 +503,7 @@ window.ProyectosModule = (function () {
             <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
                 <label class="text-xs">Estado: <select id="tm-status" class="sq-input text-sm" ><option ${t.completada?'':'selected'} value="Hacer">Hacer</option><option value="En progreso">En progreso</option><option value="Completado" ${t.completada?'selected':''}>Completado</option></select></label>
                 <label class="text-xs">Límite: <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}" class="sq-input"></label>
-                <label class="text-xs">Responsable: <input id="tm-resp" class="sq-input text-sm" value="${escapeAttr(t.responsable||'')}" class="sq-input"></label>
+                <label class="text-xs">Responsable: <select id="tm-resp" class="sq-input text-sm"><option value="">Sin asignar</option></select></label>
             </div>
             <div style="margin-top:16px;">
                 <div style="font-weight:bold;margin-bottom:6px;">Checklist</div>
@@ -539,6 +539,16 @@ window.ProyectosModule = (function () {
             const el = overlay.querySelector('#tm-comments');
             el.innerHTML = comments.map(c=>`<div style="border-bottom:1px solid #333;padding:6px 0;font-size:13px;"><b>${escapeHtml(c.autor||'Tú')}</b>: ${escapeHtml(c.text)} <span style="color:#888;font-size:10px;">${c.fecha||''}</span></div>`).join('') || '<div style="color:#888;font-size:12px;">Sin comentarios</div>';
         };
+        // populate users
+        (async () => {
+            try {
+                const users = await API.get('/usuarios');
+                const sel = overlay.querySelector('#tm-resp');
+                if (sel && Array.isArray(users)) {
+                    sel.innerHTML = '<option value="">Sin asignar</option>' + users.map(u=>`<option value="${escapeAttr(u.nombre_completo||u.username)}" ${(t.responsable=== (u.nombre_completo||u.username))?'selected':''}>${escapeHtml(u.nombre_completo||u.username)}</option>`).join('');
+                }
+            } catch(e){}
+        })();
         renderChecklist(); renderComments();
         overlay.querySelector('#tm-check-add').onclick = () => {
             const v = overlay.querySelector('#tm-check-new').value.trim();
@@ -558,6 +568,7 @@ window.ProyectosModule = (function () {
             t.titulo = overlay.querySelector('#tm-title').value;
             t.descripcion = overlay.querySelector('#tm-desc').value;
             t.completada = overlay.querySelector('#tm-status').value==='Completado';
+            t.fecha_inicio = overlay.querySelector('#tm-start').value || null;
             t.fecha_limite = overlay.querySelector('#tm-due').value || null;
             t.responsable = overlay.querySelector('#tm-resp').value;
             t.checklist = checklist;
