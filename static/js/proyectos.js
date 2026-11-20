@@ -263,7 +263,7 @@ window.ProyectosModule = (function () {
             return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50">
                 <td class="px-2 py-2"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.id}')"></td>
                 <td class="px-2 py-2 text-xs text-on-surface-variant">${t.id}</td>
-                <td class="px-2 py-2"><a href="#" onclick="ProyectosModule.editTarea('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
+                <td class="px-2 py-2"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
                 <td class="px-2 py-2 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
                 <td class="px-2 py-2 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
                 <td class="px-2 py-2 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
@@ -486,6 +486,86 @@ window.ProyectosModule = (function () {
     async function renamePaso(pid){ const p=findPaso(pid); if(!p)return; const n=prompt('Nuevo nombre de la etapa:',p.nombre); if(n===null||!n.trim())return; p.nombre=n.trim(); await saveCurrent(['pasos']); renderDetalle(); }
     async function deletePaso(pid){ if(!confirm('¿Eliminar esta etapa y sus tareas?'))return; current.pasos=(current.pasos||[]).filter(p=>p.id!==pid); await saveCurrent(['pasos']); renderDetalle(); }
     async function agregarTarea(pid){ const titulo=prompt('Título de la tarea:'); if(!titulo?.trim())return; const p=findPaso(pid); if(!p)return; p.tareas=p.tareas||[]; p.tareas.push({id:genId(),titulo:titulo.trim(),completada:false,fecha_limite:null,responsable:'',subtareas:[]}); recompute(p); await saveCurrent(['pasos']); renderDetalle(); }
+    function openTaskModal(pid,tid){
+        const t=findTarea(pid,tid);
+        if(!t) return;
+        const p=findPaso(pid);
+        const overlay=document.createElement('div');
+        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML=`<div style="background:#1a1a1a;color:#f4bf00;border-radius:12px;width:90%;max-width:700px;max-height:85vh;overflow:auto;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="font-weight:bold;font-size:18px;">Tarea #${t.id}</h3>
+                <button onclick="this.closest('div').parentElement.parentElement.remove()" style="color:#f4bf00;"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <input id="tm-title" class="sq-input w-full" value="${escapeAttr(t.titulo||'')}" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">
+            <textarea id="tm-desc" class="sq-input w-full mt-2" rows="3" placeholder="Descripción..." style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">${escapeHtml(t.descripcion||'')}</textarea>
+            <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
+                <label class="text-xs">Estado: <select id="tm-status" class="sq-input text-sm" style="background:#2a2a2a;color:#f4bf00;"><option ${t.completada?'':'selected'} value="Hacer">Hacer</option><option value="En progreso">En progreso</option><option value="Completado" ${t.completada?'selected':''}>Completado</option></select></label>
+                <label class="text-xs">Límite: <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;"></label>
+                <label class="text-xs">Responsable: <input id="tm-resp" class="sq-input text-sm" value="${escapeAttr(t.responsable||'')}" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;"></label>
+            </div>
+            <div style="margin-top:16px;">
+                <div style="font-weight:bold;margin-bottom:6px;">Checklist</div>
+                <div id="tm-checklist"></div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar artículo" style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;">
+                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-check-add">Agregar</button>
+                </div>
+            </div>
+            <div style="margin-top:16px;">
+                <div style="font-weight:bold;margin-bottom:6px;">Comentarios</div>
+                <div id="tm-comments" style="max-height:200px;overflow:auto;margin-bottom:8px;"></div>
+                <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario..." style="background:#2a2a2a;color:#f4bf00;border-color:#f4bf00;"></textarea>
+                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm mt-2" id="tm-comment-pub">Publicar</button>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.deleteTarea('${pid}','${tid}');this.closest('div').parentElement.parentElement.remove();">Eliminar</button>
+                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-save">Guardar</button>
+            </div>
+        </div>`;
+        document.body.appendChild(overlay);
+        const checklist = t.checklist || (t.checklist=[]);
+        const comments = t.comments || (t.comments=[]);
+        const renderChecklist = () => {
+            const el = overlay.querySelector('#tm-checklist');
+            el.innerHTML = checklist.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <input type="checkbox" ${c.completed?'checked':''} onchange="this.parentElement.querySelector('span').style.textDecoration=this.checked?'line-through':'none';">
+                <span style="flex:1;${c.completed?'text-decoration:line-through;opacity:.6;':''}">${escapeHtml(c.text)}</span>
+                <button onclick="this.parentElement.remove();" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
+            </div>`).join('') || '<div style="color:#888;font-size:12px;">Sin ítems</div>';
+        };
+        const renderComments = () => {
+            const el = overlay.querySelector('#tm-comments');
+            el.innerHTML = comments.map(c=>`<div style="border-bottom:1px solid #333;padding:6px 0;font-size:13px;"><b>${escapeHtml(c.autor||'Tú')}</b>: ${escapeHtml(c.text)} <span style="color:#888;font-size:10px;">${c.fecha||''}</span></div>`).join('') || '<div style="color:#888;font-size:12px;">Sin comentarios</div>';
+        };
+        renderChecklist(); renderComments();
+        overlay.querySelector('#tm-check-add').onclick = () => {
+            const v = overlay.querySelector('#tm-check-new').value.trim();
+            if(!v) return;
+            checklist.push({id:Date.now(), text:v, completed:false});
+            overlay.querySelector('#tm-check-new').value='';
+            renderChecklist();
+        };
+        overlay.querySelector('#tm-comment-pub').onclick = () => {
+            const v = overlay.querySelector('#tm-comment').value.trim();
+            if(!v) return;
+            comments.push({autor:'Tú', text:v, fecha:new Date().toLocaleString('es-CO')});
+            overlay.querySelector('#tm-comment').value='';
+            renderComments();
+        };
+        overlay.querySelector('#tm-save').onclick = async () => {
+            t.titulo = overlay.querySelector('#tm-title').value;
+            t.descripcion = overlay.querySelector('#tm-desc').value;
+            t.completada = overlay.querySelector('#tm-status').value==='Completado';
+            t.fecha_limite = overlay.querySelector('#tm-due').value || null;
+            t.responsable = overlay.querySelector('#tm-resp').value;
+            t.checklist = checklist;
+            t.comments = comments;
+            await saveCurrent(['pasos']);
+            overlay.remove();
+            renderDetalle();
+        };
+    }
     async function editTarea(pid,tid){ const t=findTarea(pid,tid); if(!t)return; const n=prompt('Editar tarea:',t.titulo); if(n===null||!n.trim())return; t.titulo=n.trim(); await saveCurrent(['pasos']); renderDetalle(); }
     async function deleteTarea(pid,tid){ const p=findPaso(pid); if(!p||!confirm('¿Eliminar esta tarea?'))return; p.tareas=(p.tareas||[]).filter(t=>t.id!==tid); recompute(p); await saveCurrent(['pasos']); renderDetalle(); }
     async function agregarSubtarea(pid,tid){ const titulo=prompt('Título de la subtarea:'); if(!titulo?.trim())return; const t=findTarea(pid,tid); if(!t)return; t.subtareas=t.subtareas||[]; t.subtareas.push({id:genId(),titulo:titulo.trim(),completada:false}); recompute(findPaso(pid)); await saveCurrent(['pasos']); renderDetalle(); }
@@ -691,7 +771,7 @@ window.ProyectosModule = (function () {
     function prevTaskPage(){ if(taskPage>1){taskPage--;renderDetalle();} }
     function nextTaskPage(){ const total=flattenTasks().length; const pages=Math.max(1,Math.ceil(total/taskPageSize)); if(taskPage<pages){taskPage++;renderDetalle();} }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
