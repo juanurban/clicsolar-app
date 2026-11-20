@@ -279,7 +279,7 @@ window.ProyectosModule = (function () {
                 <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
-                <table class="sq-table w-full text-sm" style="min-width:1100px;width:100%;">
+                <table class="sq-table w-full text-sm" style="min-width:1600px;width:100%;">
                     <thead><tr>
                         <th class="px-4 py-3"></th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
