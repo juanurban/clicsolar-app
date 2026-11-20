@@ -262,7 +262,7 @@ window.ProyectosModule = (function () {
             const overdue = t.dueDate && t.dueDate < today && !t.isCompleted;
             return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50">
                 <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.id}')"></td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant">${t.id}</td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant">${Number(t.id)||t.id}</td>
                 <td class="px-4 py-3"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
                 <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
@@ -279,7 +279,7 @@ window.ProyectosModule = (function () {
                 <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
-                <table class="sq-table w-full text-sm" style="min-width:900px;">
+                <table class="sq-table w-full text-sm" style="min-width:1100px;width:100%;">
                     <thead><tr>
                         <th class="px-4 py-3"></th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
