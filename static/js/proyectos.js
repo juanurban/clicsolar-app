@@ -234,10 +234,10 @@ window.ProyectosModule = (function () {
     let taskPage=1;
     let taskPageSize=10;
     function flattenTasks(){
-        const out=[];
+        const out=[]; let idx=0;
         (current.pasos||[]).forEach(p=>{
             (p.tareas||[]).forEach(t=>{
-                out.push({id:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.completada?'Completado':'Hacer', tags:[]});
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.completada?'Completado':'Hacer', tags:[]});
             });
         });
         return out;
@@ -261,15 +261,15 @@ window.ProyectosModule = (function () {
         const rows=slice.map(t=>{
             const overdue = t.dueDate && t.dueDate < today && !t.isCompleted;
             return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50">
-                <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.id}')"></td>
+                <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.realId}')"></td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${Number(t.id)||t.id}</td>
-                <td class="px-4 py-3"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.id}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
+                <td class="px-4 py-3"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.realId}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
                 <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
                 <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
-                <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.id}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
+                <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.realId}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
             </tr>`;
         }).join('');
         return `<div class="space-y-4">
