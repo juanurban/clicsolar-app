@@ -237,7 +237,8 @@ window.ProyectosModule = (function () {
         const out=[]; let idx=0;
         (current.pasos||[]).forEach(p=>{
             (p.tareas||[]).forEach(t=>{
-                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.completada?'Completado':'Hacer', tags:[]});
+                const cl=t.checklist||[]; const done=cl.filter(c=>c.completed).length; const prog=cl.length?Math.round(done/cl.length*100):(t.completada?100:0);
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.completada?'Completado':'Hacer', tags:[], progress:prog});
             });
         });
         return out;
@@ -268,6 +269,7 @@ window.ProyectosModule = (function () {
                 <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
+                <td class="px-4 py-3"><div class="w-24 h-2 bg-surface-container-high rounded"><div class="h-2 bg-primary rounded" style="width:${t.progress}%"></div></div><div class="text-[10px] text-on-surface-variant">${t.progress}%</div></td>
                 <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
                 <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.realId}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
             </tr>`;
@@ -279,7 +281,7 @@ window.ProyectosModule = (function () {
                 <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
-                <table class="sq-table w-full text-sm" style="min-width:1600px;width:100%;">
+                <table class="sq-table w-full text-sm" style="width:100%;">
                     <thead><tr>
                         <th class="px-4 py-3"></th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('id')">ID ${sortIcon('id')}</th>
@@ -288,10 +290,11 @@ window.ProyectosModule = (function () {
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('dueDate')">Límite ${sortIcon('dueDate')}</th>
                         <th class="px-4 py-3">Hito</th>
                         <th class="px-4 py-3">Asignado</th>
+                        <th class="px-4 py-3">Progreso</th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
                         <th class="px-4 py-3">Acciones</th>
                     </tr></thead>
-                    <tbody>${rows||'<tr><td colspan="9" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
+                    <tbody>${rows||'<tr><td colspan="10" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
                 </table>
             </div>
             <div class="flex items-center justify-between text-sm">
