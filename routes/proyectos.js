@@ -203,8 +203,8 @@ router.post('/', async (req, res) => {
     }
     if (!nombreProyecto || !clienteId) return res.status(400).json({ error: 'El nombre y el cliente son obligatorios' });
     const [result] = await pool.execute(
-      `INSERT INTO proyectos (nombre, cliente_id, cotizacion_id, estado_id, estado, fecha_entrega_estimada, notas, empresa_id, tipo, pasos_json, bom_json, bitacora_json, costos_reales_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'instalacion', ?, ?, ?, ?)`,
+      `INSERT INTO proyectos (nombre, cliente_id, cotizacion_id, estado_id, estado, fecha_entrega_estimada, notas, empresa_id, tipo, pasos_json, bom_json, bitacora_json, costos_reales_json, tags_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'instalacion', ?, ?, ?, ?, ?)`,
       [nombreProyecto, clienteId, cotId, null, 'En ejecución', fecha_entrega_estimada || null, notas || '', req.user.empresa_id, '[]', JSON.stringify(bom), '[]', '{}', '[]']
     );
     res.status(201).json({ id: result.insertId, message: 'Instalación creada exitosamente' });
