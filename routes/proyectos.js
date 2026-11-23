@@ -50,6 +50,7 @@ function normalizeTarea(t, i) {
     fecha_limite: t?.fecha_limite || t?.fecha || null,
     responsable: String(t?.responsable ?? '').trim(),
     status: String(t?.status || (t?.completada ? 'Completado' : 'Hacer')).trim(),
+    prioridad: String(t?.prioridad || 'Media').trim(),
     checklist: Array.isArray(t?.checklist) ? t.checklist : [],
     comments: Array.isArray(t?.comments) ? t.comments : [],
     archivos: Array.isArray(t?.archivos) ? t.archivos : [],

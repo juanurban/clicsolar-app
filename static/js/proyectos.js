@@ -240,6 +240,15 @@ window.ProyectosModule = (function () {
         return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
+    function prioBadge(prio) {
+        switch(prio) {
+            case 'Urgente': return '<span class="text-[10px] px-2 py-0.5 rounded-full bg-error/20 text-error font-bold inline-flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">priority_high</span>Urgente</span>';
+            case 'Alta': return '<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold">Alta</span>';
+            case 'Baja': return '<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">Baja</span>';
+            default: return '<span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold">Media</span>';
+        }
+    }
+
     function flattenTasks(){
         const out=[]; let idx=0;
         (current.pasos||[]).forEach(p=>{
@@ -247,9 +256,8 @@ window.ProyectosModule = (function () {
                 const cl=t.checklist||[]; const done=cl.filter(c=>c.completed).length; const prog=cl.length?Math.round(done/cl.length*100):(t.completada?100:0);
                 const bitMatches = (current.bitacora||[]).filter(b=>(b.etiquetas||[]).includes('tarea:'+t.id) || String(b.tarea_id)===String(t.id));
                 const taskArchivos = Array.isArray(t.archivos) ? t.archivos : [];
-                // Total único de adjuntos
                 const totalAdj = Math.max(taskArchivos.length, bitMatches.length);
-                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), tags:[], progress:prog, adjuntos:totalAdj});
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), prioridad:t.prioridad||'Media', tags:[], progress:prog, adjuntos:totalAdj});
             });
         });
         return out;
@@ -272,27 +280,38 @@ window.ProyectosModule = (function () {
         const today=new Date().toISOString().slice(0,10);
         const rows=slice.map(t=>{
             const overdue = t.dueDate && t.dueDate < today && !t.isCompleted;
-            return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50">
-                <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.realId}')"></td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant">${Number(t.id)||t.id}</td>
-                <td class="px-4 py-3"><a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.realId}');return false;" class="text-on-surface hover:text-primary font-label-bold">${escapeHtml(t.title)}</a></td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant">${t.startDate||'-'}</td>
-                <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'}">${t.dueDate||'-'}</td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
-                <td class="px-4 py-3"><div class="w-24 h-2 bg-surface-container-high rounded"><div class="h-2 bg-primary rounded" style="width:${t.progress}%"></div></div><div class="text-[10px] text-on-surface-variant">${t.progress}%</div></td>
-                <td class="px-4 py-3 text-center">${t.adjuntos||0}</td>
-                <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
-                <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.realId}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
+            return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors">
+                <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary rounded cursor-pointer" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.realId}')"></td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant font-mono">${Number(t.id)||t.id}</td>
+                <td class="px-4 py-3">
+                    <a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.realId}');return false;" class="text-on-surface hover:text-primary font-label-bold transition-colors flex items-center gap-2">
+                        <span>${escapeHtml(t.title)}</span>
+                    </a>
+                </td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">${t.startDate||'-'}</td>
+                <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'} whitespace-nowrap">${t.dueDate ? (overdue ? '⚠️ ' + t.dueDate : t.dueDate) : '-'}</td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant"><span class="px-2 py-0.5 rounded bg-surface-container text-[11px]">${escapeHtml(t.milestone)}</span></td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'Sin asignar')}</td>
+                <td class="px-4 py-3"><div class="w-24 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-2 bg-primary rounded-full transition-all" style="width:${t.progress}%"></div></div><div class="text-[10px] text-on-surface-variant mt-0.5">${t.progress}%</div></td>
+                <td class="px-4 py-3 text-center">
+                    <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${t.adjuntos>0?'bg-primary/10 text-primary font-bold':'text-on-surface-variant'}">
+                        <span class="material-symbols-outlined text-[14px]">attachment</span> ${t.adjuntos||0}
+                    </span>
+                </td>
+                <td class="px-4 py-3">${prioBadge(t.prioridad)}</td>
+                <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full font-label-bold ${t.status==='Completado'?'bg-emerald-500/20 text-emerald-400':(t.status==='En progreso'?'bg-amber-500/20 text-amber-400':'bg-surface-container-high text-on-surface-variant')}">${t.status}</span></td>
+                <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.realId}')" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Eliminar tarea"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
             </tr>`;
         }).join('');
         return `<div class="space-y-4">
-            <div class="flex justify-between items-center">
-                <p class="text-sm text-on-surface-variant">Gestión de tareas en grilla.</p>
-                <button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Nueva etapa</button>
-                <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <p class="text-sm text-on-surface-variant">Gestión de tareas en grilla por etapas del proyecto.</p>
+                <div class="flex items-center gap-2">
+                    <button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Nueva etapa</button>
+                    <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1 shadow-md"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
+                </div>
             </div>
-            <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
+            <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low shadow-sm">
                 <table class="sq-table w-full text-sm" style="width:100%;">
                     <thead><tr>
                         <th class="px-4 py-3"></th>
@@ -300,9 +319,17 @@ window.ProyectosModule = (function () {
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('title')">Título ${sortIcon('title')}</th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('startDate')">Inicio ${sortIcon('startDate')}</th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('dueDate')">Límite ${sortIcon('dueDate')}</th>
-                        <th class="px-4 py-3">Hito</th>
+                        <th class="px-4 py-3">Etapa</th>
                         <th class="px-4 py-3">Asignado</th>
                         <th class="px-4 py-3">Progreso</th>
+                        <th class="px-4 py-3 text-center">Adjuntos</th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('prioridad')">Prioridad ${sortIcon('prioridad')}</th>
+                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
+                        <th class="px-4 py-3 text-center">Acciones</th>
+                    </tr></thead>
+                    <tbody>${rows||'<tr><td colspan="12" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
+                </table>
+            </div>
                         <th class="px-4 py-3">Adjuntos</th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
                         <th class="px-4 py-3">Acciones</th>
@@ -601,166 +628,307 @@ window.ProyectosModule = (function () {
             }
         });
 
+        let activeSubtab = 'general';
+
         const overlay=document.createElement('div');
-        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
-        overlay.innerHTML=`<div class="bg-surface-container-low text-on-surface rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 border border-outline-variant/30 shadow-2xl">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <div class="text-xs font-label-bold text-primary tracking-wider uppercase mb-1">${escapeHtml(p?.nombre || 'Etapa')}</div>
-                    <h3 class="font-headline-md text-on-surface">Tarea #${escapeHtml(t.id)}</h3>
+        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+        overlay.innerHTML=`<div class="bg-surface-container-low text-on-surface rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-outline-variant/30 shadow-2xl overflow-hidden">
+            <!-- CABECERA DEL MODAL -->
+            <div class="px-6 py-4 border-b border-outline-variant/20 bg-surface-container/60 flex items-center justify-between gap-4 flex-shrink-0">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                        <span class="text-[11px] font-label-bold text-primary tracking-widest uppercase flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[14px]">view_timeline</span> Etapa:
+                        </span>
+                        <select id="tm-step" class="sq-input !py-0.5 !px-2 text-xs font-label-bold rounded-lg bg-surface-container-high border-outline-variant/40 max-w-[200px]" title="Mover a otra etapa">
+                            ${(current.pasos||[]).map(s=>`<option value="${s.id}" ${s.id===pid?'selected':''}>${escapeHtml(s.nombre)}</option>`).join('')}
+                        </select>
+                        <span class="text-xs text-on-surface-variant font-mono">#${escapeHtml(t.id)}</span>
+                    </div>
+                    <input id="tm-title" class="sq-input w-full font-headline-md text-on-surface !py-1 text-base md:text-lg font-bold bg-transparent border-transparent hover:border-outline-variant/40 focus:border-primary transition-all rounded-lg" value="${escapeAttr(t.titulo||'')}" placeholder="Título de la tarea">
                 </div>
-                <button type="button" class="sq-btn sq-btn-ghost p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high" onclick="window._tmCleanAndClose()" title="Cerrar">
-                    <span class="material-symbols-outlined text-[20px]">close</span>
+                <button type="button" class="sq-btn sq-btn-ghost p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors flex-shrink-0" onclick="window._tmCleanAndClose()" title="Cerrar (Esc)">
+                    <span class="material-symbols-outlined text-[22px]">close</span>
                 </button>
             </div>
 
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Título de la tarea *</label>
-                    <input id="tm-title" class="sq-input w-full font-label-bold" value="${escapeAttr(t.titulo||'')}">
-                </div>
+            <!-- BARRA DE SUB-PESTAÑAS -->
+            <div class="px-6 pt-2 bg-surface-container-low border-b border-outline-variant/20 flex gap-2 flex-shrink-0 overflow-x-auto">
+                <button type="button" class="tm-subtab active flex items-center gap-1.5 px-4 py-2.5 text-xs font-label-bold border-b-2 border-primary text-primary transition-colors" data-tab="general">
+                    <span class="material-symbols-outlined text-[16px]">edit_note</span> General y Checklist
+                </button>
+                <button type="button" class="tm-subtab flex items-center gap-1.5 px-4 py-2.5 text-xs font-label-bold border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors" data-tab="adjuntos">
+                    <span class="material-symbols-outlined text-[16px]">attachment</span> Adjuntos <span id="tm-badge-adj" class="ml-0.5 px-1.5 py-0.2 rounded-full bg-surface-container-high text-[10px] font-bold"></span>
+                </button>
+                <button type="button" class="tm-subtab flex items-center gap-1.5 px-4 py-2.5 text-xs font-label-bold border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors" data-tab="comentarios">
+                    <span class="material-symbols-outlined text-[16px]">chat</span> Comentarios <span id="tm-badge-comm" class="ml-0.5 px-1.5 py-0.2 rounded-full bg-surface-container-high text-[10px] font-bold"></span>
+                </button>
+            </div>
 
-                <div>
-                    <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Descripción</label>
-                    <textarea id="tm-desc" class="sq-input w-full text-sm" rows="3" placeholder="Describe los detalles, requerimientos o notas de esta tarea...">${escapeHtml(t.descripcion||'')}</textarea>
-                </div>
+            <!-- CUERPO PRINCIPAL CON SCROLL -->
+            <div class="p-6 overflow-y-auto flex-1 space-y-6">
+                <!-- PESTAÑA 1: GENERAL & CHECKLIST -->
+                <div id="tm-tab-general" class="space-y-5">
+                    <!-- METADATOS COMPACTOS -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 p-3.5 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+                        <div>
+                            <label class="block text-[11px] font-label-bold text-on-surface-variant mb-1">Estado</label>
+                            <select id="tm-status" class="sq-input text-xs !py-1.5">
+                                <option ${t.status==='Hacer'?'selected':''} value="Hacer">Hacer</option>
+                                <option ${t.status==='En progreso'?'selected':''} value="En progreso">En progreso</option>
+                                <option ${t.status==='Completado'?'selected':''} value="Completado">Completado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-label-bold text-on-surface-variant mb-1">Prioridad</label>
+                            <select id="tm-prioridad" class="sq-input text-xs !py-1.5 font-bold">
+                                <option value="Baja" ${t.prioridad==='Baja'?'selected':''}>🟢 Baja</option>
+                                <option value="Media" ${(!t.prioridad||t.prioridad==='Media')?'selected':''}>🔵 Media</option>
+                                <option value="Alta" ${t.prioridad==='Alta'?'selected':''}>🟠 Alta</option>
+                                <option value="Urgente" ${t.prioridad==='Urgente'?'selected':''}>🔴 Urgente</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-label-bold text-on-surface-variant mb-1">Fecha inicio</label>
+                            <input id="tm-start" type="date" class="sq-input text-xs !py-1.5" value="${t.fecha_inicio||''}">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-label-bold text-on-surface-variant mb-1">Fecha límite</label>
+                            <input id="tm-due" type="date" class="sq-input text-xs !py-1.5" value="${t.fecha_limite||''}">
+                        </div>
+                        <div class="col-span-2 md:col-span-4 pt-1">
+                            <label class="block text-[11px] font-label-bold text-on-surface-variant mb-1">Responsable asignado</label>
+                            <select id="tm-resp" class="sq-input text-xs !py-1.5">
+                                <option value="">Sin asignar</option>
+                            </select>
+                        </div>
+                    </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <!-- DESCRIPCIÓN -->
                     <div>
-                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Estado</label>
-                        <select id="tm-status" class="sq-input text-sm">
-                            <option ${t.status==='Hacer'?'selected':''} value="Hacer">Hacer</option>
-                            <option ${t.status==='En progreso'?'selected':''} value="En progreso">En progreso</option>
-                            <option ${t.status==='Completado'?'selected':''} value="Completado">Completado</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Fecha inicio</label>
-                        <input id="tm-start" type="date" class="sq-input text-sm" value="${t.fecha_inicio||''}">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Fecha límite</label>
-                        <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Responsable</label>
-                        <select id="tm-resp" class="sq-input text-sm">
-                            <option value="">Sin asignar</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Checklist -->
-                <div class="pt-3 border-t border-outline-variant/20">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="font-label-bold text-sm text-on-surface flex items-center gap-1.5">
-                            <span class="material-symbols-outlined text-primary text-[18px]">checklist</span>
-                            Checklist <span id="tm-check-progress" class="font-normal text-xs text-on-surface-variant"></span>
-                        </span>
-                    </div>
-                    <div id="tm-checklist" class="space-y-1.5"></div>
-                    <div class="flex gap-2 mt-2.5">
-                        <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar elemento de verificación...">
-                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-check-add">
-                            <span class="material-symbols-outlined text-[16px]">add</span> Agregar
-                        </button>
-                    </div>
-                </div>
-
-                <!-- SECCIÓN ADJUNTOS DE LA TAREA -->
-                <div class="pt-4 border-t border-outline-variant/20">
-                    <div class="flex items-center justify-between mb-2">
-                        <h4 class="font-label-bold text-sm text-on-surface flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary text-[20px]">attach_file</span>
-                            Archivos adjuntos <span id="tm-att-count" class="text-xs text-primary font-bold"></span>
-                        </h4>
-                        <span class="text-[11px] text-on-surface-variant">Se sincronizan con la biblioteca de Archivos</span>
+                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1 flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px] text-primary">notes</span> Descripción y detalles
+                        </label>
+                        <textarea id="tm-desc" class="sq-input w-full text-sm rounded-xl" rows="3" placeholder="Añade instrucciones específicas, especificaciones técnicas o requerimientos para esta tarea...">${escapeHtml(t.descripcion||'')}</textarea>
                     </div>
 
-                    <div id="tm-attachments-list" class="space-y-2 mb-3 max-h-56 overflow-y-auto"></div>
+                    <!-- CHECKLIST ENRIQUECIDO -->
+                    <div class="p-4 rounded-xl bg-surface-container/40 border border-outline-variant/20 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="font-label-bold text-sm text-on-surface flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-primary text-[18px]">checklist</span>
+                                    Criterios de verificación (Checklist)
+                                </span>
+                                <span id="tm-check-progress-badge" class="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary font-bold"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="text-[11px] text-primary hover:underline font-label-bold" onclick="window._tmCheckAll(true)">Marcar todos</button>
+                                <span class="text-on-surface-variant/40">|</span>
+                                <button type="button" class="text-[11px] text-on-surface-variant hover:underline font-label-bold" onclick="window._tmCheckAll(false)">Desmarcar</button>
+                            </div>
+                        </div>
 
-                    <div class="bg-surface-container rounded-xl p-3 border border-outline-variant/30">
-                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                            <input type="file" id="tm-file" class="hidden" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.zip">
-                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap flex items-center justify-center gap-1.5" onclick="document.getElementById('tm-file').click()">
-                                <span class="material-symbols-outlined text-[18px]">upload_file</span> Seleccionar archivo
-                            </button>
-                            <span id="tm-file-name" class="text-xs text-on-surface-variant truncate flex-1 px-1 text-center sm:text-left">Ningún archivo seleccionado</span>
-                            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center justify-center gap-1.5 whitespace-nowrap" id="tm-upload">
-                                <span class="material-symbols-outlined text-[18px]">cloud_upload</span> Subir adjunto
+                        <!-- Barra de progreso -->
+                        <div class="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+                            <div id="tm-check-bar" class="h-full bg-primary rounded-full transition-all duration-300" style="width:0%"></div>
+                        </div>
+
+                        <!-- Lista de ítems -->
+                        <div id="tm-checklist" class="space-y-1.5 pt-1"></div>
+
+                        <!-- Añadir nuevo ítem -->
+                        <div class="flex gap-2 pt-2">
+                            <input id="tm-check-new" class="sq-input text-sm flex-1 !py-2 rounded-xl" placeholder="Escribe un ítem y pulsa Enter...">
+                            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1 rounded-xl px-3" id="tm-check-add">
+                                <span class="material-symbols-outlined text-[16px]">add</span> Añadir
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Comentarios -->
-                <div class="pt-4 border-t border-outline-variant/20">
-                    <div class="font-label-bold text-sm text-on-surface mb-2 flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-primary text-[18px]">comment</span> Comentarios
+                <!-- PESTAÑA 2: ADJUNTOS & EVIDENCIAS (DRAG & DROP) -->
+                <div id="tm-tab-adjuntos" class="hidden space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-label-bold text-sm text-on-surface flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-primary text-[20px]">folder_open</span>
+                                Biblioteca de adjuntos de la tarea
+                            </h4>
+                            <p class="text-xs text-on-surface-variant mt-0.5">Sube fotos de evidencia, planos, fichas técnicas o informes asociados a esta tarea.</p>
+                        </div>
                     </div>
-                    <div id="tm-comments" class="max-h-40 overflow-y-auto space-y-2 mb-2 p-1"></div>
-                    <div class="flex gap-2">
-                        <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario o nota de avance..."></textarea>
-                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm self-end" id="tm-comment-pub">Publicar</button>
+
+                    <!-- DROPZONE / ÁREA DE ARRASTRE -->
+                    <div id="tm-dropzone" class="border-2 border-dashed border-outline-variant/40 hover:border-primary/60 rounded-2xl p-6 text-center transition-all bg-surface-container/30 cursor-pointer group">
+                        <input type="file" id="tm-file" multiple class="hidden" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.zip">
+                        <div class="flex flex-col items-center justify-center gap-2 pointer-events-none">
+                            <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <span class="material-symbols-outlined text-[28px]">cloud_upload</span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-label-bold text-on-surface">Arrastra tus archivos aquí</span>
+                                <span class="text-xs text-on-surface-variant block mt-0.5">o haz clic para explorar tus documentos</span>
+                            </div>
+                            <span class="text-[11px] text-on-surface-variant/70">Imágenes (JPG, PNG), PDFs, hojas de cálculo, documentos Word o ZIP</span>
+                        </div>
+                        <div id="tm-upload-status" class="hidden mt-3 text-xs text-primary font-bold flex items-center justify-center gap-2">
+                            <span class="sq-spinner w-4 h-4"></span> <span id="tm-upload-status-text">Subiendo archivos...</span>
+                        </div>
+                    </div>
+
+                    <!-- LISTA / GRID DE ADJUNTOS -->
+                    <div>
+                        <div class="text-xs font-label-bold text-on-surface-variant uppercase tracking-wider mb-2 flex items-center justify-between">
+                            <span>Archivos cargados (<span id="tm-att-count">0</span>)</span>
+                        </div>
+                        <div id="tm-attachments-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+
+                <!-- PESTAÑA 3: COMENTARIOS & HISTORIAL -->
+                <div id="tm-tab-comentarios" class="hidden space-y-4">
+                    <div>
+                        <h4 class="font-label-bold text-sm text-on-surface flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-primary text-[20px]">forum</span>
+                            Comentarios y notas de avance
+                        </h4>
+                        <p class="text-xs text-on-surface-variant mt-0.5">Deja notas internas, actualizaciones del equipo o reportes de estado.</p>
+                    </div>
+
+                    <div id="tm-comments" class="max-h-64 overflow-y-auto space-y-3 p-2 bg-surface-container/30 rounded-xl border border-outline-variant/20"></div>
+
+                    <div class="p-3 bg-surface-container/60 rounded-xl border border-outline-variant/30 space-y-2">
+                        <div class="flex items-center justify-between text-xs text-on-surface-variant">
+                            <span id="tm-replying-banner" class="hidden text-primary font-bold flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">reply</span> Respondiendo a comentario...
+                                <button type="button" class="text-on-surface-variant hover:text-error ml-2" onclick="window._tmCancelReply()">✕</button>
+                            </span>
+                            <span>Escribe tu comentario</span>
+                        </div>
+                        <textarea id="tm-comment" class="sq-input w-full text-sm rounded-lg" rows="2" placeholder="Escribe un comentario o nota de avance..."></textarea>
+                        <div class="flex justify-end">
+                            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1" id="tm-comment-pub">
+                                <span class="material-symbols-outlined text-[16px]">send</span> Publicar comentario
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Botones finales -->
-            <div class="flex items-center justify-between pt-6 mt-6 border-t border-outline-variant/20">
-                <button type="button" class="sq-btn sq-btn-ghost text-error hover:bg-error/10 sq-btn-sm flex items-center gap-1" onclick="if(confirm('¿Eliminar esta tarea?')){ProyectosModule.deleteTarea('${pid}','${tid}');window._tmCleanAndClose();}">
-                    <span class="material-symbols-outlined text-[18px]">delete</span> Eliminar tarea
+            <!-- PIE DE PÁGINA / BOTONES -->
+            <div class="px-6 py-4 border-t border-outline-variant/20 bg-surface-container/60 flex items-center justify-between gap-3 flex-shrink-0">
+                <button type="button" class="sq-btn sq-btn-ghost text-error hover:bg-error/10 sq-btn-sm flex items-center gap-1 rounded-xl" onclick="if(confirm('¿Eliminar esta tarea definitivamente?')){ProyectosModule.deleteTarea('${pid}','${tid}');window._tmCleanAndClose();}">
+                    <span class="material-symbols-outlined text-[18px]">delete</span> Eliminar
                 </button>
-                <div class="flex items-center gap-2">
-                    <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window._tmCleanAndClose()">Cancelar</button>
-                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1" id="tm-save">
-                        <span class="material-symbols-outlined text-[18px]">save</span> Guardar tarea
+                <div class="flex items-center gap-3">
+                    <span class="hidden sm:inline text-xs text-on-surface-variant/70">Atajo: <kbd class="px-1.5 py-0.5 rounded bg-surface-container-high border border-outline-variant/30 font-mono text-[10px]">Ctrl + Enter</kbd></span>
+                    <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm rounded-xl" onclick="window._tmCleanAndClose()">Cancelar</button>
+                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1.5 rounded-xl shadow-lg" id="tm-save">
+                        <span class="material-symbols-outlined text-[18px]">check</span> Guardar cambios
                     </button>
                 </div>
             </div>
         </div>`;
         document.body.appendChild(overlay);
 
+        // Control de sub-pestañas internas
+        const subtabs = overlay.querySelectorAll('.tm-subtab');
+        subtabs.forEach(btn => {
+            btn.onclick = () => {
+                subtabs.forEach(b => {
+                    b.classList.remove('border-primary', 'text-primary');
+                    b.classList.add('border-transparent', 'text-on-surface-variant');
+                });
+                btn.classList.remove('border-transparent', 'text-on-surface-variant');
+                btn.classList.add('border-primary', 'text-primary');
+                const target = btn.dataset.tab;
+                overlay.querySelector('#tm-tab-general').classList.toggle('hidden', target !== 'general');
+                overlay.querySelector('#tm-tab-adjuntos').classList.toggle('hidden', target !== 'adjuntos');
+                overlay.querySelector('#tm-tab-comentarios').classList.toggle('hidden', target !== 'comentarios');
+            };
+        });
+
+        // Limpieza y cierre
         window._tmCleanAndClose = () => {
+            document.removeEventListener('keydown', handleKeyNav);
             delete window._tmToggleCheck;
             delete window._tmRemoveCheck;
+            delete window._tmCheckAll;
             delete window._tmRemoveAttachment;
+            delete window._tmCancelReply;
             delete window._tmCleanAndClose;
             overlay.remove();
         };
 
+        const handleKeyNav = (e) => {
+            if (e.key === 'Escape') {
+                window._tmCleanAndClose();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                overlay.querySelector('#tm-save').click();
+            }
+        };
+        document.addEventListener('keydown', handleKeyNav);
+
         const checklist = t.checklist || (t.checklist=[]);
         const comments = t.comments || (t.comments=[]);
 
+        // CHECKLIST LOGIC
         window._tmToggleCheck = (i, val) => {
             checklist[i].completed = val;
             const allDone = checklist.length>0 && checklist.every(c=>c.completed);
-            if (allDone) t.completada = true;
+            if (allDone) {
+                t.completada = true;
+                overlay.querySelector('#tm-status').value = 'Completado';
+            }
             renderChecklist();
         };
         window._tmRemoveCheck = (i) => { checklist.splice(i,1); renderChecklist(); };
+        window._tmCheckAll = (val) => {
+            checklist.forEach(c => c.completed = val);
+            if (val && checklist.length > 0) {
+                t.completada = true;
+                overlay.querySelector('#tm-status').value = 'Completado';
+            }
+            renderChecklist();
+        };
 
         const renderChecklist = () => {
             const el = overlay.querySelector('#tm-checklist');
             const done = checklist.filter(c=>c.completed).length;
-            const prog = overlay.querySelector('#tm-check-progress');
-            if (prog) prog.textContent = `(${done}/${checklist.length})`;
-            el.innerHTML = checklist.map((c,i)=>`<div class="flex items-center gap-2 p-1.5 rounded hover:bg-surface-container transition-colors">
-                <input type="checkbox" class="w-4 h-4 accent-primary rounded" ${c.completed?'checked':''} onchange="window._tmToggleCheck(${i}, this.checked);">
-                <span class="flex-1 text-sm ${c.completed?'line-through opacity-50':''}">${escapeHtml(c.text)}</span>
-                <button onclick="window._tmRemoveCheck(${i});" class="text-on-surface-variant hover:text-error p-0.5 rounded"><span class="material-symbols-outlined text-[16px]">close</span></button>
-            </div>`).join('') || '<div class="text-xs text-on-surface-variant/70 italic py-1">Sin elementos en el checklist</div>';
+            const total = checklist.length;
+            const pct = total ? Math.round((done/total)*100) : (t.completada?100:0);
+
+            const badge = overlay.querySelector('#tm-check-progress-badge');
+            if (badge) badge.textContent = `${done}/${total} (${pct}%)`;
+
+            const bar = overlay.querySelector('#tm-check-bar');
+            if (bar) bar.style.width = `${pct}%`;
+
+            el.innerHTML = checklist.map((c,i)=>`<div class="flex items-center gap-2.5 p-2 rounded-xl bg-surface-container/50 hover:bg-surface-container border border-outline-variant/10 transition-colors group">
+                <input type="checkbox" class="w-4 h-4 accent-primary rounded cursor-pointer" ${c.completed?'checked':''} onchange="window._tmToggleCheck(${i}, this.checked);">
+                <span class="flex-1 text-sm ${c.completed?'line-through text-on-surface-variant/60':'text-on-surface font-medium'}">${escapeHtml(c.text)}</span>
+                <button onclick="window._tmRemoveCheck(${i});" class="text-on-surface-variant hover:text-error opacity-40 group-hover:opacity-100 p-1 rounded transition-opacity" title="Quitar ítem">
+                    <span class="material-symbols-outlined text-[16px]">close</span>
+                </button>
+            </div>`).join('') || '<div class="text-xs text-on-surface-variant/70 italic py-2 text-center bg-surface-container/20 rounded-xl">No hay ítems en el checklist. Añade tareas de verificación para llevar el control.</div>';
         };
 
-        // Renderizar adjuntos de la tarea
+        // RENDER DE ADJUNTOS
         const renderTaskAttachments = () => {
             const el = overlay.querySelector('#tm-attachments-list');
             const countEl = overlay.querySelector('#tm-att-count');
+            const badgeEl = overlay.querySelector('#tm-badge-adj');
             const total = (t.archivos || []).length;
-            if (countEl) countEl.textContent = total > 0 ? `(${total})` : '';
+            if (countEl) countEl.textContent = total;
+            if (badgeEl) badgeEl.textContent = total;
 
             if (!t.archivos || t.archivos.length === 0) {
-                el.innerHTML = `<div class="text-xs text-on-surface-variant/70 italic py-2 text-center bg-surface-container/50 rounded-lg border border-dashed border-outline-variant/30">No hay archivos adjuntos en esta tarea aún.</div>`;
+                el.innerHTML = `<div class="col-span-full text-xs text-on-surface-variant/70 italic py-6 text-center bg-surface-container/20 rounded-2xl border border-dashed border-outline-variant/30">
+                    <span class="material-symbols-outlined text-[36px] opacity-30 block mb-1">attachment</span>
+                    No hay archivos adjuntos en esta tarea todavía.<br>Arrastra archivos o haz clic arriba para agregar evidencias o planos.
+                </div>`;
                 return;
             }
 
@@ -770,25 +938,26 @@ window.ProyectosModule = (function () {
                 const icon = isImg ? 'image' : (isPdf ? 'picture_as_pdf' : 'description');
                 const sizeStr = a.size ? formatFileSize(a.size) : '';
 
-                return `<div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-primary/40 transition-colors">
-                    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                return `<div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-container border border-outline-variant/30 hover:border-primary/50 transition-all shadow-sm group">
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
                         ${isImg
-                            ? `<a href="${a.path}" target="_blank" title="Ver imagen"><img src="${a.path}" alt="${escapeAttr(a.nombre)}" class="w-10 h-10 rounded-lg object-cover border border-outline-variant/30 flex-shrink-0"></a>`
-                            : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[22px]">${icon}</span></div>`
+                            ? `<a href="${a.path}" target="_blank" title="Ver imagen en tamaño completo" class="flex-shrink-0">
+                                <img src="${a.path}" alt="${escapeAttr(a.nombre)}" class="w-12 h-12 rounded-lg object-cover border border-outline-variant/30 group-hover:scale-105 transition-transform">
+                               </a>`
+                            : `<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[26px]">${icon}</span></div>`
                         }
                         <div class="min-w-0 flex-1">
-                            <a href="${a.path}" target="_blank" class="text-sm font-label-bold text-on-surface hover:text-primary transition-colors truncate block" title="${escapeAttr(a.nombre)}">
+                            <a href="${a.path}" target="_blank" class="text-xs md:text-sm font-label-bold text-on-surface hover:text-primary transition-colors truncate block" title="${escapeAttr(a.nombre)}">
                                 ${escapeHtml(a.nombre)}
                             </a>
                             <div class="text-[11px] text-on-surface-variant flex items-center gap-2 mt-0.5">
-                                ${sizeStr ? `<span>${sizeStr}</span>` : ''}
+                                ${sizeStr ? `<span class="font-mono">${sizeStr}</span>` : ''}
                                 ${a.fecha ? `<span>· ${formatShortDate(a.fecha)}</span>` : ''}
-                                ${a.autor ? `<span>· Por ${escapeHtml(a.autor)}</span>` : ''}
                             </div>
                         </div>
                     </div>
                     <div class="flex items-center gap-1 flex-shrink-0">
-                        <a href="${a.path}" target="_blank" download class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Descargar / Abrir">
+                        <a href="${a.path}" target="_blank" download class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Descargar archivo">
                             <span class="material-symbols-outlined text-[18px]">download</span>
                         </a>
                         <button type="button" onclick="window._tmRemoveAttachment(${idx})" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Eliminar adjunto">
@@ -803,7 +972,6 @@ window.ProyectosModule = (function () {
             if (!confirm('¿Eliminar este archivo adjunto?')) return;
             const removed = t.archivos.splice(idx, 1)[0];
             if (removed) {
-                // Eliminar del backend si estaba en la bitácora
                 const bitEntry = (current.bitacora || []).find(b => b.id === removed.id || b.archivo?.path === removed.path);
                 if (bitEntry) {
                     try { await API.delete(`/proyectos/${current.id}/bitacora/${bitEntry.id}`); } catch(e) {}
@@ -815,22 +983,145 @@ window.ProyectosModule = (function () {
             }
         };
 
+        // SUBIDA DE ARCHIVOS CON DRAG & DROP
+        const processUploadFiles = async (fileList) => {
+            if (!fileList || !fileList.length) return;
+            const statusEl = overlay.querySelector('#tm-upload-status');
+            const statusText = overlay.querySelector('#tm-upload-status-text');
+            if (statusEl) statusEl.classList.remove('hidden');
+
+            let successCount = 0;
+            for (let i = 0; i < fileList.length; i++) {
+                const file = fileList[i];
+                if (statusText) statusText.textContent = `Subiendo (${i + 1}/${fileList.length}): ${file.name}...`;
+
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('tipo', file.type?.startsWith('image/') ? 'evidencia' : 'documento');
+                fd.append('nota', `Adjunto de tarea #${t.id}: ${t.titulo || 'Sin título'}`);
+                fd.append('tarea_id', String(t.id));
+                fd.append('paso_id', String(pid));
+                fd.append('etiquetas', `tarea:${t.id}`);
+
+                try {
+                    const res = await fetch(`${App.API_BASE_URL}/api/proyectos/${current.id}/documentos`, {
+                        method: 'POST',
+                        body: fd,
+                        credentials: 'include'
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || data.detail || 'Error al subir');
+
+                    current.bitacora = data.bitacora || current.bitacora;
+                    if (data.pasos) {
+                        current.pasos = data.pasos;
+                        const freshPaso = findPaso(pid);
+                        const freshTarea = freshPaso?.tareas?.find(x => String(x.id) === String(t.id));
+                        if (freshTarea) t.archivos = freshTarea.archivos || [];
+                    } else if (data.entry && data.entry.archivo) {
+                        t.archivos.unshift({
+                            id: data.entry.id,
+                            nombre: data.entry.archivo.nombre,
+                            path: data.entry.archivo.path,
+                            mime: data.entry.archivo.mime,
+                            size: data.entry.archivo.size,
+                            fecha: data.entry.fecha,
+                            autor: data.entry.autor
+                        });
+                        await saveCurrent(['pasos']);
+                    }
+                    successCount++;
+                } catch(e) {
+                    showToast(`Error al subir ${file.name}: ${e.message}`, 'error');
+                }
+            }
+
+            if (statusEl) statusEl.classList.add('hidden');
+            if (successCount > 0) {
+                showToast(`${successCount} archivo(s) adjuntado(s) exitosamente`, 'success');
+                renderTaskAttachments();
+            }
+        };
+
+        const dropzone = overlay.querySelector('#tm-dropzone');
+        const fileInput = overlay.querySelector('#tm-file');
+
+        dropzone.onclick = () => fileInput.click();
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-primary', 'bg-primary/10');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-primary', 'bg-primary/10');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-primary', 'bg-primary/10');
+            if (e.dataTransfer?.files?.length) {
+                processUploadFiles(e.dataTransfer.files);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files?.length) {
+                processUploadFiles(e.target.files);
+                fileInput.value = '';
+            }
+        });
+
+        // COMENTARIOS
+        let replyingToId = null;
+        window._tmCancelReply = () => {
+            replyingToId = null;
+            overlay.querySelector('#tm-replying-banner').classList.add('hidden');
+            const inp = overlay.querySelector('#tm-comment');
+            inp.placeholder = 'Escribe un comentario o nota de avance...';
+        };
+
         const renderComments = () => {
             const el = overlay.querySelector('#tm-comments');
+            const badgeEl = overlay.querySelector('#tm-badge-comm');
+            if (badgeEl) badgeEl.textContent = comments.length;
+
             const topLevel = comments.filter(c=>!c.parentId);
             const renderOne = (c, depth) => {
                 const replies = comments.filter(r=>r.parentId===c.id);
-                return `<div style="margin-left:${depth*16}px;" class="border-b border-outline-variant/10 py-1.5 text-xs">
-                    <span class="font-bold text-on-surface">${escapeHtml(c.autor||'Tú')}</span>: ${escapeHtml(c.text)}
-                    <span class="text-on-surface-variant text-[10px] ml-1">${c.fecha||''}</span>
-                    <button type="button" class="text-primary text-[10px] ml-2 hover:underline" onclick="(function(){const i=document.getElementById('tm-comment'); i.dataset.reply='${c.id}'; i.placeholder='Responder a ${escapeHtml(c.autor||'')}...'; i.focus();})()">Responder</button>
-                    ${replies.map(r=>renderOne(r,depth+1)).join('')}
+                const initials = (c.autor||'Tú').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+                return `<div style="margin-left:${depth*16}px;" class="p-3 rounded-xl bg-surface-container border border-outline-variant/10 text-xs space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-[10px]">${initials}</div>
+                            <span class="font-label-bold text-on-surface">${escapeHtml(c.autor||'Tú')}</span>
+                            <span class="text-on-surface-variant text-[10px]">${c.fecha||''}</span>
+                        </div>
+                        <button type="button" class="text-primary text-[11px] font-bold hover:underline flex items-center gap-0.5" onclick="(function(){ replyingToId='${c.id}'; const b=document.getElementById('tm-replying-banner'); if(b)b.classList.remove('hidden'); const i=document.getElementById('tm-comment'); i.placeholder='Respondiendo a ${escapeHtml(c.autor||'')}...'; i.focus(); })()">
+                            <span class="material-symbols-outlined text-[14px]">reply</span> Responder
+                        </button>
+                    </div>
+                    <p class="text-on-surface whitespace-pre-wrap pl-8">${escapeHtml(c.text)}</p>
+                    ${replies.length ? `<div class="space-y-2 mt-2">${replies.map(r=>renderOne(r,depth+1)).join('')}</div>` : ''}
                 </div>`;
             };
-            el.innerHTML = topLevel.map(c=>renderOne(c,0)).join('') || '<div class="text-xs text-on-surface-variant/70 italic py-1">Sin comentarios</div>';
+            el.innerHTML = topLevel.map(c=>renderOne(c,0)).join('') || '<div class="text-xs text-on-surface-variant/70 italic py-4 text-center">Sin comentarios aún. Sé el primero en dejar una nota.</div>';
         };
 
-        // Poblar usuarios
+        overlay.querySelector('#tm-comment-pub').onclick = () => {
+            const inp = overlay.querySelector('#tm-comment');
+            const v = inp.value.trim();
+            if(!v) return;
+            const currentUser = (typeof App!=='undefined'&&App.user?.nombre_completo)||App?.user?.username||'Tú';
+            comments.push({
+                id: Date.now(),
+                autor: currentUser,
+                text: v,
+                fecha: new Date().toLocaleString('es-CO', { dateStyle:'short', timeStyle:'short' }),
+                parentId: replyingToId ? Number(replyingToId) : null
+            });
+            inp.value = '';
+            window._tmCancelReply();
+            renderComments();
+        };
+
+        // Población de usuarios
         (async () => {
             try {
                 const users = await API.get('/usuarios');
@@ -845,107 +1136,35 @@ window.ProyectosModule = (function () {
         renderTaskAttachments();
         renderComments();
 
-        // Mostrar nombre al seleccionar archivo
-        overlay.querySelector('#tm-file').addEventListener('change', (e) => {
-            const file = e.target.files?.[0];
-            const nameEl = overlay.querySelector('#tm-file-name');
-            if (nameEl) {
-                nameEl.textContent = file ? `${file.name} (${formatFileSize(file.size)})` : 'Ningún archivo seleccionado';
+        // Control checklist con Enter
+        overlay.querySelector('#tm-check-new').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                overlay.querySelector('#tm-check-add').click();
             }
         });
-
-        overlay.querySelector('#tm-check-new').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); overlay.querySelector('#tm-check-add').click(); }
-        });
         overlay.querySelector('#tm-check-add').onclick = () => {
-            const v = overlay.querySelector('#tm-check-new').value.trim();
+            const inp = overlay.querySelector('#tm-check-new');
+            const v = inp.value.trim();
             if(!v) return;
             checklist.push({id:Date.now(), text:v, completed:false});
-            overlay.querySelector('#tm-check-new').value='';
+            inp.value='';
+            inp.focus();
             renderChecklist();
         };
 
-        overlay.querySelector('#tm-comment-pub').onclick = () => {
-            const inp = overlay.querySelector('#tm-comment');
-            const v = inp.value.trim();
-            if(!v) return;
-            const parentId = inp.dataset.reply || null;
-            comments.push({id:Date.now(), autor:'Tú', text:v, fecha:new Date().toLocaleString('es-CO'), parentId: parentId?Number(parentId):null});
-            inp.value=''; inp.dataset.reply=''; inp.placeholder='Escribe un comentario...';
-            renderComments();
-        };
-
-        // SUBIDA DE ARCHIVO DESDE LA TARJETA
-        overlay.querySelector('#tm-upload').onclick = async () => {
-            const fileInput = overlay.querySelector('#tm-file');
-            const file = fileInput?.files?.[0];
-            if (!file) { showToast('Selecciona un archivo primero', 'error'); return; }
-
-            const uploadBtn = overlay.querySelector('#tm-upload');
-            const originalText = uploadBtn.innerHTML;
-            uploadBtn.disabled = true;
-            uploadBtn.innerHTML = `<span class="sq-spinner w-3.5 h-3.5 inline-block mr-1"></span> Subiendo...`;
-
-            const fd = new FormData();
-            fd.append('file', file);
-            fd.append('tipo', file.type?.startsWith('image/') ? 'evidencia' : 'documento');
-            fd.append('nota', `Adjunto de tarea #${t.id}: ${t.titulo || 'Sin título'}`);
-            fd.append('tarea_id', String(t.id));
-            fd.append('paso_id', String(pid));
-            fd.append('etiquetas', `tarea:${t.id}`);
-
-            try {
-                const res = await fetch(`${App.API_BASE_URL}/api/proyectos/${current.id}/documentos`, {
-                    method: 'POST',
-                    body: fd,
-                    credentials: 'include'
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || data.detail || 'Error al subir');
-
-                // Sincronizar bitácora global
-                current.bitacora = data.bitacora || current.bitacora;
-
-                // Sincronizar pasos
-                if (data.pasos) {
-                    current.pasos = data.pasos;
-                    const freshPaso = findPaso(pid);
-                    const freshTarea = freshPaso?.tareas?.find(x => String(x.id) === String(t.id));
-                    if (freshTarea) {
-                        t.archivos = freshTarea.archivos || [];
-                    }
-                } else if (data.entry && data.entry.archivo) {
-                    t.archivos.unshift({
-                        id: data.entry.id,
-                        nombre: data.entry.archivo.nombre,
-                        path: data.entry.archivo.path,
-                        mime: data.entry.archivo.mime,
-                        size: data.entry.archivo.size,
-                        fecha: data.entry.fecha,
-                        autor: data.entry.autor
-                    });
-                    await saveCurrent(['pasos']);
-                }
-
-                showToast('Archivo adjuntado correctamente', 'success');
-                fileInput.value = '';
-                const nameEl = overlay.querySelector('#tm-file-name');
-                if (nameEl) nameEl.textContent = 'Ningún archivo seleccionado';
-                renderTaskAttachments();
-            } catch(e) {
-                showToast(e.message || 'Error al subir archivo', 'error');
-            } finally {
-                uploadBtn.disabled = false;
-                uploadBtn.innerHTML = originalText;
-            }
-        };
-
-        // GUARDAR TAREA
+        // GUARDAR CAMBIOS
         overlay.querySelector('#tm-save').onclick = async () => {
+            const saveBtn = overlay.querySelector('#tm-save');
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = `<span class="sq-spinner w-3.5 h-3.5 inline-block mr-1"></span> Guardando...`;
+
             t.titulo = overlay.querySelector('#tm-title').value.trim() || t.titulo;
             t.descripcion = overlay.querySelector('#tm-desc').value.trim();
             t.status = overlay.querySelector('#tm-status').value;
+            t.prioridad = overlay.querySelector('#tm-prioridad').value;
             t.completada = (t.status==='Completado');
+
             let fi = overlay.querySelector('#tm-start').value || null;
             let fl = overlay.querySelector('#tm-due').value || null;
             if (fi && fl && fi > fl) { const tmp=fi; fi=fl; fl=tmp; }
@@ -954,9 +1173,24 @@ window.ProyectosModule = (function () {
             t.responsable = overlay.querySelector('#tm-resp').value;
             t.checklist = checklist;
             t.comments = comments;
-            recompute(p);
+
+            // Revisar si se cambió la etapa
+            const targetStepId = overlay.querySelector('#tm-step').value;
+            if (targetStepId && targetStepId !== pid) {
+                const targetPaso = findPaso(targetStepId);
+                if (targetPaso) {
+                    p.tareas = (p.tareas||[]).filter(x => String(x.id) !== String(t.id));
+                    targetPaso.tareas = targetPaso.tareas || [];
+                    targetPaso.tareas.push(t);
+                    recompute(p);
+                    recompute(targetPaso);
+                }
+            } else {
+                recompute(p);
+            }
+
             await saveCurrent(['pasos']);
-            showToast('Tarea guardada', 'success');
+            showToast('Tarea actualizada correctamente', 'success');
             window._tmCleanAndClose();
             renderDetalle();
         };
