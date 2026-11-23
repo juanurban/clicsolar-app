@@ -551,6 +551,11 @@ window.ProyectosModule = (function () {
                 <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario..." class="sq-input"></textarea>
                 <button type="button" class="sq-btn sq-btn-primary sq-btn-sm mt-2" id="tm-comment-pub">Publicar</button>
             </div>
+            <div style="margin-top:16px;">
+                <div style="font-weight:bold;margin-bottom:6px;">Adjuntos (van a Archivos)</div>
+                <input type="file" id="tm-file" class="text-sm text-on-surface-variant" accept="image/*,video/*,.pdf,.doc,.docx">
+                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm mt-2" id="tm-upload">Subir adjunto</button>
+            </div>
             <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
                 <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.deleteTarea('${pid}','${tid}');this.closest('div').parentElement.parentElement.remove();">Eliminar</button>
                 <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-save">Guardar</button>
@@ -612,12 +617,32 @@ window.ProyectosModule = (function () {
             inp.value=''; inp.dataset.reply=''; inp.placeholder='Escribe un comentario...';
             renderComments();
         };
+        overlay.querySelector('#tm-upload').onclick = async () => {
+            const file = overlay.querySelector('#tm-file')?.files?.[0];
+            if (!file) { showToast('Selecciona un archivo','error'); return; }
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('tipo', 'documento');
+            fd.append('nota', `Adjunto de tarea #${t.id}: ${t.titulo}`);
+            fd.append('etiquetas', `tarea:${t.id}`);
+            try {
+                const res = await fetch(`${App.API_BASE_URL}/api/proyectos/${current.id}/documentos`, {method:'POST', body:fd, credentials:'include'});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error||data.detail||'Error');
+                current.bitacora = data.bitacora || current.bitacora;
+                showToast('Adjunto subido a Archivos','success');
+                overlay.querySelector('#tm-file').value='';
+            } catch(e){ showToast(e.message||'Error','error'); }
+        };
         overlay.querySelector('#tm-save').onclick = async () => {
             t.titulo = overlay.querySelector('#tm-title').value;
             t.descripcion = overlay.querySelector('#tm-desc').value;
             t.completada = overlay.querySelector('#tm-status').value==='Completado';
-            t.fecha_inicio = overlay.querySelector('#tm-start').value || null;
-            t.fecha_limite = overlay.querySelector('#tm-due').value || null;
+            let fi = overlay.querySelector('#tm-start').value || null;
+            let fl = overlay.querySelector('#tm-due').value || null;
+            if (fi && fl && fi > fl) { const tmp=fi; fi=fl; fl=tmp; }
+            t.fecha_inicio = fi;
+            t.fecha_limite = fl;
             t.responsable = overlay.querySelector('#tm-resp').value;
             t.checklist = checklist;
             t.comments = comments;
