@@ -315,6 +315,34 @@ window.ProyectosModule = (function () {
         </div>`;
     }
 
+    function renderFinancieroResumen() {
+        const cot = current.cotizacion;
+        const cr = current.costos_reales || {};
+        const bom = current.bom || [];
+        const costoMaterialesBom = bom.reduce((s,b)=> {
+            const pu = Number(b.costo_unitario || 0) || (b.iva ? Number(b.precio_unitario||0)/1.19 : Number(b.precio_unitario||0));
+            return s + pu * Number(b.cantidad||0);
+        }, 0);
+        const presupuesto = (Number(cot?.total_inversion || cot?.subtotal || 0)) / 1.19;
+        const realMateriales = Number(cr.materiales ?? costoMaterialesBom) || 0;
+        const realManoObra = Number(cr.mano_obra)||0;
+        const realLogistica = Number(cr.logistica)||0;
+        const realOtros = Number(cr.otros)||0;
+        const totalReal = realMateriales + realManoObra + realLogistica + realOtros;
+        const diff = presupuesto - totalReal;
+        return `<div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Presupuesto cotizado (sin IVA)</div><div class="font-headline-md text-on-surface">${formatCurrency(presupuesto)}</div></div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">${costInput('Mano de obra','cr-mano', realManoObra)}</div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">${costInput('Logística / transporte','cr-logistica', realLogistica)}</div>
+            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/20">${costInput('Otros costos','cr-otros', realOtros)}</div>
+        </div>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20"><div class="text-xs text-on-surface-variant mb-1">Costo real ejecutado</div><div class="font-headline-md text-on-surface">${formatCurrency(totalReal)}</div></div>
+            <div class="bg-surface-container-low rounded-xl p-5 border ${diff>=0?'border-primary/30':'border-error/30'}"><div class="text-xs text-on-surface-variant mb-1">${diff>=0?'Ganancia final':'Sobrecosto'}</div><div class="font-headline-md ${diff>=0?'text-primary':'text-error'}">${formatCurrency(Math.abs(diff))}</div>
+                <button onclick="ProyectosModule.guardarCostosReales()" class="sq-btn sq-btn-primary sq-btn-sm mt-2">Guardar costos</button>
+            </div>
+        </div>`;
+    }
     // ── TAB 2: BOM ───────────────────────────────────────────────────────
     function renderTabBOM() {
         loadBomInventory().then(()=>{ setTimeout(()=>populateBomCategories(),0); });
