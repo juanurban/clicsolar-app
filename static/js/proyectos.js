@@ -235,6 +235,21 @@ window.ProyectosModule = (function () {
                     }, 250);
                 }
             }, 0);
+        } else if (activeTab === 'bom') {
+            setTimeout(() => {
+                const bInp = document.getElementById('bom-search-input');
+                if (bInp) {
+                    bInp.oninput = debounce((e) => {
+                        bomFilters.buscar = e.target.value;
+                        renderDetalle();
+                        const reInp = document.getElementById('bom-search-input');
+                        if (reInp) {
+                            reInp.focus();
+                            reInp.setSelectionRange(reInp.value.length, reInp.value.length);
+                        }
+                    }, 250);
+                }
+            }, 0);
         }
     }
 
@@ -557,66 +572,272 @@ window.ProyectosModule = (function () {
             </div>
         </div>`;
     }
-    // ── TAB 2: BOM ───────────────────────────────────────────────────────
+    // ── TAB 2: BOM (Equipos y Materiales) ───────────────────────────────
+    let bomFilters = {
+        buscar: '',
+        categoria: '',
+        estadoSuministro: ''
+    };
+
+    function setBomFilter(key, val) {
+        bomFilters[key] = val;
+        renderDetalle();
+    }
+
+    function resetBomFilters() {
+        bomFilters = {
+            buscar: '',
+            categoria: '',
+            estadoSuministro: ''
+        };
+        renderDetalle();
+    }
+
     function renderTabBOM() {
         loadBomInventory().then(()=>{ setTimeout(()=>populateBomCategories(),0); });
-        const bom = current.bom || [];
+        const rawBom = current.bom || [];
         const cot = current.cotizacion;
-        if (!bom.length) return `<div class="space-y-4">
-            ${renderFinancieroResumen()}
-            <div class="flex flex-wrap gap-2 items-end bg-surface-container-low rounded-xl p-3 border border-outline-variant/30">
-                <div class="flex flex-col">
-                    <label class="text-xs text-on-surface-variant mb-1">Categoría</label>
-                    <select id="bom-cat-filter" class="sq-input text-sm" onchange="ProyectosModule.onBomCatChange()"><option value="">Todas</option></select>
+
+        // Mapear con su índice real en current.bom para que las ediciones y toggles siempre afecten al elemento correcto
+        const bomConIndice = rawBom.map((b, idx) => ({ ...b, _realIdx: idx }));
+
+        // Métricas de cabecera generales
+        const totalItems = rawBom.length;
+        const totalUnidades = rawBom.reduce((sum, b) => sum + (Number(b.cantidad) || 0), 0);
+        const costoTotal = rawBom.reduce((sum, b) => sum + (Number(b.cantidad) || 0) * (Number(b.precio_unitario || b.costo_unitario) || 0), 0);
+
+        const itemsComprados = rawBom.filter(b => b.comprado).length;
+        const pctComprado = totalItems ? Math.round((itemsComprados / totalItems) * 100) : 0;
+
+        const itemsDespachados = rawBom.filter(b => b.despachado).length;
+        const pctDespachado = totalItems ? Math.round((itemsDespachados / totalItems) * 100) : 0;
+
+        const itemsInstalados = rawBom.filter(b => b.instalado).length;
+        const pctInstalado = totalItems ? Math.round((itemsInstalados / totalItems) * 100) : 0;
+
+        // Categorías únicas presentes en el BOM actual
+        const bomCategorias = [...new Set(rawBom.map(b => b.categoria).filter(Boolean))];
+
+        // Aplicar filtros
+        const filteredBom = bomConIndice.filter(b => {
+            if (bomFilters.buscar) {
+                const q = bomFilters.buscar.toLowerCase().trim();
+                const match = [b.nombre, b.categoria, b.marca, b.modelo].some(v => String(v || '').toLowerCase().includes(q));
+                if (!match) return false;
+            }
+            if (bomFilters.categoria && b.categoria !== bomFilters.categoria) {
+                return false;
+            }
+            if (bomFilters.estadoSuministro) {
+                if (bomFilters.estadoSuministro === 'pendiente' && b.comprado) return false;
+                if (bomFilters.estadoSuministro === 'comprado' && !b.comprado) return false;
+                if (bomFilters.estadoSuministro === 'despachado' && !b.despachado) return false;
+                if (bomFilters.estadoSuministro === 'instalado' && !b.instalado) return false;
+            }
+            return true;
+        });
+
+        const subtotalFiltrado = filteredBom.reduce((s, b) => s + (Number(b.cantidad) || 0) * (Number(b.precio_unitario || b.costo_unitario) || 0), 0);
+        const hasActiveFilters = Boolean(bomFilters.buscar || bomFilters.categoria || bomFilters.estadoSuministro);
+
+        return `<div class="space-y-6">
+            <!-- TARJETAS DE INDICADORES (KPIs) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">inventory_2</span>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Total Materiales</span>
+                        <div class="font-headline-md text-on-surface text-lg md:text-xl font-bold truncate">${totalItems} ítems</div>
+                        <span class="text-[11px] text-on-surface-variant">${totalUnidades} unidades en total</span>
+                    </div>
                 </div>
-                <div class="flex flex-col flex-1 min-w-[200px]">
-                    <label class="text-xs text-on-surface-variant mb-1">Ítem</label>
-                    <select id="bom-item-filter" class="sq-input text-sm"><option value="">Seleccione...</option></select>
+
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">payments</span>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Inversión BOM</span>
+                        <div class="font-headline-md text-primary text-lg md:text-xl font-bold truncate">${formatCurrency(costoTotal)}</div>
+                        <span class="text-[11px] text-on-surface-variant">Costos de materiales</span>
+                    </div>
                 </div>
-                <div class="flex flex-col w-24">
-                    <label class="text-xs text-on-surface-variant mb-1">Cantidad</label>
-                    <input id="bom-qty-filter" type="number" class="sq-input text-sm" value="1" min="1" step="any">
+
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">local_shipping</span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Adquisición / Envíos</span>
+                        <div class="font-headline-md text-on-surface text-lg font-bold">${pctComprado}% comprado</div>
+                        <div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden mt-1">
+                            <div class="h-full bg-blue-400 rounded-full transition-all" style="width:${pctComprado}%"></div>
+                        </div>
+                        <span class="text-[10px] text-on-surface-variant mt-0.5 block">${itemsDespachados}/${totalItems} despachados</span>
+                    </div>
                 </div>
-                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
+
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">handyman</span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Instalado en Obra</span>
+                        <div class="font-headline-md text-amber-400 text-lg font-bold">${pctInstalado}% instalado</div>
+                        <div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden mt-1">
+                            <div class="h-full bg-amber-400 rounded-full transition-all" style="width:${pctInstalado}%"></div>
+                        </div>
+                        <span class="text-[10px] text-on-surface-variant mt-0.5 block">${itemsInstalados} de ${totalItems} ítems en sitio</span>
+                    </div>
+                </div>
             </div>
-            ${renderFinancieroResumen()}
-            <div class="text-center text-on-surface-variant py-16"><span class="material-symbols-outlined text-[56px] opacity-30 mb-3 block">inventory_2</span><p>No hay equipos/materiales. Agrega ítems con los botones de arriba.</p></div>
-        </div>`;
-        return `<div class="space-y-4">
-            ${renderFinancieroResumen()}
-            <p class="text-sm text-on-surface-variant">Lista de equipos y materiales de la instalación. Edita cantidad y precio unitario; el total se calcula automáticamente.</p>
-            <div class="flex flex-wrap gap-2 items-end bg-surface-container-low rounded-xl p-3 border border-outline-variant/30">
-                <div class="flex flex-col">
-                    <label class="text-xs text-on-surface-variant mb-1">Categoría</label>
-                    <select id="bom-cat-filter" class="sq-input text-sm" onchange="ProyectosModule.onBomCatChange()"><option value="">Todas</option></select>
+
+            <!-- PANEL PARA AGREGAR NUEVOS EQUIPOS / MATERIALES -->
+            <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/30 space-y-3 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-label-bold text-on-surface uppercase tracking-wider flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-primary text-[18px]">add_circle</span>
+                        Añadir equipo o material al proyecto
+                    </h3>
+                    <button type="button" class="sq-btn sq-btn-ghost sq-btn-sm text-xs text-primary hover:underline flex items-center gap-1" onclick="ProyectosModule.addBomItem()">
+                        <span class="material-symbols-outlined text-[16px]">edit</span> Crear ítem manual personalizado
+                    </button>
                 </div>
-                <div class="flex flex-col flex-1 min-w-[200px]">
-                    <label class="text-xs text-on-surface-variant mb-1">Ítem</label>
-                    <select id="bom-item-filter" class="sq-input text-sm"><option value="">Seleccione...</option></select>
+                <div class="flex flex-wrap gap-2.5 items-end">
+                    <div class="flex flex-col w-full sm:w-44">
+                        <label class="text-[11px] font-label-bold text-on-surface-variant mb-1">Categoría</label>
+                        <select id="bom-cat-filter" class="sq-input text-xs !py-2 rounded-xl" onchange="ProyectosModule.onBomCatChange()">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col flex-1 min-w-[240px]">
+                        <label class="text-[11px] font-label-bold text-on-surface-variant mb-1">Equipo / Producto del inventario</label>
+                        <select id="bom-item-filter" class="sq-input text-xs !py-2 rounded-xl">
+                            <option value="">Seleccione un producto...</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col w-28">
+                        <label class="text-[11px] font-label-bold text-on-surface-variant mb-1">Cantidad</label>
+                        <input id="bom-qty-filter" type="number" class="sq-input text-xs !py-2 text-center rounded-xl" value="1" min="1" step="any">
+                    </div>
+                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm !py-2 px-4 rounded-xl flex items-center gap-1.5 shadow-md" onclick="ProyectosModule.addBomFiltered()">
+                        <span class="material-symbols-outlined text-[18px]">add</span> Añadir a lista
+                    </button>
                 </div>
-                <div class="flex flex-col w-24">
-                    <label class="text-xs text-on-surface-variant mb-1">Cantidad</label>
-                    <input id="bom-qty-filter" type="number" class="sq-input text-sm" value="1" min="1" step="any">
-                </div>
-                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.addBomFiltered()"><span class="material-symbols-outlined">add</span> Agregar</button>
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.addBomItem()"><span class="material-symbols-outlined">edit</span> Ítem manual</button>
             </div>
-            <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low">
+
+            <!-- BARRA DE BÚSQUEDA Y FILTROS AVANZADOS DEL BOM -->
+            <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/30 space-y-3 shadow-sm">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div class="relative flex-1 max-w-md">
+                        <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                        <input type="text" id="bom-search-input" class="sq-input !pl-10 !py-2 text-xs w-full rounded-xl" placeholder="Buscar material por nombre, marca o modelo..." value="${escapeAttr(bomFilters.buscar)}">
+                        ${bomFilters.buscar ? `<button onclick="ProyectosModule.setBomFilter('buscar','');" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[16px]">close</span></button>` : ''}
+                    </div>
+
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-on-surface-variant">Categoría:</span>
+                            <select class="sq-input text-xs !py-1.5 rounded-lg" onchange="ProyectosModule.setBomFilter('categoria', this.value)">
+                                <option value="">Todas las categorías</option>
+                                ${bomCategorias.map(c=>`<option value="${escapeAttr(c)}" ${bomFilters.categoria===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-on-surface-variant">Estado:</span>
+                            <select class="sq-input text-xs !py-1.5 rounded-lg" onchange="ProyectosModule.setBomFilter('estadoSuministro', this.value)">
+                                <option value="">Todos los estados</option>
+                                <option value="pendiente" ${bomFilters.estadoSuministro==='pendiente'?'selected':''}>⏳ Pendiente compra</option>
+                                <option value="comprado" ${bomFilters.estadoSuministro==='comprado'?'selected':''}>🛒 Comprado</option>
+                                <option value="despachado" ${bomFilters.estadoSuministro==='despachado'?'selected':''}>🚚 Despachado</option>
+                                <option value="instalado" ${bomFilters.estadoSuministro==='instalado'?'selected':''}>🔧 Instalado</option>
+                            </select>
+                        </div>
+
+                        ${hasActiveFilters ? `<button onclick="ProyectosModule.resetBomFilters()" class="sq-btn sq-btn-ghost sq-btn-sm text-xs text-on-surface-variant hover:text-error flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">filter_alt_off</span> Limpiar</button>` : ''}
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABLA DE EQUIPOS Y MATERIALES -->
+            <div class="overflow-x-auto rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-sm">
                 <table class="sq-table w-full">
-                    <thead><tr><th>Ítem</th><th class="text-center">Cant.</th><th class="text-right">Precio unitario</th><th class="text-right">Precio total</th><th class="text-center">Acciones</th></tr></thead>
-                    <tbody>${bom.map((b,i)=>`
+                    <thead>
                         <tr>
-                            <td><input type="text" class="sq-input w-full" value="${escapeHtml(b.nombre||'')}" onchange="ProyectosModule.updateBomNombre(${i}, this.value)" placeholder="Nombre del ítem"><div class="text-xs text-on-surface-variant mt-1">${escapeHtml(b.categoria||'')}</div></td>
-                            <td class="text-center"><input type="number" class="sq-input w-20 text-center" value="${b.cantidad||0}" min="0" step="any" onchange="ProyectosModule.updateBomQty(${i}, this.value)"></td>
-                            <td class="text-right"><input type="number" class="sq-input w-32 text-right" value="${b.precio_unitario||b.costo_unitario||0}" min="0" step="any" onchange="ProyectosModule.updateBomPrecio(${i}, this.value)"></td>
-                            <td class="text-right font-label-bold text-primary">${formatCurrency((Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0))}</td>
-                            <td class="text-center"><button type="button" class="p-1 text-on-surface-variant hover:text-error" onclick="ProyectosModule.removeBomItem(${i})" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
-                        </tr>`).join('')}
+                            <th class="px-4 py-3">Ítem / Referencia</th>
+                            <th class="px-4 py-3 text-center w-28">Cantidad</th>
+                            <th class="px-4 py-3 text-right w-36">Precio unitario</th>
+                            <th class="px-4 py-3 text-right w-36">Precio total</th>
+                            <th class="px-4 py-3 text-center">Seguimiento en obra</th>
+                            <th class="px-4 py-3 text-center w-16">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filteredBom.length ? filteredBom.map((b) => {
+                            const realIdx = b._realIdx;
+                            const totalFila = (Number(b.cantidad) || 0) * (Number(b.precio_unitario || b.costo_unitario) || 0);
+                            return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors">
+                                <td class="px-4 py-3">
+                                    <input type="text" class="sq-input w-full font-label-bold text-sm bg-transparent border-transparent hover:border-outline-variant/40 focus:border-primary transition-all rounded-lg" value="${escapeAttr(b.nombre||'')}" onchange="ProyectosModule.updateBomNombre(${realIdx}, this.value)" placeholder="Nombre del ítem">
+                                    <div class="text-[11px] text-on-surface-variant flex items-center gap-2 mt-0.5 px-1">
+                                        <span class="px-2 py-0.2 rounded-full bg-surface-container-high text-primary font-medium">${escapeHtml(b.categoria||'General')}</span>
+                                        ${b.equipo_id ? `<span class="text-on-surface-variant/60 font-mono">ID Inventario: #${b.equipo_id}</span>` : '<span class="text-on-surface-variant/60 italic">Manual</span>'}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <input type="number" class="sq-input w-20 text-center font-bold text-sm rounded-lg" value="${b.cantidad||0}" min="0" step="any" onchange="ProyectosModule.updateBomQty(${realIdx}, this.value)">
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <input type="number" class="sq-input w-32 text-right text-sm rounded-lg" value="${b.precio_unitario||b.costo_unitario||0}" min="0" step="any" onchange="ProyectosModule.updateBomPrecio(${realIdx}, this.value)">
+                                </td>
+                                <td class="px-4 py-3 text-right font-label-bold text-primary font-mono text-sm">
+                                    ${formatCurrency(totalFila)}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                        <!-- TOGGLE COMPRADO -->
+                                        <button type="button" onclick="ProyectosModule.toggleBom(${realIdx}, 'comprado')" class="px-2.5 py-1 rounded-lg text-xs font-label-bold border transition-all flex items-center gap-1 ${b.comprado ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm' : 'bg-surface-container/60 text-on-surface-variant/60 border-outline-variant/20 hover:border-outline-variant'}" title="Marcar como comprado">
+                                            <span class="material-symbols-outlined text-[14px]">${b.comprado ? 'check_circle' : 'shopping_cart'}</span> Comprado
+                                        </button>
+                                        <!-- TOGGLE DESPACHADO -->
+                                        <button type="button" onclick="ProyectosModule.toggleBom(${realIdx}, 'despachado')" class="px-2.5 py-1 rounded-lg text-xs font-label-bold border transition-all flex items-center gap-1 ${b.despachado ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 shadow-sm' : 'bg-surface-container/60 text-on-surface-variant/60 border-outline-variant/20 hover:border-outline-variant'}" title="Marcar como despachado a sitio">
+                                            <span class="material-symbols-outlined text-[14px]">${b.despachado ? 'local_shipping' : 'schedule'}</span> Despachado
+                                        </button>
+                                        <!-- TOGGLE INSTALADO -->
+                                        <button type="button" onclick="ProyectosModule.toggleBom(${realIdx}, 'instalado')" class="px-2.5 py-1 rounded-lg text-xs font-label-bold border transition-all flex items-center gap-1 ${b.instalado ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-sm' : 'bg-surface-container/60 text-on-surface-variant/60 border-outline-variant/20 hover:border-outline-variant'}" title="Marcar como instalado">
+                                            <span class="material-symbols-outlined text-[14px]">${b.instalado ? 'task_alt' : 'build'}</span> Instalado
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <button type="button" class="p-1.5 text-on-surface-variant hover:text-error hover:bg-surface-container-high rounded-lg transition-colors" onclick="ProyectosModule.removeBomItem(${realIdx})" title="Eliminar ítem">
+                                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                                    </button>
+                                </td>
+                            </tr>`;
+                        }).join('') : `<tr><td colspan="6" class="text-center py-12 text-on-surface-variant"><span class="material-symbols-outlined text-[48px] opacity-30 block mb-2">inventory_2</span>${hasActiveFilters ? 'No se encontraron materiales que coincidan con los filtros aplicados.' : 'No hay materiales en la lista. Agrega equipos arriba.'}</td></tr>`}
                     </tbody>
-                    <tfoot><tr><td colspan="3" class="text-right font-bold">Total materiales</td><td class="text-right font-bold text-primary">${formatCurrency(bom.reduce((s,b)=>s+(Number(b.cantidad)||0)*(Number(b.precio_unitario||b.costo_unitario)||0),0))}</td><td></td></tr></tfoot>
+                    <tfoot class="border-t-2 border-outline-variant/40 bg-surface-container/40">
+                        <tr>
+                            <td colspan="3" class="px-4 py-3.5 text-right font-label-bold text-on-surface">
+                                Total de materiales ${hasActiveFilters ? '(filtrados)' : ''}:
+                            </td>
+                            <td class="px-4 py-3.5 text-right font-label-bold text-primary font-mono text-base">
+                                ${formatCurrency(subtotalFiltrado)}
+                            </td>
+                            <td colspan="2" class="px-4 py-3.5 text-xs text-on-surface-variant">
+                                ${filteredBom.length} de ${totalItems} ítems visibles
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
+
+            <!-- RESUMEN FINANCIERO Y COMPARATIVA -->
+            ${renderFinancieroResumen()}
         </div>`;
     }
 
@@ -1377,7 +1598,12 @@ window.ProyectosModule = (function () {
     async function toggleTarea(pid,tid,sid){ const p=findPaso(pid); const t=findTarea(pid,tid); if(!t)return; if(sid){ const s=(t.subtareas||[]).find(x=>x.id===sid); if(!s)return; s.completada=!s.completada; } else { if((t.subtareas||[]).length)return; t.completada=!t.completada; } recompute(p); await saveCurrent(['pasos']); renderDetalle(); }
     async function updateTareaField(pid,tid,field,val){ const t=findTarea(pid,tid); if(!t)return; t[field]=val||null; await saveCurrent(['pasos']); const st=document.getElementById('save-status'); if(st){st.textContent='Guardado'; setTimeout(()=>st.textContent='',1200);} }
 
-    async function toggleBom(idx,key,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx][key]=!!val; await saveCurrent(['bom']); }
+    async function toggleBom(idx,key,val){
+        if(!current.bom||!current.bom[idx])return;
+        current.bom[idx][key] = val !== undefined ? !!val : !current.bom[idx][key];
+        await saveCurrent(['bom']);
+        renderDetalle();
+    }
     async function updateBomQty(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].cantidad=Number(val)||0; await saveCurrent(['bom']); renderDetalle(); }
     async function updateBomPrecio(idx,val){ if(!current.bom||!current.bom[idx])return; current.bom[idx].precio_unitario=Number(val)||0; await saveCurrent(['bom']); renderDetalle(); }
     async function loadBomInventory(){
@@ -1585,7 +1811,7 @@ window.ProyectosModule = (function () {
     function prevTaskPage(){ if(taskPage>1){taskPage--;renderDetalle();} }
     function nextTaskPage(){ const total=flattenTasks().length; const pages=Math.max(1,Math.ceil(total/taskPageSize)); if(taskPage<pages){taskPage++;renderDetalle();} }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, setTaskFilter, toggleTaskFilter, resetTaskFilters, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, setTaskFilter, toggleTaskFilter, resetTaskFilters, setBomFilter, resetBomFilters, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
