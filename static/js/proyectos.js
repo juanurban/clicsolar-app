@@ -250,6 +250,21 @@ window.ProyectosModule = (function () {
                     }, 250);
                 }
             }, 0);
+        } else if (activeTab === 'bitacora') {
+            setTimeout(() => {
+                const bInp = document.getElementById('doc-search-input');
+                if (bInp) {
+                    bInp.oninput = debounce((e) => {
+                        docFilters.buscar = e.target.value;
+                        renderDetalle();
+                        const reInp = document.getElementById('doc-search-input');
+                        if (reInp) {
+                            reInp.focus();
+                            reInp.setSelectionRange(reInp.value.length, reInp.value.length);
+                        }
+                    }, 250);
+                }
+            }, 0);
         }
     }
 
@@ -841,46 +856,356 @@ window.ProyectosModule = (function () {
         </div>`;
     }
 
-    // ── TAB 3: BITÁCORA ──────────────────────────────────────────────────
+    // ── TAB 3: DOCUMENTOS Y ARCHIVOS (Biblioteca Global y Bitácora) ─────
+    let docFilters = {
+        buscar: '',
+        tipo: '',
+        origen: '',
+        etiqueta: '',
+        soloArchivos: false,
+        vista: 'grid'
+    };
+
+    function setDocFilter(key, val) {
+        docFilters[key] = val;
+        renderDetalle();
+    }
+
+    function toggleDocFilter(key) {
+        docFilters[key] = !docFilters[key];
+        renderDetalle();
+    }
+
+    function resetDocFilters() {
+        docFilters = {
+            buscar: '',
+            tipo: '',
+            origen: '',
+            etiqueta: '',
+            soloArchivos: false,
+            vista: docFilters.vista
+        };
+        renderDetalle();
+    }
+
+    function setDocVista(v) {
+        docFilters.vista = v;
+        renderDetalle();
+    }
+
     function renderTabBitacora() {
         const bit = current.bitacora || [];
+
+        // Métricas de cabecera (KPIs)
+        const totalEntradas = bit.length;
+        const totalArchivosFisicos = bit.filter(b => b.archivo).length;
+        const fotosEvidencia = bit.filter(b => b.tipo === 'evidencia' || b.archivo?.mime?.startsWith('image/')).length;
+        const planosYCert = bit.filter(b => b.tipo === 'plano' || b.tipo === 'retie').length;
+        const docsDeTareas = bit.filter(b => b.tarea_id || (b.etiquetas || []).some(t => typeof t==='string' && t.startsWith('tarea:'))).length;
+
+        // Etiquetas únicas del proyecto
+        const todasEtiquetas = [...new Set([
+            ...(current.tags || []),
+            ...bit.flatMap(b => b.etiquetas || []).filter(t => typeof t==='string' && !t.startsWith('tarea:') && !t.startsWith('etapa:'))
+        ])];
+
+        // Aplicar filtros
+        const filteredBit = bit.filter(e => {
+            if (docFilters.buscar) {
+                const q = docFilters.buscar.toLowerCase().trim();
+                const match = [e.nota, e.autor, e.tipo, e.archivo?.nombre, (e.etiquetas || []).join(' ')]
+                    .some(v => String(v || '').toLowerCase().includes(q));
+                if (!match) return false;
+            }
+            if (docFilters.tipo && e.tipo !== docFilters.tipo) {
+                return false;
+            }
+            if (docFilters.origen) {
+                const esDeTarea = Boolean(e.tarea_id || (e.etiquetas || []).some(t => typeof t==='string' && t.startsWith('tarea:')));
+                if (docFilters.origen === 'tarea' && !esDeTarea) return false;
+                if (docFilters.origen === 'global' && esDeTarea) return false;
+            }
+            if (docFilters.etiqueta) {
+                if (!(e.etiquetas || []).includes(docFilters.etiqueta)) return false;
+            }
+            if (docFilters.soloArchivos && !e.archivo) {
+                return false;
+            }
+            return true;
+        });
+
+        const hasActiveFilters = Boolean(
+            docFilters.buscar ||
+            docFilters.tipo ||
+            docFilters.origen ||
+            docFilters.etiqueta ||
+            docFilters.soloArchivos
+        );
+
         return `<div class="space-y-6">
-            <div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/30">
-                <h3 class="font-label-bold text-on-surface mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">note_add</span>Nueva entrada</h3>
-                <div class="space-y-3">
-                    <textarea id="bit-nota" rows="3" class="sq-input" placeholder="Escribe una nota de seguimiento, observación de obra, avance, etc."></textarea>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <select id="bit-tipo" class="sq-input max-w-xs text-sm">
-                            <option value="nota">Nota de seguimiento</option>
-                            <option value="evidencia">Evidencia fotográfica</option>
-                            <option value="plano">Plano unifilar / diseño</option>
-                            <option value="retie">Certificado RETIE</option>
-                            <option value="documento">Otro documento</option>
-                        </select>
-                        <input type="file" id="bit-file" class="text-sm text-on-surface-variant file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-surface-container-high file:text-on-surface hover:file:bg-surface-variant" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
-                        <input type="text" id="bit-tags" class="sq-input text-sm" placeholder="Etiquetas (separadas por coma)">
-                        <button onclick="ProyectosModule.agregarBitacora()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">send</span>Publicar</button>
+            <!-- TARJETAS DE INDICADORES (KPIs) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">folder</span>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Total Archivos</span>
+                        <div class="font-headline-md text-on-surface text-lg md:text-xl font-bold truncate">${totalArchivosFisicos} adjuntos</div>
+                        <span class="text-[11px] text-on-surface-variant">${totalEntradas} entradas en bitácora</span>
+                    </div>
+                </div>
+
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">photo_camera</span>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Evidencias en Obra</span>
+                        <div class="font-headline-md text-emerald-400 text-lg md:text-xl font-bold truncate">${fotosEvidencia} fotos</div>
+                        <span class="text-[11px] text-on-surface-variant">Registro fotográfico</span>
+                    </div>
+                </div>
+
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">architecture</span>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Planos y RETIE</span>
+                        <div class="font-headline-md text-cyan-400 text-lg md:text-xl font-bold truncate">${planosYCert} documentos</div>
+                        <span class="text-[11px] text-on-surface-variant">Diseños y certificaciones</span>
+                    </div>
+                </div>
+
+                <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/20 shadow-sm flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[24px]">checklist</span>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider block">Adjuntos de Tareas</span>
+                        <div class="font-headline-md text-amber-400 text-lg md:text-xl font-bold truncate">${docsDeTareas} vinculados</div>
+                        <span class="text-[11px] text-on-surface-variant">Sincronizados de etapas</span>
                     </div>
                 </div>
             </div>
-            <div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/30">
-                <h3 class="font-label-bold text-on-surface mb-2 flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">label</span>Etiquetas</h3>
-                <div class="flex gap-2 mb-2"><input id="tag-new" class="sq-input text-sm" placeholder="Nueva etiqueta"><button type="button" class="sq-btn sq-btn-primary sq-btn-sm" onclick="ProyectosModule.createTag()">Crear</button></div>
-                <div class="flex flex-wrap gap-2">${(current.tags||[]).map(t=>`<span class="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary flex items-center gap-1">${escapeHtml(t)} <button onclick="ProyectosModule.deleteTag('${escapeAttr(t)}')" class="hover:text-error"><span class="material-symbols-outlined text-[14px]">close</span></button></span>`).join('')||'<span class="text-xs text-on-surface-variant">Sin etiquetas</span>'}</div>
+
+            <!-- PANEL DE CARGA / NUEVA ENTRADA (COLAPSABLE / ERGONÓMICO) -->
+            <div class="bg-surface-container-low rounded-2xl p-5 border border-outline-variant/30 space-y-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-label-bold text-sm text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">upload_file</span>
+                        Subir nuevo documento o registrar nota de obra
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-on-surface-variant hidden sm:inline">Etiquetas rápidas:</span>
+                        <div class="flex items-center gap-1">
+                            <input id="tag-new" class="sq-input text-xs !py-1 w-28 rounded-lg" placeholder="+ Etiqueta">
+                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm !py-1 px-2.5 rounded-lg text-xs" onclick="ProyectosModule.createTag()">Añadir</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <textarea id="bit-nota" rows="2" class="sq-input w-full text-sm rounded-xl" placeholder="Escribe una observación de obra, nota técnica, acta de entrega o detalle del documento..."></textarea>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 items-center">
+                        <div>
+                            <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Tipo de documento</label>
+                            <select id="bit-tipo" class="sq-input text-xs !py-1.5 rounded-lg w-full">
+                                <option value="nota">📝 Nota de seguimiento</option>
+                                <option value="evidencia" selected>📸 Evidencia fotográfica</option>
+                                <option value="plano">📐 Plano unifilar / diseño</option>
+                                <option value="retie">⚡ Certificado RETIE</option>
+                                <option value="documento">📄 Documento general / acta</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Archivo adjunto</label>
+                            <input type="file" id="bit-file" class="sq-input text-xs !py-1 file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:bg-surface-container-high file:text-xs file:text-on-surface w-full" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip">
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Etiquetas (separadas por coma)</label>
+                            <input type="text" id="bit-tags" class="sq-input text-xs !py-1.5 rounded-lg w-full" placeholder="Ej. estructura, inversores, acta">
+                        </div>
+
+                        <div class="flex items-end">
+                            <button onclick="ProyectosModule.agregarBitacora()" class="sq-btn sq-btn-primary sq-btn-sm w-full !py-2 rounded-xl flex items-center justify-center gap-1.5 shadow-md">
+                                <span class="material-symbols-outlined text-[18px]">cloud_upload</span> Guardar en biblioteca
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chips de etiquetas existentes -->
+                ${todasEtiquetas.length ? `
+                <div class="pt-2 border-t border-outline-variant/15 flex items-center gap-2 flex-wrap">
+                    <span class="text-[11px] text-on-surface-variant">Filtrar por etiqueta:</span>
+                    ${todasEtiquetas.map(t=>`
+                        <button type="button" onclick="ProyectosModule.setDocFilter('etiqueta', '${escapeAttr(t)}')" class="text-[11px] px-2.5 py-0.5 rounded-full border transition-all ${docFilters.etiqueta===t?'bg-primary/20 border-primary text-primary font-bold':'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:text-on-surface'}">
+                            #${escapeHtml(t)}
+                        </button>
+                    `).join('')}
+                    ${docFilters.etiqueta ? `<button type="button" onclick="ProyectosModule.setDocFilter('etiqueta', '')" class="text-[11px] text-error hover:underline ml-1">✕ Quitar</button>` : ''}
+                </div>` : ''}
             </div>
-            <div class="space-y-3">
-                <h3 class="font-label-bold text-on-surface">Historial (${bit.length})</h3>
-                ${!bit.length ? `<div class="text-sm text-on-surface-variant py-8 text-center border border-dashed border-outline-variant/30 rounded-xl">Sin entradas aún. Registra avances, sube evidencias, planos o certificados.</div>` : bit.map(e => renderBitEntry(e)).join('')}
+
+            <!-- BARRA DE BÚSQUEDA Y FILTROS AVANZADOS DE ARCHIVOS -->
+            <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/30 space-y-3 shadow-sm">
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div class="relative flex-1 max-w-md">
+                        <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                        <input type="text" id="doc-search-input" class="sq-input !pl-10 !py-2 text-xs w-full rounded-xl" placeholder="Buscar por nombre de archivo, descripción o autor..." value="${escapeAttr(docFilters.buscar)}">
+                        ${docFilters.buscar ? `<button onclick="ProyectosModule.setDocFilter('buscar','');" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface" title="Borrar búsqueda"><span class="material-symbols-outlined text-[16px]">close</span></button>` : ''}
+                    </div>
+
+                    <!-- SELECTORES DE FILTRO Y VISTA -->
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-on-surface-variant">Tipo:</span>
+                            <select class="sq-input text-xs !py-1.5 rounded-lg" onchange="ProyectosModule.setDocFilter('tipo', this.value)">
+                                <option value="">Todos los tipos</option>
+                                <option value="evidencia" ${docFilters.tipo==='evidencia'?'selected':''}>📸 Evidencias</option>
+                                <option value="plano" ${docFilters.tipo==='plano'?'selected':''}>📐 Planos unifilares</option>
+                                <option value="retie" ${docFilters.tipo==='retie'?'selected':''}>⚡ Certificados RETIE</option>
+                                <option value="documento" ${docFilters.tipo==='documento'?'selected':''}>📄 Documentos</option>
+                                <option value="nota" ${docFilters.tipo==='nota'?'selected':''}>📝 Notas</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-on-surface-variant">Origen:</span>
+                            <select class="sq-input text-xs !py-1.5 rounded-lg" onchange="ProyectosModule.setDocFilter('origen', this.value)">
+                                <option value="">Todos</option>
+                                <option value="tarea" ${docFilters.origen==='tarea'?'selected':''}>📌 De tareas</option>
+                                <option value="global" ${docFilters.origen==='global'?'selected':''}>📁 Generales</option>
+                            </select>
+                        </div>
+
+                        <button type="button" onclick="ProyectosModule.toggleDocFilter('soloArchivos')" class="py-1.5 px-3 rounded-lg text-xs font-label-bold border flex items-center gap-1.5 transition-all ${docFilters.soloArchivos?'bg-primary/20 border-primary text-primary shadow-sm':'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:text-on-surface'}" title="Ocultar notas sin archivos adjuntos">
+                            <span class="material-symbols-outlined text-[16px]">attachment</span> Solo archivos
+                        </button>
+
+                        ${hasActiveFilters ? `<button onclick="ProyectosModule.resetDocFilters()" class="sq-btn sq-btn-ghost sq-btn-sm text-xs text-on-surface-variant hover:text-error flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">filter_alt_off</span> Limpiar</button>` : ''}
+
+                        <!-- Toggle vista: Grid / Lista -->
+                        <div class="flex items-center rounded-xl bg-surface-container border border-outline-variant/30 p-0.5 ml-1">
+                            <button type="button" onclick="ProyectosModule.setDocVista('grid')" class="p-1.5 rounded-lg transition-colors ${docFilters.vista==='grid'?'bg-primary text-on-primary shadow-sm':'text-on-surface-variant hover:text-on-surface'}" title="Vista cuadrícula">
+                                <span class="material-symbols-outlined text-[18px]">grid_view</span>
+                            </button>
+                            <button type="button" onclick="ProyectosModule.setDocVista('lista')" class="p-1.5 rounded-lg transition-colors ${docFilters.vista==='lista'?'bg-primary text-on-primary shadow-sm':'text-on-surface-variant hover:text-on-surface'}" title="Vista lista">
+                                <span class="material-symbols-outlined text-[18px]">view_list</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTENIDO: LISTA O CUADRÍCULA -->
+            <div>
+                <div class="flex items-center justify-between mb-3 text-xs text-on-surface-variant px-1">
+                    <span>Mostrando <span class="font-bold text-on-surface">${filteredBit.length}</span> de ${totalEntradas} entradas</span>
+                </div>
+
+                ${!filteredBit.length ? `
+                    <div class="p-12 text-center text-on-surface-variant border border-dashed border-outline-variant/30 rounded-2xl bg-surface-container-low">
+                        <span class="material-symbols-outlined text-[48px] opacity-30 block mb-2">folder_off</span>
+                        <p class="font-headline-md text-base text-on-surface mb-1">No se encontraron documentos o archivos</p>
+                        <p class="text-xs">${hasActiveFilters ? 'Prueba a cambiar o limpiar los filtros seleccionados arriba.' : 'Sube evidencias fotográficas, planos o certificados para comenzar a documentar la instalación.'}</p>
+                    </div>
+                ` : (docFilters.vista === 'lista' ? renderDocTable(filteredBit) : renderDocGrid(filteredBit))}
             </div>
         </div>`;
     }
-    function renderBitEntry(e) {
+
+    // Render de documentos en modo CUADRÍCULA (Grid)
+    function renderDocGrid(list) {
+        return `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${list.map(e => renderBitCard(e)).join('')}
+        </div>`;
+    }
+
+    // Render de documentos en modo LISTA (Table)
+    function renderDocTable(list) {
+        const tipoLabels = {nota:'Nota', evidencia:'Evidencia', plano:'Plano unifilar', retie:'Certificado RETIE', documento:'Documento'};
+        return `<div class="overflow-x-auto rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-sm">
+            <table class="sq-table w-full text-sm">
+                <thead>
+                    <tr>
+                        <th class="px-4 py-3">Documento / Nota</th>
+                        <th class="px-4 py-3">Tipo</th>
+                        <th class="px-4 py-3">Origen / Tarea</th>
+                        <th class="px-4 py-3">Autor</th>
+                        <th class="px-4 py-3">Fecha</th>
+                        <th class="px-4 py-3 text-right">Tamaño</th>
+                        <th class="px-4 py-3 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${list.map(e => {
+                        const isImg = e.archivo?.mime?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(e.archivo?.path||'');
+                        const isPdf = e.archivo?.mime === 'application/pdf' || /\.pdf$/i.test(e.archivo?.path||'');
+                        const icon = isImg ? 'image' : (isPdf ? 'picture_as_pdf' : 'description');
+                        const sizeStr = e.archivo?.size ? formatFileSize(e.archivo.size) : '—';
+                        const fechaStr = e.fecha ? new Date(e.fecha).toLocaleString('es-CO', { dateStyle:'short', timeStyle:'short' }) : '—';
+
+                        const tareaId = e.tarea_id || (e.etiquetas||[]).find(t=>typeof t==='string'&&t.startsWith('tarea:'))?.replace('tarea:','');
+                        let taskTitle = '';
+                        if (tareaId) {
+                            (current.pasos||[]).forEach(p => {
+                                (p.tareas||[]).forEach(t => { if (String(t.id) === String(tareaId)) taskTitle = t.titulo; });
+                            });
+                        }
+
+                        return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors">
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-3">
+                                    ${e.archivo ? (isImg
+                                        ? `<a href="${e.archivo.path}" target="_blank" class="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-outline-variant/30">
+                                            <img src="${e.archivo.path}" class="w-full h-full object-cover">
+                                           </a>`
+                                        : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[22px]">${icon}</span>
+                                           </div>`
+                                    ) : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-on-surface-variant text-[20px]">sticky_note_2</span></div>`}
+                                    <div class="min-w-0">
+                                        ${e.archivo ? `<a href="${e.archivo.path}" target="_blank" class="font-label-bold text-on-surface hover:text-primary transition-colors block truncate text-xs sm:text-sm">${escapeHtml(e.archivo.nombre)}</a>` : ''}
+                                        ${e.nota ? `<p class="text-xs text-on-surface-variant truncate max-w-md">${escapeHtml(e.nota)}</p>` : ''}
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-label-bold whitespace-nowrap">${tipoLabels[e.tipo]||e.tipo}</span></td>
+                            <td class="px-4 py-3">
+                                ${tareaId ? `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-bold truncate max-w-xs" title="${escapeAttr(taskTitle || 'Tarea #' + tareaId)}"><span class="material-symbols-outlined text-[13px]">task_alt</span> ${escapeHtml(taskTitle || 'Tarea #' + tareaId)}</span>` : '<span class="text-xs text-on-surface-variant/70">Biblioteca general</span>'}
+                            </td>
+                            <td class="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">${escapeHtml(e.autor||'—')}</td>
+                            <td class="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap font-mono">${fechaStr}</td>
+                            <td class="px-4 py-3 text-right text-xs text-on-surface-variant font-mono whitespace-nowrap">${sizeStr}</td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    ${e.archivo ? `<a href="${e.archivo.path}" target="_blank" download class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Descargar"><span class="material-symbols-outlined text-[18px]">download</span></a>` : ''}
+                                    <button onclick="ProyectosModule.editBitacora('${e.id}')" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Editar"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+                                    <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    }
+
+    // Render de tarjeta individual para vista en CUADRÍCULA (Grid)
+    function renderBitCard(e) {
         const isImg = e.archivo?.mime?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(e.archivo?.path||'');
         const isPdf = e.archivo?.mime === 'application/pdf' || /\.pdf$/i.test(e.archivo?.path||'');
         const tipoLabels = {nota:'Nota', evidencia:'Evidencia', plano:'Plano unifilar', retie:'Certificado RETIE', documento:'Documento'};
         const fecha = e.fecha ? new Date(e.fecha).toLocaleString('es-CO',{dateStyle:'medium', timeStyle:'short'}) : '';
+        const sizeStr = e.archivo?.size ? formatFileSize(e.archivo.size) : '';
 
-        // Identificar si proviene de una tarea
+        // Tarea asociada
         const tareaId = e.tarea_id || (e.etiquetas||[]).find(t=>typeof t==='string'&&t.startsWith('tarea:'))?.replace('tarea:','');
         let tareaBadge = '';
         if (tareaId) {
@@ -890,55 +1215,91 @@ window.ProyectosModule = (function () {
                     if (String(t.id) === String(tareaId)) taskTitle = t.titulo;
                 });
             });
-            tareaBadge = `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-bold" title="Archivo vinculado a tarea">
+            tareaBadge = `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-bold truncate max-w-full" title="Vinculado a tarea">
                 <span class="material-symbols-outlined text-[13px]">task_alt</span> ${escapeHtml(taskTitle || 'Tarea #' + tareaId)}
             </span>`;
         }
 
-        const sizeStr = e.archivo?.size ? formatFileSize(e.archivo.size) : '';
+        // Colores distintivos según tipo
+        let tipoBadgeClass = 'bg-surface-container-high text-on-surface-variant';
+        if (e.tipo === 'evidencia' || isImg) tipoBadgeClass = 'bg-emerald-500/20 text-emerald-400';
+        else if (e.tipo === 'plano') tipoBadgeClass = 'bg-cyan-500/20 text-cyan-400';
+        else if (e.tipo === 'retie') tipoBadgeClass = 'bg-amber-500/20 text-amber-400';
+        else if (e.tipo === 'documento') tipoBadgeClass = 'bg-blue-500/20 text-blue-400';
 
-        return `<div class="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
-            <div class="flex items-start justify-between gap-3 mb-2">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-[11px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold">${tipoLabels[e.tipo]||e.tipo||'Nota'}</span>
-                    <span class="text-xs text-on-surface-variant">${fecha}</span>
-                    ${e.autor?`<span class="text-xs text-on-surface-variant">· ${escapeHtml(e.autor)}</span>`:''}
-                    ${tareaBadge}
-                    ${(e.etiquetas||[]).filter(t=>!t.startsWith('tarea:')).map(t=>`<span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">${escapeHtml(t)}</span>`).join('')}
-                </div>
-                <div class="flex items-center gap-1">
-                    <button onclick="ProyectosModule.editBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-primary rounded" title="Editar"><span class="material-symbols-outlined text-[18px]">edit</span></button>
-                    <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-error rounded" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+        return `<div class="rounded-2xl border border-outline-variant/25 bg-surface-container-low hover:border-primary/40 transition-all shadow-sm overflow-hidden flex flex-col justify-between group">
+            <div>
+                <!-- PREVIEW VISUAL SUPERIOR -->
+                ${e.archivo && isImg ? `
+                    <div class="relative h-48 bg-surface-container overflow-hidden border-b border-outline-variant/20">
+                        <img src="${e.archivo.path}" alt="${escapeAttr(e.archivo.nombre||'')}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end justify-between p-3">
+                            <span class="text-xs text-white/90 font-medium truncate max-w-[70%] drop-shadow">${escapeHtml(e.archivo.nombre||'')}</span>
+                            <a href="${e.archivo.path}" target="_blank" class="p-1.5 rounded-lg bg-black/60 text-white hover:bg-primary hover:text-on-primary transition-colors backdrop-blur-sm" title="Ver imagen completa">
+                                <span class="material-symbols-outlined text-[18px]">visibility</span>
+                            </a>
+                        </div>
+                    </div>
+                ` : (e.archivo ? `
+                    <div class="h-28 bg-surface-container/60 border-b border-outline-variant/20 flex items-center justify-center relative p-4">
+                        <span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[48px] opacity-80">
+                            ${isPdf?'picture_as_pdf':'description'}
+                        </span>
+                        <span class="absolute bottom-2 right-3 text-[11px] font-mono text-on-surface-variant">${sizeStr}</span>
+                    </div>
+                ` : '')}
+
+                <!-- CUERPO DE LA TARJETA -->
+                <div class="p-4 space-y-2.5">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <span class="text-[10px] px-2.5 py-0.5 rounded-full font-label-bold uppercase tracking-wider ${tipoBadgeClass}">
+                            ${tipoLabels[e.tipo]||e.tipo||'Nota'}
+                        </span>
+                        <span class="text-[11px] text-on-surface-variant font-mono">${fecha}</span>
+                    </div>
+
+                    ${tareaBadge ? `<div class="pt-0.5">${tareaBadge}</div>` : ''}
+
+                    ${e.archivo && !isImg ? `
+                        <div>
+                            <a href="${e.archivo.path}" target="_blank" class="font-label-bold text-sm text-on-surface hover:text-primary transition-colors block truncate" title="${escapeAttr(e.archivo.nombre||'')}">
+                                ${escapeHtml(e.archivo.nombre||'Archivo adjunto')}
+                            </a>
+                        </div>
+                    ` : ''}
+
+                    ${e.nota ? `
+                        <p class="text-xs text-on-surface-variant leading-relaxed line-clamp-3 whitespace-pre-wrap">${escapeHtml(e.nota)}</p>
+                    ` : ''}
+
+                    <!-- ETIQUETAS -->
+                    ${(e.etiquetas||[]).filter(t=>typeof t==='string' && !t.startsWith('tarea:')).length ? `
+                        <div class="flex flex-wrap gap-1 pt-1">
+                            ${(e.etiquetas||[]).filter(t=>typeof t==='string' && !t.startsWith('tarea:')).map(t=>`
+                                <span class="text-[10px] px-2 py-0.2 rounded-md bg-surface-container text-on-surface-variant">#${escapeHtml(t)}</span>
+                            `).join('')}
+                        </div>
+                    ` : ''}
                 </div>
             </div>
-            ${e.nota?`<p class="text-sm text-on-surface whitespace-pre-wrap mb-2">${escapeHtml(e.nota)}</p>`:''}
-            ${e.archivo ? (isImg
-                ? `<div class="mt-2">
-                    <a href="${e.archivo.path}" target="_blank" class="inline-block group relative">
-                        <img src="${e.archivo.path}" alt="${escapeAttr(e.archivo.nombre||'')}" class="max-h-72 rounded-lg border border-outline-variant/20 object-cover group-hover:brightness-105 transition-all">
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center text-white text-xs font-bold gap-1">
-                            <span class="material-symbols-outlined text-[18px]">visibility</span> Ver original
-                        </div>
-                    </a>
-                    <div class="text-xs text-on-surface-variant mt-1.5 flex items-center gap-2">
-                        <span>${escapeHtml(e.archivo.nombre||'')}</span>
-                        ${sizeStr ? `<span>(${sizeStr})</span>` : ''}
-                        <a href="${e.archivo.path}" target="_blank" download class="text-primary hover:underline ml-1">Descargar</a>
-                    </div>
-                   </div>`
-                : `<div class="mt-2 p-3 rounded-lg bg-surface-container border border-outline-variant/30 flex items-center justify-between gap-3 max-w-lg">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[28px] flex-shrink-0">${isPdf?'picture_as_pdf':'description'}</span>
-                        <div class="min-w-0">
-                            <a href="${e.archivo.path}" target="_blank" class="text-sm font-label-bold text-on-surface hover:text-primary transition-colors truncate block">${escapeHtml(e.archivo.nombre||'Archivo')}</a>
-                            ${sizeStr ? `<span class="text-[11px] text-on-surface-variant">${sizeStr}</span>` : ''}
-                        </div>
-                    </div>
-                    <a href="${e.archivo.path}" target="_blank" download class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1 flex-shrink-0">
-                        <span class="material-symbols-outlined text-[16px]">download</span> Descargar
-                    </a>
-                   </div>`
-            ) : ''}
+
+            <!-- PIE DE TARJETA CON AUTOR Y ACCIONES -->
+            <div class="px-4 py-3 border-t border-outline-variant/15 bg-surface-container/40 flex items-center justify-between gap-2 text-xs text-on-surface-variant">
+                <span class="truncate text-[11px]">Por <strong class="text-on-surface">${escapeHtml(e.autor||'Sistema')}</strong></span>
+                <div class="flex items-center gap-1">
+                    ${e.archivo ? `
+                        <a href="${e.archivo.path}" target="_blank" download class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Descargar">
+                            <span class="material-symbols-outlined text-[18px]">download</span>
+                        </a>
+                    ` : ''}
+                    <button onclick="ProyectosModule.editBitacora('${e.id}')" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Editar">
+                        <span class="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Eliminar">
+                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                </div>
+            </div>
         </div>`;
     }
 
@@ -1811,7 +2172,7 @@ window.ProyectosModule = (function () {
     function prevTaskPage(){ if(taskPage>1){taskPage--;renderDetalle();} }
     function nextTaskPage(){ const total=flattenTasks().length; const pages=Math.max(1,Math.ceil(total/taskPageSize)); if(taskPage<pages){taskPage++;renderDetalle();} }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, setTaskFilter, toggleTaskFilter, resetTaskFilters, setBomFilter, resetBomFilters, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, setTaskFilter, toggleTaskFilter, resetTaskFilters, setBomFilter, resetBomFilters, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar, setDocFilter, toggleDocFilter, resetDocFilters, setDocVista };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
