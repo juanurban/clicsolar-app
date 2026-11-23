@@ -595,6 +595,7 @@ window.ProyectosModule = (function () {
             } catch(e){}
         })();
         renderChecklist(); renderComments();
+        overlay.querySelector('#tm-check-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); overlay.querySelector('#tm-check-add').click(); } });
         overlay.querySelector('#tm-check-add').onclick = () => {
             const v = overlay.querySelector('#tm-check-new').value.trim();
             if(!v) return;
