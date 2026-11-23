@@ -19,60 +19,613 @@ let stateInventario = {
     categoria: '', // '' = TODOS
     data: [],
     buscar: '',
-    selectedIds: []
+    selectedIds: [],
+    marca: '',
+    estado: 'todos', // 'todos' | 'activos' | 'inactivos'
+    ivaFiltro: 'todos', // 'todos' | 'con_iva' | 'sin_iva'
+    orden: 'marca_asc', // 'marca_asc', 'marca_desc', 'costo_asc', 'costo_desc', 'recientes'
+    vista: 'lista' // 'lista' | 'cuadricula'
 };
+
+function setInvVista(vista) {
+    stateInventario.vista = vista;
+    renderEquiposList();
+}
+
+function setInvFilter(key, val) {
+    stateInventario[key] = val;
+    renderEquiposList();
+    renderKPIsInventario();
+}
+
+function resetInvFilters() {
+    stateInventario.buscar = '';
+    stateInventario.categoria = '';
+    stateInventario.marca = '';
+    stateInventario.estado = 'todos';
+    stateInventario.ivaFiltro = 'todos';
+    stateInventario.orden = 'marca_asc';
+    
+    const buscarInput = document.getElementById('buscar-equipo');
+    if (buscarInput) buscarInput.value = '';
+    
+    renderInventarioControls();
+    renderEquiposList();
+    renderKPIsInventario();
+}
+
+function exportarInventarioCSV() {
+    const items = getFilteredEquipos();
+    if (!items.length) {
+        showToast('No hay elementos para exportar', 'warning');
+        return;
+    }
+    const headers = ['ID', 'Categoría', 'Marca', 'Modelo', 'Subtipo', 'Potencia/Capacidad', 'Costo (COP)', 'IVA 19%', 'Unidad', 'Estado'];
+    const rows = items.map(e => {
+        let pot = '';
+        if (e.categoria === 'panel') pot = `${e.potencia_wp || 0} Wp`;
+        else if (e.categoria === 'inversor') pot = `${e.potencia_kw || 0} kW`;
+        else if (e.categoria === 'bateria') pot = `${e.capacidad_kwh || 0} kWh`;
+        else pot = '-';
+
+        return [
+            e.id,
+            `"${etiquetaCategoria(e.categoria)}"`,
+            `"${(e.marca || '').replace(/"/g, '""')}"`,
+            `"${(e.modelo || '').replace(/"/g, '""')}"`,
+            `"${(e.tipo || '').replace(/"/g, '""')}"`,
+            `"${pot}"`,
+            Math.round(e.costo || 0),
+            e.iva ? 'Sí' : 'No',
+            `"${e.unidad || 'und'}"`,
+            e.activo ? 'Activo' : 'Inactivo'
+        ];
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `inventario_solar_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast(`${items.length} ítems exportados a CSV`, 'success');
+}
+
+async function duplicarEquipo(id) {
+    try {
+        const orig = await API.get(`/equipos/${id}`);
+        if (!orig) return;
+        const copyData = {
+            ...orig,
+            modelo: `${orig.modelo || ''} (Copia)`,
+            descripcion: orig.descripcion ? `${orig.descripcion} [Copia]` : ''
+        };
+        delete copyData.id;
+        delete copyData.created_at;
+        const res = await API.post('/equipos', copyData);
+        showToast('Ítem duplicado con éxito', 'success');
+        await fetchEquipos();
+        if (res?.id) {
+            openEquipoModal(res.id);
+        }
+    } catch (e) {
+        showToast(e.message || 'Error al duplicar', 'error');
+    }
+}
 
 async function renderInventario() {
     const content = document.getElementById('app-content');
     content.innerHTML = `
-        <div class="flex flex-col w-full p-4 lg:p-12 gap-8 fade-in max-w-7xl mx-auto">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                <div class="flex flex-col gap-3">
-                    <span class="font-label-bold text-label-bold text-primary tracking-widest uppercase">Base de Datos</span>
-                    <h1 class="font-display-lg text-display-lg text-on-surface">Inventario y Costos</h1>
+        <div class="flex flex-col w-full p-4 lg:p-10 gap-6 fade-in max-w-7xl mx-auto">
+            <!-- Header -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
+                        <span class="font-label-bold text-xs text-primary uppercase tracking-widest">Base de Datos Maestra</span>
+                    </div>
+                    <h1 class="font-display-lg text-3xl lg:text-4xl font-extrabold text-on-surface tracking-tight">Inventario y Catálogo</h1>
+                    <p class="text-xs text-on-surface-variant">Gestión de paneles, inversores, baterías, materiales y servicios para cotizaciones solares.</p>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button id="btn-bulk-delete" onclick="eliminarSeleccionados()" class="sq-btn bg-error text-white hidden">
-                        <span class="material-symbols-outlined">delete</span> ELIMINAR (<span id="bulk-delete-count">0</span>)
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <button id="btn-bulk-delete" onclick="eliminarSeleccionados()" class="sq-btn bg-error text-white hidden text-xs py-2 px-3">
+                        <span class="material-symbols-outlined text-[18px]">delete</span> ELIMINAR (<span id="bulk-delete-count">0</span>)
                     </button>
-                    <button onclick="openImportPDFModal()" class="sq-btn sq-btn-ghost border border-primary/30">
-                        <span class="material-symbols-outlined">upload_file</span> IMPORTAR PDF
+                    <button onclick="exportarInventarioCSV()" class="sq-btn sq-btn-ghost border border-outline-variant/40 hover:bg-surface-container-high text-xs py-2 px-3 text-on-surface" title="Exportar catálogo filtrado a Excel / CSV">
+                        <span class="material-symbols-outlined text-[18px]">download</span> Exportar CSV
                     </button>
-                    <button onclick="openEquipoModal()" class="sq-btn sq-btn-primary">
-                        <span class="material-symbols-outlined">add</span> NUEVO ÍTEM
+                    <button onclick="openImportPDFModal()" class="sq-btn sq-btn-ghost border border-primary/40 hover:bg-primary/10 text-primary text-xs py-2 px-3">
+                        <span class="material-symbols-outlined text-[18px]">upload_file</span> IMPORTAR PDF
+                    </button>
+                    <button onclick="openEquipoModal()" class="sq-btn sq-btn-primary text-xs py-2 px-4 shadow-lg shadow-primary/20">
+                        <span class="material-symbols-outlined text-[18px]">add</span> NUEVO ÍTEM
                     </button>
                 </div>
             </div>
 
-            <div class="flex flex-col lg:flex-row gap-6 items-center bg-surface-container-low p-4 lg:p-6 rounded-xl">
-                <select id="inv-categoria" class="sq-input w-full lg:w-auto min-w-56" onchange="switchInvCat(this.value)">
-                    <option value="">TODOS</option>
-                    ${INV_CATEGORIAS.map(c => `<option value="${c.valor}" ${c.valor === stateInventario.categoria ? 'selected' : ''}>${c.etiqueta}</option>`).join('')}
-                </select>
-                <div class="relative w-full lg:flex-1 lg:max-w-md ml-auto flex items-center gap-3">
-                    <div class="flex items-center gap-2 mr-2 bg-surface-container-high px-3 py-2 rounded-lg">
-                        <input type="checkbox" id="select-all-equipos" class="w-4 h-4 accent-primary cursor-pointer" onchange="toggleSelectAllEquipos(this.checked)" title="Seleccionar todos">
-                        <label for="select-all-equipos" class="text-xs text-on-surface-variant cursor-pointer font-label-bold uppercase tracking-wider whitespace-nowrap">Todos</label>
-                    </div>
-                    <div class="relative flex-1">
-                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-                        <input type="text" id="buscar-equipo" class="sq-input pl-12" placeholder="Buscar marca, modelo..." value="${stateInventario.buscar}">
-                    </div>
-                </div>
+            <!-- KPIs Summary Cards -->
+            <div id="inv-kpi-container" class="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+                <!-- Injected via renderKPIsInventario -->
             </div>
 
-            <div class="flex flex-col gap-2" id="equipos-grid">
-                <!-- Loaded via JS -->
+            <!-- Advanced Filter & Search Bar -->
+            <div id="inv-controls-container" class="bg-surface-container-low border border-outline-variant/20 rounded-2xl p-4 lg:p-5 shadow-sm space-y-4">
+                <!-- Injected via renderInventarioControls -->
+            </div>
+
+            <!-- Content Area: List / Grid -->
+            <div id="equipos-container" class="space-y-3">
+                <div class="col-span-full py-12 flex justify-center"><div class="sq-spinner"></div></div>
             </div>
         </div>
     `;
 
-    document.getElementById('buscar-equipo').addEventListener('input', (e) => {
-        stateInventario.buscar = e.target.value;
-        fetchEquiposDebounced();
+    await fetchEquipos();
+}
+
+function renderKPIsInventario() {
+    const el = document.getElementById('inv-kpi-container');
+    if (!el) return;
+
+    const data = stateInventario.data || [];
+    const totalItems = data.length;
+    const activos = data.filter(e => e.activo).length;
+    const paneles = data.filter(e => e.categoria === 'panel').length;
+    const inversores = data.filter(e => e.categoria === 'inversor').length;
+    const baterias = data.filter(e => e.categoria === 'bateria').length;
+    const materiales = data.filter(e => e.categoria === 'estructura' || e.categoria === 'producto').length;
+    const costoPromedio = totalItems > 0 ? (data.reduce((acc, x) => acc + (Number(x.costo) || 0), 0) / totalItems) : 0;
+    const totalValuacion = data.reduce((acc, x) => acc + (Number(x.costo) || 0), 0);
+
+    el.innerHTML = `
+        <div onclick="switchInvCat('')" class="cursor-pointer p-4 rounded-xl bg-surface-container/60 border ${!stateInventario.categoria ? 'border-primary shadow-sm bg-primary/5' : 'border-outline-variant/15'} hover:border-primary/50 transition-all">
+            <div class="flex items-center justify-between text-on-surface-variant text-xs mb-1.5">
+                <span class="font-medium">Total Catálogo</span>
+                <span class="material-symbols-outlined text-primary text-[18px]">inventory_2</span>
+            </div>
+            <div class="text-2xl font-bold text-on-surface">${totalItems} <span class="text-xs font-normal text-on-surface-variant">ítems</span></div>
+            <div class="text-[11px] text-on-surface-variant/80 mt-1 flex items-center justify-between">
+                <span>${activos} activos</span>
+                <span class="font-semibold text-primary">${formatCurrency(totalValuacion)}</span>
+            </div>
+        </div>
+
+        <div onclick="switchInvCat('panel')" class="cursor-pointer p-4 rounded-xl bg-surface-container/60 border ${stateInventario.categoria === 'panel' ? 'border-primary shadow-sm bg-primary/5' : 'border-outline-variant/15'} hover:border-primary/50 transition-all">
+            <div class="flex items-center justify-between text-on-surface-variant text-xs mb-1.5">
+                <span class="font-medium">Paneles Solares</span>
+                <span class="material-symbols-outlined text-yellow-400 text-[18px]">solar_power</span>
+            </div>
+            <div class="text-2xl font-bold text-on-surface">${paneles} <span class="text-xs font-normal text-on-surface-variant">modelos</span></div>
+            <div class="text-[11px] text-on-surface-variant/80 mt-1">
+                ${data.filter(e => e.categoria === 'panel' && e.potencia_wp).map(p => p.potencia_wp + 'Wp').slice(0, 2).join(', ') || 'Módulos FV'}
+            </div>
+        </div>
+
+        <div onclick="switchInvCat('inversor')" class="cursor-pointer p-4 rounded-xl bg-surface-container/60 border ${stateInventario.categoria === 'inversor' ? 'border-primary shadow-sm bg-primary/5' : 'border-outline-variant/15'} hover:border-primary/50 transition-all">
+            <div class="flex items-center justify-between text-on-surface-variant text-xs mb-1.5">
+                <span class="font-medium">Inversores & Ctrl</span>
+                <span class="material-symbols-outlined text-blue-400 text-[18px]">electric_meter</span>
+            </div>
+            <div class="text-2xl font-bold text-on-surface">${inversores} <span class="text-xs font-normal text-on-surface-variant">equipos</span></div>
+            <div class="text-[11px] text-on-surface-variant/80 mt-1">
+                On-Grid, Híbridos & Off-Grid
+            </div>
+        </div>
+
+        <div onclick="switchInvCat('bateria')" class="cursor-pointer p-4 rounded-xl bg-surface-container/60 border ${stateInventario.categoria === 'bateria' ? 'border-primary shadow-sm bg-primary/5' : 'border-outline-variant/15'} hover:border-primary/50 transition-all">
+            <div class="flex items-center justify-between text-on-surface-variant text-xs mb-1.5">
+                <span class="font-medium">Baterías & Almacenam.</span>
+                <span class="material-symbols-outlined text-green-400 text-[18px]">battery_charging_full</span>
+            </div>
+            <div class="text-2xl font-bold text-on-surface">${baterias} <span class="text-xs font-normal text-on-surface-variant">bancos</span></div>
+            <div class="text-[11px] text-on-surface-variant/80 mt-1">
+                Litio LiFePO4 & Gel
+            </div>
+        </div>
+    `;
+}
+
+function renderInventarioControls() {
+    const el = document.getElementById('inv-controls-container');
+    if (!el) return;
+
+    // Distinct brands from current data
+    const marcas = [...new Set((stateInventario.data || []).map(x => (x.marca || '').trim()).filter(Boolean))].sort();
+
+    const catBadgesHtml = [
+        { valor: '', etiqueta: 'Todos', icono: 'apps' },
+        ...INV_CATEGORIAS
+    ].map(c => {
+        const isSel = (stateInventario.categoria || '') === c.valor;
+        return `
+            <button type="button" onclick="switchInvCat('${c.valor}')" class="px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${isSel ? 'bg-primary text-on-primary font-bold shadow-sm' : 'bg-surface-container-high/60 text-on-surface-variant hover:text-white hover:bg-surface-container-high border border-outline-variant/20'}">
+                <span class="material-symbols-outlined text-[15px]">${c.icono}</span>
+                <span>${c.etiqueta}</span>
+            </button>
+        `;
+    }).join('');
+
+    const hasFilters = Boolean(
+        stateInventario.buscar ||
+        stateInventario.categoria ||
+        stateInventario.marca ||
+        stateInventario.estado !== 'todos' ||
+        stateInventario.ivaFiltro !== 'todos' ||
+        stateInventario.orden !== 'marca_asc'
+    );
+
+    el.innerHTML = `
+        <!-- Top Row: Category Chips + View Switcher -->
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-outline-variant/15 pb-3">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-xs font-semibold text-on-surface-variant mr-1">Categorías:</span>
+                ${catBadgesHtml}
+            </div>
+            
+            <div class="flex items-center gap-2 self-end lg:self-auto">
+                <div class="flex items-center bg-surface-container-high rounded-xl p-0.5 border border-outline-variant/20">
+                    <button type="button" onclick="setInvVista('lista')" class="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 transition-all ${stateInventario.vista === 'lista' ? 'bg-primary text-on-primary font-bold shadow-sm' : 'text-on-surface-variant hover:text-white'}" title="Vista de Lista">
+                        <span class="material-symbols-outlined text-[16px]">view_list</span> Lista
+                    </button>
+                    <button type="button" onclick="setInvVista('cuadricula')" class="px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 transition-all ${stateInventario.vista === 'cuadricula' ? 'bg-primary text-on-primary font-bold shadow-sm' : 'text-on-surface-variant hover:text-white'}" title="Vista de Cuadrícula / Tarjetas">
+                        <span class="material-symbols-outlined text-[16px]">grid_view</span> Cuadrícula
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Row: Search bar + Select All + Filters -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+            <!-- Search Input -->
+            <div class="md:col-span-5 relative">
+                <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/70 text-[20px]">search</span>
+                <input type="text" id="buscar-equipo" class="sq-input !py-2 pl-10 pr-8 text-xs w-full rounded-xl bg-surface-container" placeholder="Buscar por marca, modelo, descripción, potencia..." value="${escapeAttr(stateInventario.buscar)}">
+                ${stateInventario.buscar ? `<button type="button" onclick="document.getElementById('buscar-equipo').value=''; stateInventario.buscar=''; renderEquiposList(); renderInventarioControls();" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-white"><span class="material-symbols-outlined text-[16px]">close</span></button>` : ''}
+            </div>
+
+            <!-- Marca Filter -->
+            <div class="md:col-span-3">
+                <select class="sq-input !py-2 text-xs rounded-xl bg-surface-container w-full" onchange="setInvFilter('marca', this.value)">
+                    <option value="">Todas las marcas</option>
+                    ${marcas.map(m => `<option value="${escapeAttr(m)}" ${stateInventario.marca === m ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('')}
+                </select>
+            </div>
+
+            <!-- Estado Activo / Inactivo -->
+            <div class="md:col-span-2">
+                <select class="sq-input !py-2 text-xs rounded-xl bg-surface-container w-full" onchange="setInvFilter('estado', this.value)">
+                    <option value="todos" ${stateInventario.estado === 'todos' ? 'selected' : ''}>Todos (Estado)</option>
+                    <option value="activos" ${stateInventario.estado === 'activos' ? 'selected' : ''}>Solo Activos</option>
+                    <option value="inactivos" ${stateInventario.estado === 'inactivos' ? 'selected' : ''}>Inactivos</option>
+                </select>
+            </div>
+
+            <!-- Ordenamiento -->
+            <div class="md:col-span-2">
+                <select class="sq-input !py-2 text-xs rounded-xl bg-surface-container w-full" onchange="setInvFilter('orden', this.value)">
+                    <option value="marca_asc" ${stateInventario.orden === 'marca_asc' ? 'selected' : ''}>Marca (A → Z)</option>
+                    <option value="marca_desc" ${stateInventario.orden === 'marca_desc' ? 'selected' : ''}>Marca (Z → A)</option>
+                    <option value="costo_asc" ${stateInventario.orden === 'costo_asc' ? 'selected' : ''}>Costo menor a mayor</option>
+                    <option value="costo_desc" ${stateInventario.orden === 'costo_desc' ? 'selected' : ''}>Costo mayor a menor</option>
+                    <option value="recientes" ${stateInventario.orden === 'recientes' ? 'selected' : ''}>Más recientes</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Subfilters + Select All + Counter -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs pt-1">
+            <div class="flex items-center gap-3">
+                <label class="inline-flex items-center gap-2 cursor-pointer bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/15 text-on-surface-variant hover:text-on-surface">
+                    <input type="checkbox" id="select-all-equipos" class="w-4 h-4 accent-primary cursor-pointer" onchange="toggleSelectAllEquipos(this.checked)">
+                    <span class="font-medium text-[11px] uppercase tracking-wider">Seleccionar todo visible</span>
+                </label>
+
+                <!-- IVA filter chip -->
+                <div class="flex items-center gap-1 bg-surface-container rounded-lg p-0.5 border border-outline-variant/15">
+                    <button type="button" onclick="setInvFilter('ivaFiltro', 'todos')" class="px-2 py-1 rounded text-[11px] ${stateInventario.ivaFiltro === 'todos' ? 'bg-primary/20 text-primary font-bold' : 'text-on-surface-variant hover:text-white'}">Todos IVA</button>
+                    <button type="button" onclick="setInvFilter('ivaFiltro', 'con_iva')" class="px-2 py-1 rounded text-[11px] ${stateInventario.ivaFiltro === 'con_iva' ? 'bg-primary/20 text-primary font-bold' : 'text-on-surface-variant hover:text-white'}">Con IVA</button>
+                    <button type="button" onclick="setInvFilter('ivaFiltro', 'sin_iva')" class="px-2 py-1 rounded text-[11px] ${stateInventario.ivaFiltro === 'sin_iva' ? 'bg-primary/20 text-primary font-bold' : 'text-on-surface-variant hover:text-white'}">Sin IVA</button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div id="inv-filtered-count" class="text-on-surface-variant text-[11px]"></div>
+                ${hasFilters ? `
+                    <button type="button" onclick="resetInvFilters()" class="text-primary hover:underline text-[11px] font-semibold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">filter_alt_off</span> Limpiar filtros
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    const buscarInput = document.getElementById('buscar-equipo');
+    if (buscarInput) {
+        buscarInput.addEventListener('input', (e) => {
+            stateInventario.buscar = e.target.value;
+            fetchEquiposDebounced();
+        });
+    }
+}
+
+function getFilteredEquipos() {
+    let list = [...(stateInventario.data || [])];
+
+    // Categoria
+    if (stateInventario.categoria) {
+        list = list.filter(e => e.categoria === stateInventario.categoria);
+    }
+
+    // Busqueda
+    if (stateInventario.buscar?.trim()) {
+        const q = stateInventario.buscar.toLowerCase().trim();
+        list = list.filter(e => {
+            const m = (e.marca || '').toLowerCase();
+            const mod = (e.modelo || '').toLowerCase();
+            const desc = (e.descripcion || '').toLowerCase();
+            const tipo = (e.tipo || '').toLowerCase();
+            const pot = `${e.potencia_wp || ''} ${e.potencia_kw || ''} ${e.capacidad_kwh || ''}`;
+            return m.includes(q) || mod.includes(q) || desc.includes(q) || tipo.includes(q) || pot.includes(q);
+        });
+    }
+
+    // Marca
+    if (stateInventario.marca) {
+        list = list.filter(e => (e.marca || '').trim() === stateInventario.marca);
+    }
+
+    // Estado
+    if (stateInventario.estado === 'activos') {
+        list = list.filter(e => Boolean(e.activo));
+    } else if (stateInventario.estado === 'inactivos') {
+        list = list.filter(e => !e.activo);
+    }
+
+    // IVA
+    if (stateInventario.ivaFiltro === 'con_iva') {
+        list = list.filter(e => Boolean(e.iva));
+    } else if (stateInventario.ivaFiltro === 'sin_iva') {
+        list = list.filter(e => !e.iva);
+    }
+
+    // Orden
+    list.sort((a, b) => {
+        if (stateInventario.orden === 'marca_asc') {
+            const comp = (a.marca || '').localeCompare(b.marca || '');
+            return comp !== 0 ? comp : (a.modelo || '').localeCompare(b.modelo || '');
+        }
+        if (stateInventario.orden === 'marca_desc') {
+            const comp = (b.marca || '').localeCompare(a.marca || '');
+            return comp !== 0 ? comp : (b.modelo || '').localeCompare(a.modelo || '');
+        }
+        if (stateInventario.orden === 'costo_asc') {
+            return (Number(a.costo) || 0) - (Number(b.costo) || 0);
+        }
+        if (stateInventario.orden === 'costo_desc') {
+            return (Number(b.costo) || 0) - (Number(a.costo) || 0);
+        }
+        if (stateInventario.orden === 'recientes') {
+            return (b.id || 0) - (a.id || 0);
+        }
+        return 0;
     });
 
-    await fetchEquipos();
+    return list;
+}
+
+function renderEquiposList() {
+    const container = document.getElementById('equipos-container');
+    if (!container) return;
+
+    const list = getFilteredEquipos();
+
+    // Actualizar contador
+    const countEl = document.getElementById('inv-filtered-count');
+    if (countEl) {
+        countEl.innerHTML = `Mostrando <strong class="text-on-surface">${list.length}</strong> de ${stateInventario.data.length} ítems`;
+    }
+
+    // Clean up selectedIds in case some items were filtered out
+    syncSelectAllCheckbox();
+    updateBulkDeleteUI();
+
+    if (list.length === 0) {
+        container.innerHTML = `
+            <div class="py-16 text-center bg-surface-container-low/50 border border-outline-variant/15 rounded-2xl p-8 space-y-3">
+                <span class="material-symbols-outlined text-5xl text-on-surface-variant/40">inventory_2</span>
+                <p class="text-on-surface-variant font-medium text-sm">No se encontraron ítems con los filtros seleccionados.</p>
+                <button type="button" onclick="resetInvFilters()" class="sq-btn sq-btn-ghost text-xs border border-primary/30 text-primary">
+                    Restablecer filtros
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    if (stateInventario.vista === 'cuadricula') {
+        renderEquiposGridMode(container, list);
+    } else {
+        renderEquiposListMode(container, list);
+    }
+}
+
+function renderEquiposListMode(container, list) {
+    const html = `
+        <div class="bg-surface-container-low border border-outline-variant/20 rounded-2xl overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                    <thead class="bg-surface-container-high/80 text-on-surface-variant text-[11px] uppercase tracking-wider border-b border-outline-variant/20">
+                        <tr>
+                            <th class="p-3.5 w-10 text-center">
+                                <span class="sr-only">Seleccionar</span>
+                            </th>
+                            <th class="p-3.5">Equipo / Producto</th>
+                            <th class="p-3.5">Categoría</th>
+                            <th class="p-3.5">Especificación</th>
+                            <th class="p-3.5 text-right">Costo Unit.</th>
+                            <th class="p-3.5 text-center">IVA</th>
+                            <th class="p-3.5 text-center">Estado</th>
+                            <th class="p-3.5 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/10">
+                        ${list.map(e => {
+                            const isSelected = stateInventario.selectedIds.includes(e.id);
+                            let specText = '';
+                            if (e.categoria === 'panel') specText = `<span class="font-bold text-primary">${e.potencia_wp || 0} Wp</span> <span class="text-on-surface-variant text-[11px]">(${e.tipo || 'Panel FV'})</span>`;
+                            else if (e.categoria === 'inversor') specText = `<span class="font-bold text-primary">${e.potencia_kw || 0} kW</span> <span class="text-on-surface-variant text-[11px]">(${e.tipo || 'Inversor'})</span>`;
+                            else if (e.categoria === 'bateria') specText = `<span class="font-bold text-primary">${e.capacidad_kwh || 0} kWh</span> <span class="text-on-surface-variant text-[11px]">(${e.tipo || 'Batería'})</span>`;
+                            else specText = `<span class="font-bold text-primary">${e.tipo || '-'}</span> <span class="text-on-surface-variant text-[11px]">(${e.unidad || 'und'})</span>`;
+
+                            const iconName = INV_CATEGORIAS.find(c => c.valor === e.categoria)?.icono || 'inventory_2';
+                            const imgHtml = e.imagen_url ?
+                                `<img src="${e.imagen_url}" class="w-9 h-9 rounded-lg object-cover border border-outline-variant/30 bg-surface-container flex-shrink-0">` :
+                                `<div class="w-9 h-9 bg-surface-container rounded-lg border border-outline-variant/30 text-primary flex items-center justify-center flex-shrink-0">
+                                    <span class="material-symbols-outlined text-[18px]">${iconName}</span>
+                                </div>`;
+
+                            return `
+                                <tr class="hover:bg-surface-container/50 transition-colors ${isSelected ? 'bg-primary/5' : ''} ${e.activo ? '' : 'opacity-60'}">
+                                    <td class="p-3.5 text-center">
+                                        <input type="checkbox" class="w-4 h-4 accent-primary cursor-pointer" ${isSelected ? 'checked' : ''} onchange="toggleSelectEquipo(${e.id}, this.checked, this)">
+                                    </td>
+                                    <td class="p-3.5">
+                                        <div class="flex items-center gap-3">
+                                            ${imgHtml}
+                                            <div class="min-w-0">
+                                                <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold truncate">${escapeHtml(e.marca || 'Genérico')}</div>
+                                                <div class="font-semibold text-on-surface text-sm truncate max-w-xs" title="${escapeAttr(e.modelo)}">${escapeHtml(e.modelo || 'Sin modelo')}</div>
+                                                ${e.descripcion ? `<div class="text-[11px] text-on-surface-variant/70 truncate max-w-xs">${escapeHtml(e.descripcion)}</div>` : ''}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-3.5 whitespace-nowrap">
+                                        <span class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface font-medium border border-outline-variant/15">
+                                            <span class="material-symbols-outlined text-[14px] text-primary">${iconName}</span>
+                                            ${etiquetaCategoria(e.categoria)}
+                                        </span>
+                                    </td>
+                                    <td class="p-3.5 whitespace-nowrap">
+                                        ${specText}
+                                    </td>
+                                    <td class="p-3.5 text-right whitespace-nowrap">
+                                        <div class="font-bold text-on-surface text-sm">${formatCurrency(e.costo)}</div>
+                                        <div class="text-[10px] text-on-surface-variant">por ${escapeHtml(e.unidad || 'und')}</div>
+                                    </td>
+                                    <td class="p-3.5 text-center whitespace-nowrap">
+                                        <button type="button" onclick="toggleIvaEquipo(${e.id}, '${e.categoria}')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium transition-all ${e.iva ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container border-outline-variant/30 text-on-surface-variant'}" title="Hacer clic para alternar IVA">
+                                            <span class="material-symbols-outlined text-[12px]">${e.iva ? 'check_circle' : 'remove_circle_outline'}</span>
+                                            ${e.iva ? '19% IVA' : 'Exento'}
+                                        </button>
+                                    </td>
+                                    <td class="p-3.5 text-center whitespace-nowrap">
+                                        <button type="button" onclick="toggleActivoEquipo(${e.id})" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${e.activo ? 'bg-success/10 text-success border border-success/30' : 'bg-surface-container text-on-surface-variant/60 border border-outline-variant/20'}" title="Hacer clic para activar o desactivar">
+                                            <span class="w-1.5 h-1.5 rounded-full ${e.activo ? 'bg-success' : 'bg-on-surface-variant/60'}"></span>
+                                            ${e.activo ? 'Activo' : 'Inactivo'}
+                                        </button>
+                                    </td>
+                                    <td class="p-3.5 text-right whitespace-nowrap">
+                                        <div class="flex items-center justify-end gap-1">
+                                            <button onclick="duplicarEquipo(${e.id})" class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors" title="Duplicar ítem">
+                                                <span class="material-symbols-outlined text-[17px]">content_copy</span>
+                                            </button>
+                                            <button onclick="openEquipoModal(${e.id})" class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-white transition-colors" title="Editar ítem">
+                                                <span class="material-symbols-outlined text-[17px]">edit</span>
+                                            </button>
+                                            <button onclick="eliminarEquipo(${e.id})" class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-error transition-colors" title="Eliminar ítem">
+                                                <span class="material-symbols-outlined text-[17px]">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+function renderEquiposGridMode(container, list) {
+    const html = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${list.map(e => {
+                const isSelected = stateInventario.selectedIds.includes(e.id);
+                let specText = '';
+                if (e.categoria === 'panel') specText = `<span class="font-bold text-primary">${e.potencia_wp || 0} Wp</span> <span class="text-on-surface-variant">(${e.tipo || 'Panel FV'})</span>`;
+                else if (e.categoria === 'inversor') specText = `<span class="font-bold text-primary">${e.potencia_kw || 0} kW</span> <span class="text-on-surface-variant">(${e.tipo || 'Inversor'})</span>`;
+                else if (e.categoria === 'bateria') specText = `<span class="font-bold text-primary">${e.capacidad_kwh || 0} kWh</span> <span class="text-on-surface-variant">(${e.tipo || 'Batería'})</span>`;
+                else specText = `<span class="font-bold text-primary">${e.tipo || '-'}</span> <span class="text-on-surface-variant">(${e.unidad || 'und'})</span>`;
+
+                const iconName = INV_CATEGORIAS.find(c => c.valor === e.categoria)?.icono || 'inventory_2';
+                const imgHtml = e.imagen_url ?
+                    `<img src="${e.imagen_url}" class="w-14 h-14 rounded-xl object-cover border border-outline-variant/30 bg-surface-container flex-shrink-0">` :
+                    `<div class="w-14 h-14 bg-surface-container rounded-xl border border-outline-variant/30 text-primary flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-2xl">${iconName}</span>
+                    </div>`;
+
+                return `
+                    <div class="sq-card !p-4 group hover:border-primary/50 border ${isSelected ? 'border-primary bg-primary/5 shadow-md shadow-primary/10' : 'border-outline-variant/20'} transition-all flex flex-col justify-between gap-3 ${e.activo ? '' : 'opacity-60'}">
+                        <div>
+                            <div class="flex items-start justify-between gap-2 mb-2">
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" class="w-4 h-4 accent-primary cursor-pointer" ${isSelected ? 'checked' : ''} onchange="toggleSelectEquipo(${e.id}, this.checked, this)">
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant uppercase tracking-wider font-semibold border border-outline-variant/15 flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-[12px] text-primary">${iconName}</span>
+                                        ${etiquetaCategoria(e.categoria)}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button type="button" onclick="toggleActivoEquipo(${e.id})" class="text-[10px] px-2 py-0.5 rounded-full ${e.activo ? 'bg-success/10 text-success' : 'bg-surface-container text-on-surface-variant/60'}" title="Alternar activo">
+                                        ${e.activo ? '● Activo' : '○ Inactivo'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-3">
+                                ${imgHtml}
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold truncate">${escapeHtml(e.marca || 'Genérico')}</div>
+                                    <div class="font-bold text-on-surface text-sm truncate" title="${escapeAttr(e.modelo)}">${escapeHtml(e.modelo || 'Sin modelo')}</div>
+                                    <div class="text-xs mt-0.5">${specText}</div>
+                                </div>
+                            </div>
+
+                            ${e.descripcion ? `<p class="text-[11px] text-on-surface-variant/80 mt-2.5 line-clamp-2">${escapeHtml(e.descripcion)}</p>` : ''}
+                        </div>
+
+                        <div class="pt-3 border-t border-outline-variant/15 flex items-center justify-between gap-2">
+                            <div>
+                                <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Costo Compra</div>
+                                <div class="font-bold text-base text-primary">${formatCurrency(e.costo)} <span class="text-[10px] font-normal text-on-surface-variant">/${escapeHtml(e.unidad || 'und')}</span></div>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button type="button" onclick="toggleIvaEquipo(${e.id}, '${e.categoria}')" class="px-2 py-1 rounded text-[10px] font-medium border ${e.iva ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container border-outline-variant/30 text-on-surface-variant'}" title="Alternar IVA">
+                                    ${e.iva ? '19% IVA' : 'Sin IVA'}
+                                </button>
+                                <button onclick="duplicarEquipo(${e.id})" class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors" title="Duplicar">
+                                    <span class="material-symbols-outlined text-[17px]">content_copy</span>
+                                </button>
+                                <button onclick="openEquipoModal(${e.id})" class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-white transition-colors" title="Editar">
+                                    <span class="material-symbols-outlined text-[17px]">edit</span>
+                                </button>
+                                <button onclick="eliminarEquipo(${e.id})" class="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-error transition-colors" title="Eliminar">
+                                    <span class="material-symbols-outlined text-[17px]">delete</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+    container.innerHTML = html;
 }
 
 function switchInvCat(cat) {
@@ -81,101 +634,52 @@ function switchInvCat(cat) {
     updateBulkDeleteUI();
     const selectAllCb = document.getElementById('select-all-equipos');
     if (selectAllCb) selectAllCb.checked = false;
-    const sel = document.getElementById('inv-categoria');
-    if (sel) sel.value = stateInventario.categoria;
-    fetchEquipos();
+    
+    renderInventarioControls();
+    renderEquiposList();
+    renderKPIsInventario();
 }
 
 let timeoutEquipos = null;
 function fetchEquiposDebounced() {
     clearTimeout(timeoutEquipos);
-    timeoutEquipos = setTimeout(fetchEquipos, 300);
+    timeoutEquipos = setTimeout(fetchEquipos, 250);
 }
 
 async function fetchEquipos() {
-    const grid = document.getElementById('equipos-grid');
-    grid.innerHTML = `<div class="col-span-full py-12 flex justify-center"><div class="sq-spinner"></div></div>`;
-    
     try {
-        const params = new URLSearchParams({ buscar: stateInventario.buscar });
-        if (stateInventario.categoria) params.set('categoria', stateInventario.categoria);
-        const res = await API.get(`/equipos?${params.toString()}`);
-        stateInventario.data = res.data;
+        // Obtenemos todo el catalogo para permitir un filtrado, KPIs y ordenamiento super rapido e instantaneo en cliente
+        const res = await API.get('/equipos');
+        stateInventario.data = res.data || [];
         
-        // Clean up selectedIds in case some items were deleted or filtered out
+        // Clean up selectedIds
         stateInventario.selectedIds = stateInventario.selectedIds.filter(id => stateInventario.data.some(e => e.id === id));
-        syncSelectAllCheckbox();
-        updateBulkDeleteUI();
         
-        if (res.data.length === 0) {
-            grid.innerHTML = `<div class="col-span-full py-12 text-center text-on-surface-variant">No se encontraron ítems${stateInventario.categoria ? ' en esta categoría' : ''}.</div>`;
-            return;
-        }
-
-        const html = res.data.map(e => {
-            let specHtml = '';
-            if (e.categoria === 'panel') specHtml = `<span class="font-bold text-primary">${e.potencia_wp} Wp</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
-            else if (e.categoria === 'inversor') specHtml = `<span class="font-bold text-primary">${e.potencia_kw} kW</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
-            else if (e.categoria === 'bateria') specHtml = `<span class="font-bold text-primary">${e.capacidad_kwh} kWh</span> <span class="text-xs text-on-surface-variant">(${e.tipo})</span>`;
-            else specHtml = `<span class="font-bold text-primary">${e.tipo || '-'}</span> <span class="text-xs text-on-surface-variant">(Unidad: ${e.unidad})</span>`;
-
-            // En la vista TODOS se muestra la categoría de cada ítem para distinguarlos
-            if (!stateInventario.categoria) {
-                specHtml += ` <span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant uppercase tracking-wider whitespace-nowrap">${etiquetaCategoria(e.categoria)}</span>`;
-            }
-
-            let imgHtml = e.imagen_url ? 
-                `<img src="${e.imagen_url}" class="w-10 h-10 rounded object-cover border border-outline-variant/30 bg-surface-container-highest flex-shrink-0">` :
-                `<div class="w-10 h-10 bg-surface-container-high rounded border border-outline-variant/30 text-primary flex items-center justify-center flex-shrink-0">
-                    <span class="material-symbols-outlined text-xl">${INV_CATEGORIAS.find(c => c.valor === e.categoria)?.icono || 'inventory_2'}</span>
-                </div>`;
-
-            let isSelected = stateInventario.selectedIds.includes(e.id);
-            return `
-                <div class="sq-card !p-3 group hover:border-primary/50 border ${isSelected ? 'border-primary bg-primary/5' : 'border-outline-variant/30'} transition-colors flex items-center gap-4 ${e.activo ? '' : 'opacity-50'}">
-                    <div class="flex items-center justify-center">
-                        <input type="checkbox" class="w-5 h-5 accent-primary cursor-pointer" ${isSelected ? 'checked' : ''} onchange="toggleSelectEquipo(${e.id}, this.checked, this)">
-                    </div>
-                    
-                    ${imgHtml}
-                    
-                    <div class="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                        <div class="md:col-span-3 min-w-0">
-                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider truncate">${e.marca}</div>
-                            <div class="font-label-bold text-sm truncate">${e.modelo}</div>
-                        </div>
-                        
-                        <div class="md:col-span-4 flex items-center">
-                            ${specHtml}
-                        </div>
-                        
-                        <div class="md:col-span-3 text-right">
-                            <div class="text-[10px] text-on-surface-variant uppercase tracking-wider">Costo</div>
-                            <div class="font-body-md whitespace-nowrap">${formatCurrency(e.costo)}</div>
-                        </div>
-                        
-                        <div class="md:col-span-2 flex items-center justify-end gap-2">
-                            <div class="flex items-center gap-1 cursor-pointer mr-2" onclick="toggleIvaEquipo(${e.id}, '${e.categoria}')" title="Incluye IVA">
-                                <span class="w-4 h-4 rounded-full border-2 flex items-center justify-center ${e.iva ? 'bg-primary border-primary' : 'border-outline-variant'}">
-                                    ${e.iva ? '<span class="material-symbols-outlined text-on-primary text-[10px]">check</span>' : ''}
-                                </span>
-                                <span class="text-[10px] hidden lg:inline ${e.iva ? 'text-primary' : 'text-on-surface-variant'}">IVA</span>
-                            </div>
-                            <button onclick="openEquipoModal(${e.id})" class="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant hover:text-white transition-colors" title="Editar">
-                                <span class="material-symbols-outlined text-[18px]">edit</span>
-                            </button>
-                            <button onclick="eliminarEquipo(${e.id})" class="p-1.5 rounded-md hover:bg-surface-container-high text-on-surface-variant hover:text-error transition-colors" title="Eliminar">
-                                <span class="material-symbols-outlined text-[18px]">delete</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-        
-        grid.innerHTML = html;
+        renderKPIsInventario();
+        renderInventarioControls();
+        renderEquiposList();
     } catch (error) {
-        grid.innerHTML = `<div class="col-span-full p-8 text-error text-center">Error: ${error.message}</div>`;
+        const container = document.getElementById('equipos-container');
+        if (container) {
+            container.innerHTML = `<div class="col-span-full p-8 text-error text-center">Error cargando inventario: ${error.message}</div>`;
+        }
+    }
+}
+
+async function toggleActivoEquipo(id) {
+    const item = stateInventario.data.find(e => e.id === id);
+    if (!item) return;
+    const newVal = item.activo ? 0 : 1;
+    item.activo = newVal;
+    try {
+        await API.put(`/equipos/${id}`, { activo: newVal });
+        renderEquiposList();
+        renderKPIsInventario();
+        showToast(newVal ? 'Equipo activado' : 'Equipo marcado como inactivo', 'success');
+    } catch (e) {
+        item.activo = newVal ? 0 : 1;
+        renderEquiposList();
+        showToast(e.message || 'Error al cambiar estado', 'error');
     }
 }
 
@@ -398,14 +902,12 @@ async function saveEquipo(e, id) {
             const cb = equipoModalCallback;
             equipoModalCallback = null;
             await cb({ id: createdId, ...data });
-        } else if (document.getElementById('equipos-grid')) {
-            // Solo si el filtro actual es una categoría distinta a la del ítem se cambia el
-            // filtro para que el usuario lo vea; con "TODOS" el ítem ya es visible.
+        } else {
+            // Refrescar catalogo y mantener categoria si aplica
             if (stateInventario.categoria && data.categoria && data.categoria !== stateInventario.categoria) {
-                switchInvCat(data.categoria);
-            } else {
-                fetchEquipos();
+                stateInventario.categoria = data.categoria;
             }
+            await fetchEquipos();
         }
     } catch (error) {
         showToast(error.message, 'error');
@@ -418,10 +920,12 @@ function toggleIvaEquipo(id, categoria) {
     const newVal = !item.iva;
     item.iva = newVal;
     API.put(`/equipos/${id}`, { iva: newVal }).then(() => {
-        fetchEquipos();
+        renderEquiposList();
+        renderKPIsInventario();
     }).catch(() => {
         item.iva = !newVal;
-        fetchEquipos();
+        renderEquiposList();
+        renderKPIsInventario();
     });
 }
 
@@ -445,16 +949,8 @@ function toggleSelectEquipo(id, checked, checkboxElem) {
         if (!stateInventario.selectedIds.includes(id)) {
             stateInventario.selectedIds.push(id);
         }
-        checkboxElem.closest('.sq-card').classList.add('border-primary');
-        checkboxElem.closest('.sq-card').classList.remove('border-transparent');
-        checkboxElem.parentElement.classList.remove('opacity-0', 'group-hover:opacity-100');
-        checkboxElem.parentElement.classList.add('opacity-100');
     } else {
         stateInventario.selectedIds = stateInventario.selectedIds.filter(x => x !== id);
-        checkboxElem.closest('.sq-card').classList.remove('border-primary');
-        checkboxElem.closest('.sq-card').classList.add('border-transparent');
-        checkboxElem.parentElement.classList.add('opacity-0', 'group-hover:opacity-100');
-        checkboxElem.parentElement.classList.remove('opacity-100');
     }
     syncSelectAllCheckbox();
     updateBulkDeleteUI();
@@ -463,7 +959,8 @@ function toggleSelectEquipo(id, checked, checkboxElem) {
 function syncSelectAllCheckbox() {
     const selectAllCb = document.getElementById('select-all-equipos');
     if (selectAllCb) {
-        if (stateInventario.data.length > 0 && stateInventario.selectedIds.length === stateInventario.data.length) {
+        const visibleList = getFilteredEquipos();
+        if (visibleList.length > 0 && visibleList.every(e => stateInventario.selectedIds.includes(e.id))) {
             selectAllCb.checked = true;
         } else {
             selectAllCb.checked = false;
@@ -472,29 +969,19 @@ function syncSelectAllCheckbox() {
 }
 
 function toggleSelectAllEquipos(checked) {
+    const visibleList = getFilteredEquipos();
     if (checked) {
-        stateInventario.selectedIds = stateInventario.data.map(e => e.id);
+        visibleList.forEach(e => {
+            if (!stateInventario.selectedIds.includes(e.id)) {
+                stateInventario.selectedIds.push(e.id);
+            }
+        });
     } else {
-        stateInventario.selectedIds = [];
+        const visibleIds = new Set(visibleList.map(e => e.id));
+        stateInventario.selectedIds = stateInventario.selectedIds.filter(id => !visibleIds.has(id));
     }
     updateBulkDeleteUI();
-    
-    document.querySelectorAll('#equipos-grid .sq-card input[type="checkbox"]').forEach(cb => {
-        cb.checked = checked;
-        const card = cb.closest('.sq-card');
-        const container = cb.parentElement;
-        if (checked) {
-            card.classList.add('border-primary');
-            card.classList.remove('border-transparent');
-            container.classList.remove('opacity-0', 'group-hover:opacity-100');
-            container.classList.add('opacity-100');
-        } else {
-            card.classList.remove('border-primary');
-            card.classList.add('border-transparent');
-            container.classList.add('opacity-0', 'group-hover:opacity-100');
-            container.classList.remove('opacity-100');
-        }
-    });
+    renderEquiposList();
 }
 
 function updateBulkDeleteUI() {
