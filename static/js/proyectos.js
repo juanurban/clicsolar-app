@@ -233,13 +233,23 @@ window.ProyectosModule = (function () {
     let taskSort={key:'id',dir:'asc'};
     let taskPage=1;
     let taskPageSize=10;
+    function formatFileSize(bytes) {
+        if (!bytes || isNaN(bytes)) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
     function flattenTasks(){
         const out=[]; let idx=0;
         (current.pasos||[]).forEach(p=>{
             (p.tareas||[]).forEach(t=>{
                 const cl=t.checklist||[]; const done=cl.filter(c=>c.completed).length; const prog=cl.length?Math.round(done/cl.length*100):(t.completada?100:0);
-                const adj = (current.bitacora||[]).filter(b=>(b.etiquetas||[]).includes('tarea:'+t.id)).length;
-                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), tags:[], progress:prog, adjuntos:adj});
+                const bitMatches = (current.bitacora||[]).filter(b=>(b.etiquetas||[]).includes('tarea:'+t.id) || String(b.tarea_id)===String(t.id));
+                const taskArchivos = Array.isArray(t.archivos) ? t.archivos : [];
+                // Total único de adjuntos
+                const totalAdj = Math.max(taskArchivos.length, bitMatches.length);
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), tags:[], progress:prog, adjuntos:totalAdj});
             });
         });
         return out;
@@ -444,21 +454,69 @@ window.ProyectosModule = (function () {
     }
     function renderBitEntry(e) {
         const isImg = e.archivo?.mime?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(e.archivo?.path||'');
+        const isPdf = e.archivo?.mime === 'application/pdf' || /\.pdf$/i.test(e.archivo?.path||'');
         const tipoLabels = {nota:'Nota', evidencia:'Evidencia', plano:'Plano unifilar', retie:'Certificado RETIE', documento:'Documento'};
         const fecha = e.fecha ? new Date(e.fecha).toLocaleString('es-CO',{dateStyle:'medium', timeStyle:'short'}) : '';
+
+        // Identificar si proviene de una tarea
+        const tareaId = e.tarea_id || (e.etiquetas||[]).find(t=>typeof t==='string'&&t.startsWith('tarea:'))?.replace('tarea:','');
+        let tareaBadge = '';
+        if (tareaId) {
+            let taskTitle = '';
+            (current.pasos||[]).forEach(p => {
+                (p.tareas||[]).forEach(t => {
+                    if (String(t.id) === String(tareaId)) taskTitle = t.titulo;
+                });
+            });
+            tareaBadge = `<span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/20 text-primary font-label-bold" title="Archivo vinculado a tarea">
+                <span class="material-symbols-outlined text-[13px]">task_alt</span> ${escapeHtml(taskTitle || 'Tarea #' + tareaId)}
+            </span>`;
+        }
+
+        const sizeStr = e.archivo?.size ? formatFileSize(e.archivo.size) : '';
+
         return `<div class="rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
             <div class="flex items-start justify-between gap-3 mb-2">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-[11px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-bold">${tipoLabels[e.tipo]||e.tipo||'Nota'}</span>
                     <span class="text-xs text-on-surface-variant">${fecha}</span>
                     ${e.autor?`<span class="text-xs text-on-surface-variant">· ${escapeHtml(e.autor)}</span>`:''}
-                    ${(e.etiquetas||[]).map(t=>`<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">${escapeHtml(t)}</span>`).join('')}
+                    ${tareaBadge}
+                    ${(e.etiquetas||[]).filter(t=>!t.startsWith('tarea:')).map(t=>`<span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">${escapeHtml(t)}</span>`).join('')}
                 </div>
-                <button onclick="ProyectosModule.editBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-primary" title="Editar"><span class="material-symbols-outlined text-[18px]">edit</span></button>
-                <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-error" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                <div class="flex items-center gap-1">
+                    <button onclick="ProyectosModule.editBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-primary rounded" title="Editar"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+                    <button onclick="ProyectosModule.deleteBitacora('${e.id}')" class="p-1 text-on-surface-variant hover:text-error rounded" title="Eliminar"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                </div>
             </div>
             ${e.nota?`<p class="text-sm text-on-surface whitespace-pre-wrap mb-2">${escapeHtml(e.nota)}</p>`:''}
-            ${e.archivo ? (isImg ? `<a href="${e.archivo.path}" target="_blank"><img src="${e.archivo.path}" alt="${escapeAttr(e.archivo.nombre||'')}" class="max-h-72 rounded-lg border border-outline-variant/20 object-cover"></a><div class="text-xs text-on-surface-variant mt-1">${escapeHtml(e.archivo.nombre||'')}</div>` : `<a href="${e.archivo.path}" target="_blank" class="inline-flex items-center gap-2 text-primary hover:underline text-sm"><span class="material-symbols-outlined text-[18px]">description</span>${escapeHtml(e.archivo.nombre||'Archivo')}</a>`) : ''}
+            ${e.archivo ? (isImg
+                ? `<div class="mt-2">
+                    <a href="${e.archivo.path}" target="_blank" class="inline-block group relative">
+                        <img src="${e.archivo.path}" alt="${escapeAttr(e.archivo.nombre||'')}" class="max-h-72 rounded-lg border border-outline-variant/20 object-cover group-hover:brightness-105 transition-all">
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <span class="material-symbols-outlined text-[18px]">visibility</span> Ver original
+                        </div>
+                    </a>
+                    <div class="text-xs text-on-surface-variant mt-1.5 flex items-center gap-2">
+                        <span>${escapeHtml(e.archivo.nombre||'')}</span>
+                        ${sizeStr ? `<span>(${sizeStr})</span>` : ''}
+                        <a href="${e.archivo.path}" target="_blank" download class="text-primary hover:underline ml-1">Descargar</a>
+                    </div>
+                   </div>`
+                : `<div class="mt-2 p-3 rounded-lg bg-surface-container border border-outline-variant/30 flex items-center justify-between gap-3 max-w-lg">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[28px] flex-shrink-0">${isPdf?'picture_as_pdf':'description'}</span>
+                        <div class="min-w-0">
+                            <a href="${e.archivo.path}" target="_blank" class="text-sm font-label-bold text-on-surface hover:text-primary transition-colors truncate block">${escapeHtml(e.archivo.nombre||'Archivo')}</a>
+                            ${sizeStr ? `<span class="text-[11px] text-on-surface-variant">${sizeStr}</span>` : ''}
+                        </div>
+                    </div>
+                    <a href="${e.archivo.path}" target="_blank" download class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1 flex-shrink-0">
+                        <span class="material-symbols-outlined text-[16px]">download</span> Descargar
+                    </a>
+                   </div>`
+            ) : ''}
         </div>`;
     }
 
@@ -525,76 +583,254 @@ window.ProyectosModule = (function () {
         const t=findTarea(pid,tid);
         if(!t) return;
         const p=findPaso(pid);
+
+        // Inicializar y sincronizar adjuntos de la tarea
+        t.archivos = Array.isArray(t.archivos) ? t.archivos : [];
+        (current.bitacora || []).forEach(b => {
+            const isThisTask = String(b.tarea_id) === String(t.id) || (b.etiquetas || []).includes('tarea:' + t.id);
+            if (isThisTask && b.archivo && !t.archivos.some(a => a.id === b.id || a.path === b.archivo.path)) {
+                t.archivos.push({
+                    id: b.id,
+                    nombre: b.archivo.nombre,
+                    path: b.archivo.path,
+                    mime: b.archivo.mime,
+                    size: b.archivo.size,
+                    fecha: b.fecha,
+                    autor: b.autor
+                });
+            }
+        });
+
         const overlay=document.createElement('div');
-        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
-        overlay.innerHTML=`<div class="bg-surface-container-low text-on-surface rounded-xl w-[90%] max-w-[700px] max-h-[85vh] overflow-auto p-5 border border-outline-variant/30">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <h3 style="font-weight:bold;font-size:18px;">Tarea #${t.id}</h3>
-                <button onclick="this.closest('div').parentElement.parentElement.remove()" style="color:#f4bf00;"><span class="material-symbols-outlined">close</span></button>
+        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+        overlay.innerHTML=`<div class="bg-surface-container-low text-on-surface rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 border border-outline-variant/30 shadow-2xl">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <div class="text-xs font-label-bold text-primary tracking-wider uppercase mb-1">${escapeHtml(p?.nombre || 'Etapa')}</div>
+                    <h3 class="font-headline-md text-on-surface">Tarea #${escapeHtml(t.id)}</h3>
+                </div>
+                <button type="button" class="sq-btn sq-btn-ghost p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high" onclick="window._tmCleanAndClose()" title="Cerrar">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
             </div>
-            <input id="tm-title" class="sq-input w-full" value="${escapeAttr(t.titulo||'')}" class="sq-input">
-            <textarea id="tm-desc" class="sq-input w-full mt-2" rows="3" placeholder="Descripción..." class="sq-input">${escapeHtml(t.descripcion||'')}</textarea>
-            <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
-                <label class="text-xs">Estado: <select id="tm-status" class="sq-input text-sm" ><option ${t.completada?'':'selected'} value="Hacer">Hacer</option><option value="En progreso">En progreso</option><option value="Completado" ${t.completada?'selected':''}>Completado</option></select></label>
-                <label class="text-xs">Inicio: <input id="tm-start" type="date" class="sq-input text-sm" value="${t.fecha_inicio||''}" class="sq-input"></label>
-                <label class="text-xs">Límite: <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}" class="sq-input"></label>
-                <label class="text-xs">Responsable: <select id="tm-resp" class="sq-input text-sm"><option value="">Sin asignar</option></select></label>
-            </div>
-            <div style="margin-top:16px;">
-                <div style="font-weight:bold;margin-bottom:6px;">Checklist <span id="tm-check-progress" style="font-weight:normal;font-size:12px;color:#888;"></span></div>
-                <div id="tm-checklist"></div>
-                <div style="display:flex;gap:8px;margin-top:8px;">
-                    <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar artículo" class="sq-input">
-                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-check-add">Agregar</button>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Título de la tarea *</label>
+                    <input id="tm-title" class="sq-input w-full font-label-bold" value="${escapeAttr(t.titulo||'')}">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Descripción</label>
+                    <textarea id="tm-desc" class="sq-input w-full text-sm" rows="3" placeholder="Describe los detalles, requerimientos o notas de esta tarea...">${escapeHtml(t.descripcion||'')}</textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Estado</label>
+                        <select id="tm-status" class="sq-input text-sm">
+                            <option ${t.status==='Hacer'?'selected':''} value="Hacer">Hacer</option>
+                            <option ${t.status==='En progreso'?'selected':''} value="En progreso">En progreso</option>
+                            <option ${t.status==='Completado'?'selected':''} value="Completado">Completado</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Fecha inicio</label>
+                        <input id="tm-start" type="date" class="sq-input text-sm" value="${t.fecha_inicio||''}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Fecha límite</label>
+                        <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-label-bold text-on-surface-variant mb-1">Responsable</label>
+                        <select id="tm-resp" class="sq-input text-sm">
+                            <option value="">Sin asignar</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Checklist -->
+                <div class="pt-3 border-t border-outline-variant/20">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-label-bold text-sm text-on-surface flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-primary text-[18px]">checklist</span>
+                            Checklist <span id="tm-check-progress" class="font-normal text-xs text-on-surface-variant"></span>
+                        </span>
+                    </div>
+                    <div id="tm-checklist" class="space-y-1.5"></div>
+                    <div class="flex gap-2 mt-2.5">
+                        <input id="tm-check-new" class="sq-input text-sm flex-1" placeholder="Agregar elemento de verificación...">
+                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-check-add">
+                            <span class="material-symbols-outlined text-[16px]">add</span> Agregar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN ADJUNTOS DE LA TAREA -->
+                <div class="pt-4 border-t border-outline-variant/20">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-label-bold text-sm text-on-surface flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">attach_file</span>
+                            Archivos adjuntos <span id="tm-att-count" class="text-xs text-primary font-bold"></span>
+                        </h4>
+                        <span class="text-[11px] text-on-surface-variant">Se sincronizan con la biblioteca de Archivos</span>
+                    </div>
+
+                    <div id="tm-attachments-list" class="space-y-2 mb-3 max-h-56 overflow-y-auto"></div>
+
+                    <div class="bg-surface-container rounded-xl p-3 border border-outline-variant/30">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                            <input type="file" id="tm-file" class="hidden" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.zip">
+                            <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm whitespace-nowrap flex items-center justify-center gap-1.5" onclick="document.getElementById('tm-file').click()">
+                                <span class="material-symbols-outlined text-[18px]">upload_file</span> Seleccionar archivo
+                            </button>
+                            <span id="tm-file-name" class="text-xs text-on-surface-variant truncate flex-1 px-1 text-center sm:text-left">Ningún archivo seleccionado</span>
+                            <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center justify-center gap-1.5 whitespace-nowrap" id="tm-upload">
+                                <span class="material-symbols-outlined text-[18px]">cloud_upload</span> Subir adjunto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comentarios -->
+                <div class="pt-4 border-t border-outline-variant/20">
+                    <div class="font-label-bold text-sm text-on-surface mb-2 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-primary text-[18px]">comment</span> Comentarios
+                    </div>
+                    <div id="tm-comments" class="max-h-40 overflow-y-auto space-y-2 mb-2 p-1"></div>
+                    <div class="flex gap-2">
+                        <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario o nota de avance..."></textarea>
+                        <button type="button" class="sq-btn sq-btn-primary sq-btn-sm self-end" id="tm-comment-pub">Publicar</button>
+                    </div>
                 </div>
             </div>
-            <div style="margin-top:16px;">
-                <div style="font-weight:bold;margin-bottom:6px;">Comentarios</div>
-                <div id="tm-comments" style="max-height:200px;overflow:auto;margin-bottom:8px;"></div>
-                <textarea id="tm-comment" class="sq-input w-full text-sm" rows="2" placeholder="Escribe un comentario..." class="sq-input"></textarea>
-                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm mt-2" id="tm-comment-pub">Publicar</button>
-            </div>
-            <div style="margin-top:16px;">
-                <div style="font-weight:bold;margin-bottom:6px;">Adjuntos (van a Archivos)</div>
-                <input type="file" id="tm-file" class="text-sm text-on-surface-variant" accept="image/*,video/*,.pdf,.doc,.docx">
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm mt-2" id="tm-upload">Subir adjunto</button>
-            </div>
-            <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
-                <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.deleteTarea('${pid}','${tid}');this.closest('div').parentElement.parentElement.remove();">Eliminar</button>
-                <button type="button" class="sq-btn sq-btn-primary sq-btn-sm" id="tm-save">Guardar</button>
+
+            <!-- Botones finales -->
+            <div class="flex items-center justify-between pt-6 mt-6 border-t border-outline-variant/20">
+                <button type="button" class="sq-btn sq-btn-ghost text-error hover:bg-error/10 sq-btn-sm flex items-center gap-1" onclick="if(confirm('¿Eliminar esta tarea?')){ProyectosModule.deleteTarea('${pid}','${tid}');window._tmCleanAndClose();}">
+                    <span class="material-symbols-outlined text-[18px]">delete</span> Eliminar tarea
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" class="sq-btn sq-btn-secondary sq-btn-sm" onclick="window._tmCleanAndClose()">Cancelar</button>
+                    <button type="button" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1" id="tm-save">
+                        <span class="material-symbols-outlined text-[18px]">save</span> Guardar tarea
+                    </button>
+                </div>
             </div>
         </div>`;
         document.body.appendChild(overlay);
+
+        window._tmCleanAndClose = () => {
+            delete window._tmToggleCheck;
+            delete window._tmRemoveCheck;
+            delete window._tmRemoveAttachment;
+            delete window._tmCleanAndClose;
+            overlay.remove();
+        };
+
         const checklist = t.checklist || (t.checklist=[]);
         const comments = t.comments || (t.comments=[]);
-        window._tmToggleCheck = (i, val) => { checklist[i].completed = val; const allDone = checklist.length>0 && checklist.every(c=>c.completed); if (allDone) t.completada = true; renderChecklist(); };
+
+        window._tmToggleCheck = (i, val) => {
+            checklist[i].completed = val;
+            const allDone = checklist.length>0 && checklist.every(c=>c.completed);
+            if (allDone) t.completada = true;
+            renderChecklist();
+        };
         window._tmRemoveCheck = (i) => { checklist.splice(i,1); renderChecklist(); };
+
         const renderChecklist = () => {
             const el = overlay.querySelector('#tm-checklist');
             const done = checklist.filter(c=>c.completed).length;
             const prog = overlay.querySelector('#tm-check-progress');
             if (prog) prog.textContent = `(${done}/${checklist.length})`;
-            el.innerHTML = checklist.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <input type="checkbox" ${c.completed?'checked':''} onchange="window._tmToggleCheck(${i}, this.checked);">
-                <span style="flex:1;${c.completed?'text-decoration:line-through;opacity:.6;':''}">${escapeHtml(c.text)}</span>
-                <button onclick="window._tmRemoveCheck(${i});" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
-            </div>`).join('') || '<div style="color:#888;font-size:12px;">Sin ítems</div>';
+            el.innerHTML = checklist.map((c,i)=>`<div class="flex items-center gap-2 p-1.5 rounded hover:bg-surface-container transition-colors">
+                <input type="checkbox" class="w-4 h-4 accent-primary rounded" ${c.completed?'checked':''} onchange="window._tmToggleCheck(${i}, this.checked);">
+                <span class="flex-1 text-sm ${c.completed?'line-through opacity-50':''}">${escapeHtml(c.text)}</span>
+                <button onclick="window._tmRemoveCheck(${i});" class="text-on-surface-variant hover:text-error p-0.5 rounded"><span class="material-symbols-outlined text-[16px]">close</span></button>
+            </div>`).join('') || '<div class="text-xs text-on-surface-variant/70 italic py-1">Sin elementos en el checklist</div>';
         };
-        let replyTo = null;
+
+        // Renderizar adjuntos de la tarea
+        const renderTaskAttachments = () => {
+            const el = overlay.querySelector('#tm-attachments-list');
+            const countEl = overlay.querySelector('#tm-att-count');
+            const total = (t.archivos || []).length;
+            if (countEl) countEl.textContent = total > 0 ? `(${total})` : '';
+
+            if (!t.archivos || t.archivos.length === 0) {
+                el.innerHTML = `<div class="text-xs text-on-surface-variant/70 italic py-2 text-center bg-surface-container/50 rounded-lg border border-dashed border-outline-variant/30">No hay archivos adjuntos en esta tarea aún.</div>`;
+                return;
+            }
+
+            el.innerHTML = t.archivos.map((a, idx) => {
+                const isImg = a.mime?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(a.path || a.nombre || '');
+                const isPdf = a.mime === 'application/pdf' || /\.pdf$/i.test(a.path || a.nombre || '');
+                const icon = isImg ? 'image' : (isPdf ? 'picture_as_pdf' : 'description');
+                const sizeStr = a.size ? formatFileSize(a.size) : '';
+
+                return `<div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-surface-container border border-outline-variant/20 hover:border-primary/40 transition-colors">
+                    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                        ${isImg
+                            ? `<a href="${a.path}" target="_blank" title="Ver imagen"><img src="${a.path}" alt="${escapeAttr(a.nombre)}" class="w-10 h-10 rounded-lg object-cover border border-outline-variant/30 flex-shrink-0"></a>`
+                            : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined ${isPdf?'text-error':'text-primary'} text-[22px]">${icon}</span></div>`
+                        }
+                        <div class="min-w-0 flex-1">
+                            <a href="${a.path}" target="_blank" class="text-sm font-label-bold text-on-surface hover:text-primary transition-colors truncate block" title="${escapeAttr(a.nombre)}">
+                                ${escapeHtml(a.nombre)}
+                            </a>
+                            <div class="text-[11px] text-on-surface-variant flex items-center gap-2 mt-0.5">
+                                ${sizeStr ? `<span>${sizeStr}</span>` : ''}
+                                ${a.fecha ? `<span>· ${formatShortDate(a.fecha)}</span>` : ''}
+                                ${a.autor ? `<span>· Por ${escapeHtml(a.autor)}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <a href="${a.path}" target="_blank" download class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors" title="Descargar / Abrir">
+                            <span class="material-symbols-outlined text-[18px]">download</span>
+                        </a>
+                        <button type="button" onclick="window._tmRemoveAttachment(${idx})" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Eliminar adjunto">
+                            <span class="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
+        window._tmRemoveAttachment = async (idx) => {
+            if (!confirm('¿Eliminar este archivo adjunto?')) return;
+            const removed = t.archivos.splice(idx, 1)[0];
+            if (removed) {
+                // Eliminar del backend si estaba en la bitácora
+                const bitEntry = (current.bitacora || []).find(b => b.id === removed.id || b.archivo?.path === removed.path);
+                if (bitEntry) {
+                    try { await API.delete(`/proyectos/${current.id}/bitacora/${bitEntry.id}`); } catch(e) {}
+                }
+                current.bitacora = (current.bitacora || []).filter(b => b.id !== removed.id && b.archivo?.path !== removed.path);
+                await saveCurrent(['pasos', 'bitacora']);
+                renderTaskAttachments();
+                showToast('Adjunto eliminado', 'success');
+            }
+        };
+
         const renderComments = () => {
             const el = overlay.querySelector('#tm-comments');
             const topLevel = comments.filter(c=>!c.parentId);
             const renderOne = (c, depth) => {
                 const replies = comments.filter(r=>r.parentId===c.id);
-                return `<div style="margin-left:${depth*16}px;border-bottom:1px solid #333;padding:6px 0;font-size:13px;">
-                    <b>${escapeHtml(c.autor||'Tú')}</b>: ${escapeHtml(c.text)} <span style="color:#888;font-size:10px;">${c.fecha||''}</span>
-                    <button type="button" style="color:#f4bf00;font-size:11px;margin-left:8px;" onclick="(function(){const i=document.getElementById('tm-comment'); i.dataset.reply='${c.id}'; i.placeholder='Responder a ${escapeHtml(c.autor||'')}...'; i.focus();})()">Responder</button>
+                return `<div style="margin-left:${depth*16}px;" class="border-b border-outline-variant/10 py-1.5 text-xs">
+                    <span class="font-bold text-on-surface">${escapeHtml(c.autor||'Tú')}</span>: ${escapeHtml(c.text)}
+                    <span class="text-on-surface-variant text-[10px] ml-1">${c.fecha||''}</span>
+                    <button type="button" class="text-primary text-[10px] ml-2 hover:underline" onclick="(function(){const i=document.getElementById('tm-comment'); i.dataset.reply='${c.id}'; i.placeholder='Responder a ${escapeHtml(c.autor||'')}...'; i.focus();})()">Responder</button>
                     ${replies.map(r=>renderOne(r,depth+1)).join('')}
                 </div>`;
             };
-            el.innerHTML = topLevel.map(c=>renderOne(c,0)).join('') || '<div style="color:#888;font-size:12px;">Sin comentarios</div>';
+            el.innerHTML = topLevel.map(c=>renderOne(c,0)).join('') || '<div class="text-xs text-on-surface-variant/70 italic py-1">Sin comentarios</div>';
         };
-        // populate users
+
+        // Poblar usuarios
         (async () => {
             try {
                 const users = await API.get('/usuarios');
@@ -604,8 +840,23 @@ window.ProyectosModule = (function () {
                 }
             } catch(e){}
         })();
-        renderChecklist(); renderComments();
-        overlay.querySelector('#tm-check-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); overlay.querySelector('#tm-check-add').click(); } });
+
+        renderChecklist();
+        renderTaskAttachments();
+        renderComments();
+
+        // Mostrar nombre al seleccionar archivo
+        overlay.querySelector('#tm-file').addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            const nameEl = overlay.querySelector('#tm-file-name');
+            if (nameEl) {
+                nameEl.textContent = file ? `${file.name} (${formatFileSize(file.size)})` : 'Ningún archivo seleccionado';
+            }
+        });
+
+        overlay.querySelector('#tm-check-new').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); overlay.querySelector('#tm-check-add').click(); }
+        });
         overlay.querySelector('#tm-check-add').onclick = () => {
             const v = overlay.querySelector('#tm-check-new').value.trim();
             if(!v) return;
@@ -613,6 +864,7 @@ window.ProyectosModule = (function () {
             overlay.querySelector('#tm-check-new').value='';
             renderChecklist();
         };
+
         overlay.querySelector('#tm-comment-pub').onclick = () => {
             const inp = overlay.querySelector('#tm-comment');
             const v = inp.value.trim();
@@ -622,26 +874,76 @@ window.ProyectosModule = (function () {
             inp.value=''; inp.dataset.reply=''; inp.placeholder='Escribe un comentario...';
             renderComments();
         };
+
+        // SUBIDA DE ARCHIVO DESDE LA TARJETA
         overlay.querySelector('#tm-upload').onclick = async () => {
-            const file = overlay.querySelector('#tm-file')?.files?.[0];
-            if (!file) { showToast('Selecciona un archivo','error'); return; }
+            const fileInput = overlay.querySelector('#tm-file');
+            const file = fileInput?.files?.[0];
+            if (!file) { showToast('Selecciona un archivo primero', 'error'); return; }
+
+            const uploadBtn = overlay.querySelector('#tm-upload');
+            const originalText = uploadBtn.innerHTML;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = `<span class="sq-spinner w-3.5 h-3.5 inline-block mr-1"></span> Subiendo...`;
+
             const fd = new FormData();
             fd.append('file', file);
-            fd.append('tipo', 'documento');
-            fd.append('nota', `Adjunto de tarea #${t.id}: ${t.titulo}`);
+            fd.append('tipo', file.type?.startsWith('image/') ? 'evidencia' : 'documento');
+            fd.append('nota', `Adjunto de tarea #${t.id}: ${t.titulo || 'Sin título'}`);
+            fd.append('tarea_id', String(t.id));
+            fd.append('paso_id', String(pid));
             fd.append('etiquetas', `tarea:${t.id}`);
+
             try {
-                const res = await fetch(`${App.API_BASE_URL}/api/proyectos/${current.id}/documentos`, {method:'POST', body:fd, credentials:'include'});
+                const res = await fetch(`${App.API_BASE_URL}/api/proyectos/${current.id}/documentos`, {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'include'
+                });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error||data.detail||'Error');
+                if (!res.ok) throw new Error(data.error || data.detail || 'Error al subir');
+
+                // Sincronizar bitácora global
                 current.bitacora = data.bitacora || current.bitacora;
-                showToast('Adjunto subido a Archivos','success');
-                overlay.querySelector('#tm-file').value='';
-            } catch(e){ showToast(e.message||'Error','error'); }
+
+                // Sincronizar pasos
+                if (data.pasos) {
+                    current.pasos = data.pasos;
+                    const freshPaso = findPaso(pid);
+                    const freshTarea = freshPaso?.tareas?.find(x => String(x.id) === String(t.id));
+                    if (freshTarea) {
+                        t.archivos = freshTarea.archivos || [];
+                    }
+                } else if (data.entry && data.entry.archivo) {
+                    t.archivos.unshift({
+                        id: data.entry.id,
+                        nombre: data.entry.archivo.nombre,
+                        path: data.entry.archivo.path,
+                        mime: data.entry.archivo.mime,
+                        size: data.entry.archivo.size,
+                        fecha: data.entry.fecha,
+                        autor: data.entry.autor
+                    });
+                    await saveCurrent(['pasos']);
+                }
+
+                showToast('Archivo adjuntado correctamente', 'success');
+                fileInput.value = '';
+                const nameEl = overlay.querySelector('#tm-file-name');
+                if (nameEl) nameEl.textContent = 'Ningún archivo seleccionado';
+                renderTaskAttachments();
+            } catch(e) {
+                showToast(e.message || 'Error al subir archivo', 'error');
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalText;
+            }
         };
+
+        // GUARDAR TAREA
         overlay.querySelector('#tm-save').onclick = async () => {
-            t.titulo = overlay.querySelector('#tm-title').value;
-            t.descripcion = overlay.querySelector('#tm-desc').value;
+            t.titulo = overlay.querySelector('#tm-title').value.trim() || t.titulo;
+            t.descripcion = overlay.querySelector('#tm-desc').value.trim();
             t.status = overlay.querySelector('#tm-status').value;
             t.completada = (t.status==='Completado');
             let fi = overlay.querySelector('#tm-start').value || null;
@@ -652,10 +954,10 @@ window.ProyectosModule = (function () {
             t.responsable = overlay.querySelector('#tm-resp').value;
             t.checklist = checklist;
             t.comments = comments;
+            recompute(p);
             await saveCurrent(['pasos']);
-            showToast('Tarea guardada','success');
-            delete window._tmToggleCheck; delete window._tmRemoveCheck;
-            overlay.remove();
+            showToast('Tarea guardada', 'success');
+            window._tmCleanAndClose();
             renderDetalle();
         };
     }

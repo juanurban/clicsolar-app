@@ -8,6 +8,7 @@ const fs = require('fs');
 // Las fotos de clientes van al almacén persistente (fuera del repo) para
 // sobrevivir a los despliegues automáticos de Hostinger.
 const { uploadsDir } = require('../utils/uploadStorage');
+const { normalizarCargas } = require('../utils/cargasOffgrid');
 const uploadPath = uploadsDir('clientes');
 
 const storage = multer.diskStorage({
@@ -106,6 +107,9 @@ router.get('/:id', async (req, res) => {
       }
       cliente.archivos_json = Array.isArray(a) ? a : [];
     }
+    // Cargas off-grid: siempre se devuelve la estructura normalizada con el
+    // resumen recalculado, aunque la fila guardada venga de una versión anterior.
+    cliente.cargas_offgrid_json = normalizarCargas(cliente.cargas_offgrid_json);
     res.json(cliente);
   } catch (error) {
     console.error(error);
@@ -139,6 +143,12 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(aArr)) aArr = [];
     const archivos = JSON.stringify(aArr);
 
+    // Cargas off-grid: se guardan normalizadas y con el resumen calculado en el
+    // servidor (energía diaria, banco de baterías y potencia del inversor).
+    const cargasOffgrid = d.cargas_offgrid_json !== undefined && d.cargas_offgrid_json !== null
+      ? JSON.stringify(normalizarCargas(d.cargas_offgrid_json))
+      : null;
+
     // El consumo escrito por el usuario manda. El promedio del historial solo se
     // usa como valor de cuando no se envió un consumo explícito. Antes el
     // promedio del historial sobrescribía silenciosamente la corrección manual
@@ -150,13 +160,13 @@ router.post('/', async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO clientes (nombre, cedula_nit, direccion, telefono, correo, ciudad, departamento, municipio, empresa_id,
-        operador_red, tipo_tarifa, consumo_mensual_kwh, costo_kwh, hsp, cargas_especiales_kwh_dia, historial_consumo, archivos_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        operador_red, tipo_tarifa, consumo_mensual_kwh, costo_kwh, hsp, cargas_especiales_kwh_dia, historial_consumo, archivos_json, cargas_offgrid_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [d.nombre, d.cedula_nit || '', d.direccion || '', d.telefono || '', d.correo || '',
        d.municipio || d.ciudad || '', d.departamento || '', d.municipio || d.ciudad || '',
        req.user.es_superadmin ? (d.empresa_id || null) : req.user.empresa_id,
        d.operador_red || '', d.tipo_tarifa || 'Residencial', consumo,
-       d.costo_kwh || 0, d.hsp || 4.2, d.cargas_especiales_kwh_dia || 0, historial, archivos]
+       d.costo_kwh || 0, d.hsp || 4.2, d.cargas_especiales_kwh_dia || 0, historial, archivos, cargasOffgrid]
     );
     res.json({ id: result.insertId, message: 'Cliente creado exitosamente' });
   } catch (error) {
@@ -201,14 +211,25 @@ router.put('/:id', async (req, res) => {
       consumo = Math.round((hArr.reduce((a, b) => a + Number(b), 0) / hArr.length) * 10) / 10;
     }
 
+    const campos = ['nombre=?', 'cedula_nit=?', 'direccion=?', 'telefono=?', 'correo=?',
+      'ciudad=?', 'departamento=?', 'municipio=?', 'operador_red=?', 'tipo_tarifa=?',
+      'consumo_mensual_kwh=?', 'costo_kwh=?', 'hsp=?', 'cargas_especiales_kwh_dia=?',
+      'historial_consumo=?', 'archivos_json=?'];
+    const valores = [d.nombre, d.cedula_nit || '', d.direccion || '', d.telefono || '', d.correo || '',
+      d.municipio || d.ciudad || '', d.departamento || '', d.municipio || d.ciudad || '',
+      d.operador_red || '', d.tipo_tarifa || 'Residencial', consumo,
+      d.costo_kwh || 0, d.hsp || 4.2, d.cargas_especiales_kwh_dia || 0, historial, archivos];
+    // Solo se toca la lista off-grid cuando llega en la petición, para no borrarla
+    // desde otros flujos que actualizan el cliente sin conocerla.
+    if (d.cargas_offgrid_json !== undefined) {
+      campos.push('cargas_offgrid_json=?');
+      valores.push(d.cargas_offgrid_json === null ? null : JSON.stringify(normalizarCargas(d.cargas_offgrid_json)));
+    }
+    valores.push(req.params.id);
+
     await pool.execute(
-      `UPDATE clientes SET nombre=?, cedula_nit=?, direccion=?, telefono=?, correo=?,
-       ciudad=?, departamento=?, municipio=?, operador_red=?, tipo_tarifa=?, consumo_mensual_kwh=?, costo_kwh=?,
-       hsp=?, cargas_especiales_kwh_dia=?, historial_consumo=?, archivos_json=? WHERE id=?`,
-      [d.nombre, d.cedula_nit || '', d.direccion || '', d.telefono || '', d.correo || '',
-       d.municipio || d.ciudad || '', d.departamento || '', d.municipio || d.ciudad || '',
-       d.operador_red || '', d.tipo_tarifa || 'Residencial', consumo,
-       d.costo_kwh || 0, d.hsp || 4.2, d.cargas_especiales_kwh_dia || 0, historial, archivos, req.params.id]
+      `UPDATE clientes SET ${campos.join(', ')} WHERE id=?`,
+      valores
     );
     // El perfil energético nacido de un recibo guarda la lectura original. Si el
     // cliente corrige los meses, ese resumen se queda mentiroso y al abrir el

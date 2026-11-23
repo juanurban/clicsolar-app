@@ -24,13 +24,13 @@ const upload = multer({ storage });
 
 async function ensureInstalacionesSchema() {
   const safeAlter = async (sql) => { try { await pool.execute(sql); } catch (e) { /* ignore */ } };
-  await safeAlter("ALTER TABLE proyectos ADD COLUMN tipo TEXT DEFAULT 'instalacion'");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN tipo VARCHAR(50) DEFAULT 'instalacion'");
   await safeAlter("ALTER TABLE proyectos ADD COLUMN empresa_id INTEGER");
-  await safeAlter("ALTER TABLE proyectos ADD COLUMN pasos_json TEXT DEFAULT '[]'");
-  await safeAlter("ALTER TABLE proyectos ADD COLUMN bom_json TEXT DEFAULT '[]'");
-  await safeAlter("ALTER TABLE proyectos ADD COLUMN bitacora_json TEXT DEFAULT '[]'");
-  await safeAlter("ALTER TABLE proyectos ADD COLUMN costos_reales_json TEXT DEFAULT '{}'");
-  await safeAlter("ALTER TABLE proyectos ADD COLUMN tags_json TEXT DEFAULT '[]'");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN pasos_json LONGTEXT");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN bom_json LONGTEXT");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN bitacora_json LONGTEXT");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN costos_reales_json LONGTEXT");
+  await safeAlter("ALTER TABLE proyectos ADD COLUMN tags_json LONGTEXT");
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -52,6 +52,7 @@ function normalizeTarea(t, i) {
     status: String(t?.status || (t?.completada ? 'Completado' : 'Hacer')).trim(),
     checklist: Array.isArray(t?.checklist) ? t.checklist : [],
     comments: Array.isArray(t?.comments) ? t.comments : [],
+    archivos: Array.isArray(t?.archivos) ? t.archivos : [],
     subtareas
   };
 }
@@ -249,24 +250,57 @@ router.post('/:id/documentos', upload.single('file'), async (req, res) => {
     const bit = parseJsonField(rows[0], 'bitacora_json', []);
     const tipo = req.body.tipo || 'documento';
     const nota = String(req.body.nota || '').trim();
-    const etiquetas = String(req.body.etiquetas || '').split(',').map(t=>t.trim()).filter(Boolean);
-    const entry = {
+    const tareaId = req.body.tarea_id ? String(req.body.tarea_id).trim() : null;
+    const pasoId = req.body.paso_id ? String(req.body.paso_id).trim() : null;
+    let etiquetas = String(req.body.etiquetas || '').split(',').map(t=>t.trim()).filter(Boolean);
+    if (tareaId && !etiquetas.includes('tarea:' + tareaId)) {
+      etiquetas.push('tarea:' + tareaId);
+    }
+    const archivoData = {
       id: uid(),
+      nombre: req.file.originalname,
+      path: `/static/uploads/proyectos/${req.params.id}/${req.file.filename}`,
+      mime: req.file.mimetype,
+      size: req.file.size
+    };
+    const entry = {
+      id: archivoData.id,
       tipo,
       nota,
       etiquetas,
+      tarea_id: tareaId,
+      paso_id: pasoId,
       fecha: new Date().toISOString(),
       autor: req.user?.nombre_completo || req.user?.username || '',
-      archivo: {
-        nombre: req.file.originalname,
-        path: `/static/uploads/proyectos/${req.params.id}/${req.file.filename}`,
-        mime: req.file.mimetype,
-        size: req.file.size
-      }
+      archivo: archivoData
     };
     bit.unshift(entry);
-    await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(bit), req.params.id]);
-    res.json({ message: 'Documento agregado', entry, bitacora: bit });
+
+    // Si viene vinculado a una tarea, sincronizar también en pasos_json
+    let pasos = parsePasos(rows[0]);
+    if (tareaId) {
+      pasos.forEach(p => {
+        (p.tareas || []).forEach(t => {
+          if (String(t.id) === tareaId) {
+            t.archivos = Array.isArray(t.archivos) ? t.archivos : [];
+            t.archivos.unshift({
+              id: entry.id,
+              nombre: archivoData.nombre,
+              path: archivoData.path,
+              mime: archivoData.mime,
+              size: archivoData.size,
+              fecha: entry.fecha,
+              autor: entry.autor
+            });
+          }
+        });
+      });
+      await pool.execute('UPDATE proyectos SET bitacora_json=?, pasos_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(bit), JSON.stringify(pasos), req.params.id]);
+    } else {
+      await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(bit), req.params.id]);
+    }
+
+    res.json({ message: 'Documento agregado', entry, bitacora: bit, pasos });
   } catch (error) { console.error('Error uploading doc:', error); res.status(500).json({ error: 'Error al subir documento' }); }
 });
 
@@ -306,8 +340,26 @@ router.delete('/:id/bitacora/:entryId', async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Instalación no encontrada' });
     const bit = parseJsonField(rows[0], 'bitacora_json', []);
     const filtered = bit.filter(e => e.id !== req.params.entryId);
-    await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(filtered), req.params.id]);
-    res.json({ message: 'Entrada eliminada', bitacora: filtered });
+
+    // Si estaba vinculado a alguna tarea, removerlo también de pasos_json
+    let pasos = parsePasos(rows[0]);
+    let modificado = false;
+    pasos.forEach(p => {
+      (p.tareas || []).forEach(t => {
+        if (Array.isArray(t.archivos)) {
+          const antes = t.archivos.length;
+          t.archivos = t.archivos.filter(a => a.id !== req.params.entryId && !a.path?.includes(req.params.entryId));
+          if (t.archivos.length !== antes) modificado = true;
+        }
+      });
+    });
+
+    if (modificado) {
+      await pool.execute('UPDATE proyectos SET bitacora_json=?, pasos_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(filtered), JSON.stringify(pasos), req.params.id]);
+    } else {
+      await pool.execute('UPDATE proyectos SET bitacora_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [JSON.stringify(filtered), req.params.id]);
+    }
+    res.json({ message: 'Entrada eliminada', bitacora: filtered, pasos });
   } catch (error) { res.status(500).json({ error: 'Error al eliminar entrada' }); }
 });
 

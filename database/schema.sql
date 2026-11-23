@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS proyectos (
     bom_json LONGTEXT,
     bitacora_json LONGTEXT,
     costos_reales_json LONGTEXT,
+    tags_json LONGTEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     empresa_id INT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

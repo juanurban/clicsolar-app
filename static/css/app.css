@@ -213,6 +213,22 @@ select.sq-input {
 }
 .sq-table tbody tr:hover { background: rgba(53, 53, 53, 0.4); }
 
+/* Tabla compacta para las cargas off-grid del cliente */
+.sq-table-compact thead th,
+.sq-table-compact tbody td {
+    padding: 0.5rem 0.4rem;
+    font-size: 13px;
+}
+.sq-table-compact thead th {
+    font-size: 11px;
+    padding: 0.6rem 0.4rem;
+}
+.sq-input-compact {
+    padding: 0.45rem 0.6rem;
+    font-size: 14px;
+    border-radius: 0.5rem;
+}
+
 /* ── Tab Navigation ── */
 .sq-tabs {
     display: flex;
