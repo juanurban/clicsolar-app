@@ -218,6 +218,24 @@ window.ProyectosModule = (function () {
                 <div class="w-full p-4 lg:p-10" id="tab-content">${renderTabContent()}</div>
             </div>
         </div>`;
+
+        if (activeTab === 'tareas') {
+            setTimeout(() => {
+                const bInp = document.getElementById('tf-buscar');
+                if (bInp) {
+                    bInp.oninput = debounce((e) => {
+                        taskFilters.buscar = e.target.value;
+                        taskPage = 1;
+                        renderDetalle();
+                        const reInp = document.getElementById('tf-buscar');
+                        if (reInp) {
+                            reInp.focus();
+                            reInp.setSelectionRange(reInp.value.length, reInp.value.length);
+                        }
+                    }, 250);
+                }
+            }, 0);
+        }
     }
 
     function setTab(id) { activeTab = id; renderDetalle(); }
@@ -233,6 +251,42 @@ window.ProyectosModule = (function () {
     let taskSort={key:'id',dir:'asc'};
     let taskPage=1;
     let taskPageSize=10;
+    let taskFilters = {
+        buscar: '',
+        etapa: '',
+        estado: '',
+        prioridad: '',
+        responsable: '',
+        soloAdjuntos: false,
+        soloVencidas: false
+    };
+
+    function setTaskFilter(key, val) {
+        taskFilters[key] = val;
+        taskPage = 1;
+        renderDetalle();
+    }
+
+    function toggleTaskFilter(key) {
+        taskFilters[key] = !taskFilters[key];
+        taskPage = 1;
+        renderDetalle();
+    }
+
+    function resetTaskFilters() {
+        taskFilters = {
+            buscar: '',
+            etapa: '',
+            estado: '',
+            prioridad: '',
+            responsable: '',
+            soloAdjuntos: false,
+            soloVencidas: false
+        };
+        taskPage = 1;
+        renderDetalle();
+    }
+
     function formatFileSize(bytes) {
         if (!bytes || isNaN(bytes)) return '';
         if (bytes < 1024) return bytes + ' B';
@@ -257,32 +311,93 @@ window.ProyectosModule = (function () {
                 const bitMatches = (current.bitacora||[]).filter(b=>(b.etiquetas||[]).includes('tarea:'+t.id) || String(b.tarea_id)===String(t.id));
                 const taskArchivos = Array.isArray(t.archivos) ? t.archivos : [];
                 const totalAdj = Math.max(taskArchivos.length, bitMatches.length);
-                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), prioridad:t.prioridad||'Media', tags:[], progress:prog, adjuntos:totalAdj});
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, descripcion:t.descripcion||'', isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), prioridad:t.prioridad||'Media', tags:[], progress:prog, adjuntos:totalAdj});
             });
         });
         return out;
     }
+
+    function applyTaskFilters(list) {
+        const today = new Date().toISOString().slice(0, 10);
+        return list.filter(t => {
+            // Buscador por texto
+            if (taskFilters.buscar) {
+                const q = taskFilters.buscar.toLowerCase().trim();
+                const textMatch = [t.title, t.descripcion, t.assignee, t.milestone, String(t.id), String(t.realId)]
+                    .some(v => String(v || '').toLowerCase().includes(q));
+                if (!textMatch) return false;
+            }
+            // Filtro por etapa
+            if (taskFilters.etapa && t.milestone !== taskFilters.etapa) {
+                return false;
+            }
+            // Filtro por estado
+            if (taskFilters.estado && t.status !== taskFilters.estado) {
+                return false;
+            }
+            // Filtro por prioridad
+            if (taskFilters.prioridad && (t.prioridad || 'Media') !== taskFilters.prioridad) {
+                return false;
+            }
+            // Filtro por responsable
+            if (taskFilters.responsable) {
+                if (taskFilters.responsable === '_sin_asignar') {
+                    if (t.assignee && t.assignee.trim()) return false;
+                } else if (t.assignee !== taskFilters.responsable) {
+                    return false;
+                }
+            }
+            // Solo con adjuntos
+            if (taskFilters.soloAdjuntos && (!t.adjuntos || t.adjuntos <= 0)) {
+                return false;
+            }
+            // Solo vencidas
+            if (taskFilters.soloVencidas) {
+                const isOverdue = t.dueDate && t.dueDate < today && !t.isCompleted;
+                if (!isOverdue) return false;
+            }
+            return true;
+        });
+    }
+
     function renderTabTareas() {
-        const tasks = flattenTasks();
-        // sort
-        tasks.sort((a,b)=>{
+        const allTasks = flattenTasks();
+        const filteredTasks = applyTaskFilters(allTasks);
+
+        // Ordenamiento
+        filteredTasks.sort((a,b)=>{
             let va=a[taskSort.key], vb=b[taskSort.key];
             if(va==null) va=''; if(vb==null) vb='';
             if(va<vb) return taskSort.dir==='asc'?-1:1;
             if(va>vb) return taskSort.dir==='asc'?1:-1;
             return 0;
         });
-        const total=tasks.length;
-        const pages=Math.max(1,Math.ceil(total/taskPageSize));
-        if(taskPage>pages) taskPage=pages;
-        const slice=tasks.slice((taskPage-1)*taskPageSize, taskPage*taskPageSize);
-        const sortIcon=(k)=> taskSort.key===k ? (taskSort.dir==='asc'?'↑':'↓') : '';
-        const today=new Date().toISOString().slice(0,10);
-        const rows=slice.map(t=>{
+
+        const total = filteredTasks.length;
+        const totalOriginal = allTasks.length;
+        const pages = Math.max(1, Math.ceil(total / taskPageSize));
+        if (taskPage > pages) taskPage = pages;
+        const slice = filteredTasks.slice((taskPage-1)*taskPageSize, taskPage*taskPageSize);
+        const sortIcon = (k) => taskSort.key===k ? (taskSort.dir==='asc'?'↑':'↓') : '';
+        const today = new Date().toISOString().slice(0,10);
+
+        // Responsables únicos para el dropdown
+        const distinctAssignees = [...new Set(allTasks.map(t => t.assignee).filter(Boolean))];
+        const hasActiveFilters = Boolean(
+            taskFilters.buscar ||
+            taskFilters.etapa ||
+            taskFilters.estado ||
+            taskFilters.prioridad ||
+            taskFilters.responsable ||
+            taskFilters.soloAdjuntos ||
+            taskFilters.soloVencidas
+        );
+
+        const rows = slice.map(t => {
             const overdue = t.dueDate && t.dueDate < today && !t.isCompleted;
             return `<tr class="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors">
                 <td class="px-4 py-3"><input type="checkbox" class="w-4 h-4 accent-primary rounded cursor-pointer" ${t.isCompleted?'checked':''} onchange="ProyectosModule.toggleTarea('${t.pasoId}','${t.realId}')"></td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant font-mono">${Number(t.id)||t.id}</td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant font-mono">#${Number(t.id)||t.id}</td>
                 <td class="px-4 py-3">
                     <a href="#" onclick="ProyectosModule.openTaskModal('${t.pasoId}','${t.realId}');return false;" class="text-on-surface hover:text-primary font-label-bold transition-colors flex items-center gap-2">
                         <span>${escapeHtml(t.title)}</span>
@@ -290,7 +405,7 @@ window.ProyectosModule = (function () {
                 </td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">${t.startDate||'-'}</td>
                 <td class="px-4 py-3 text-xs ${overdue?'text-error font-bold':'text-on-surface-variant'} whitespace-nowrap">${t.dueDate ? (overdue ? '⚠️ ' + t.dueDate : t.dueDate) : '-'}</td>
-                <td class="px-4 py-3 text-xs text-on-surface-variant"><span class="px-2 py-0.5 rounded bg-surface-container text-[11px]">${escapeHtml(t.milestone)}</span></td>
+                <td class="px-4 py-3 text-xs text-on-surface-variant"><span class="px-2 py-0.5 rounded bg-surface-container text-[11px] font-medium">${escapeHtml(t.milestone)}</span></td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'Sin asignar')}</td>
                 <td class="px-4 py-3"><div class="w-24 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-2 bg-primary rounded-full transition-all" style="width:${t.progress}%"></div></div><div class="text-[10px] text-on-surface-variant mt-0.5">${t.progress}%</div></td>
                 <td class="px-4 py-3 text-center">
@@ -303,14 +418,75 @@ window.ProyectosModule = (function () {
                 <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.realId}')" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Eliminar tarea"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
             </tr>`;
         }).join('');
+
         return `<div class="space-y-4">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <p class="text-sm text-on-surface-variant">Gestión de tareas en grilla por etapas del proyecto.</p>
-                <div class="flex items-center gap-2">
-                    <button onclick="ProyectosModule.agregarPaso()" class="sq-btn sq-btn-secondary sq-btn-sm flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">add</span>Nueva etapa</button>
-                    <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1 shadow-md"><span class="material-symbols-outlined text-[16px]">add</span>Agregar tarea</button>
+            <!-- BARRA DE FILTROS Y BÚSQUEDA AVANZADA -->
+            <div class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant/30 space-y-3 shadow-sm">
+                <!-- Fila 1: Buscador de texto + Botón Agregar Tarea -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div class="relative flex-1 max-w-lg">
+                        <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                        <input type="text" id="tf-buscar" class="sq-input !pl-10 !py-2 text-sm w-full rounded-xl" placeholder="Buscar por título, ID o descripción..." value="${escapeAttr(taskFilters.buscar)}">
+                        ${taskFilters.buscar ? `<button onclick="ProyectosModule.setTaskFilter('buscar','');" class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface" title="Borrar búsqueda"><span class="material-symbols-outlined text-[16px]">close</span></button>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${hasActiveFilters ? `<button onclick="ProyectosModule.resetTaskFilters()" class="sq-btn sq-btn-ghost sq-btn-sm text-xs text-on-surface-variant hover:text-error flex items-center gap-1 rounded-xl"><span class="material-symbols-outlined text-[16px]">filter_alt_off</span> Limpiar filtros</button>` : ''}
+                        <button onclick="ProyectosModule.agregarTareaRapida()" class="sq-btn sq-btn-primary sq-btn-sm flex items-center gap-1.5 rounded-xl shadow-md whitespace-nowrap">
+                            <span class="material-symbols-outlined text-[18px]">add</span> Nueva tarea
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Fila 2: Selectores de Etapa, Estado, Prioridad y Asignado -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-1">
+                    <div>
+                        <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Etapa</label>
+                        <select class="sq-input text-xs !py-1.5 rounded-lg w-full" onchange="ProyectosModule.setTaskFilter('etapa', this.value)">
+                            <option value="">Todas las etapas</option>
+                            ${(current.pasos||[]).map(s=>`<option value="${escapeAttr(s.nombre)}" ${taskFilters.etapa===s.nombre?'selected':''}>${escapeHtml(s.nombre)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Estado</label>
+                        <select class="sq-input text-xs !py-1.5 rounded-lg w-full" onchange="ProyectosModule.setTaskFilter('estado', this.value)">
+                            <option value="">Todos los estados</option>
+                            <option value="Hacer" ${taskFilters.estado==='Hacer'?'selected':''}>Hacer</option>
+                            <option value="En progreso" ${taskFilters.estado==='En progreso'?'selected':''}>En progreso</option>
+                            <option value="Completado" ${taskFilters.estado==='Completado'?'selected':''}>Completado</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Prioridad</label>
+                        <select class="sq-input text-xs !py-1.5 rounded-lg w-full" onchange="ProyectosModule.setTaskFilter('prioridad', this.value)">
+                            <option value="">Todas las prioridades</option>
+                            <option value="Urgente" ${taskFilters.prioridad==='Urgente'?'selected':''}>🔴 Urgente</option>
+                            <option value="Alta" ${taskFilters.prioridad==='Alta'?'selected':''}>🟠 Alta</option>
+                            <option value="Media" ${taskFilters.prioridad==='Media'?'selected':''}>🔵 Media</option>
+                            <option value="Baja" ${taskFilters.prioridad==='Baja'?'selected':''}>🟢 Baja</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-1">Responsable</label>
+                        <select class="sq-input text-xs !py-1.5 rounded-lg w-full" onchange="ProyectosModule.setTaskFilter('responsable', this.value)">
+                            <option value="">Todos los asignados</option>
+                            <option value="_sin_asignar" ${taskFilters.responsable==='_sin_asignar'?'selected':''}>Sin asignar</option>
+                            ${distinctAssignees.map(a=>`<option value="${escapeAttr(a)}" ${taskFilters.responsable===a?'selected':''}>${escapeHtml(a)}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Filtros Rápidos (Toggles) -->
+                    <div class="col-span-2 flex items-end gap-2 pb-0.5">
+                        <button type="button" onclick="ProyectosModule.toggleTaskFilter('soloAdjuntos')" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-label-bold border flex items-center justify-center gap-1.5 transition-all ${taskFilters.soloAdjuntos?'bg-primary/20 border-primary text-primary shadow-sm':'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:text-on-surface'}">
+                            <span class="material-symbols-outlined text-[16px]">attachment</span> Con adjuntos
+                        </button>
+                        <button type="button" onclick="ProyectosModule.toggleTaskFilter('soloVencidas')" class="flex-1 py-1.5 px-3 rounded-lg text-xs font-label-bold border flex items-center justify-center gap-1.5 transition-all ${taskFilters.soloVencidas?'bg-error/20 border-error text-error shadow-sm':'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:text-on-surface'}">
+                            <span class="material-symbols-outlined text-[16px]">warning</span> Vencidas
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            <!-- TABLA DE TAREAS -->
             <div class="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-low shadow-sm">
                 <table class="sq-table w-full text-sm" style="width:100%;">
                     <thead><tr>
@@ -327,29 +503,27 @@ window.ProyectosModule = (function () {
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
                         <th class="px-4 py-3 text-center">Acciones</th>
                     </tr></thead>
-                    <tbody>${rows||'<tr><td colspan="12" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
+                    <tbody>${rows||'<tr><td colspan="12" class="text-center py-10 text-on-surface-variant"><span class="material-symbols-outlined text-[40px] opacity-30 block mb-2">search_off</span>No se encontraron tareas con los filtros seleccionados.</td></tr>'}</tbody>
                 </table>
             </div>
-                        <th class="px-4 py-3">Adjuntos</th>
-                        <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
-                        <th class="px-4 py-3">Acciones</th>
-                    </tr></thead>
-                    <tbody>${rows||'<tr><td colspan="11" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
-                </table>
-            </div>
-            <div class="flex items-center justify-between text-sm">
+
+            <!-- PAGINACIÓN Y RESUMEN -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm px-2">
                 <div class="flex items-center gap-2">
-                    <span class="text-on-surface-variant">Por página:</span>
-                    <select class="sq-input text-sm w-20" onchange="ProyectosModule.setTaskPageSize(this.value)">
+                    <span class="text-xs text-on-surface-variant">Por página:</span>
+                    <select class="sq-input text-xs !py-1 w-20 rounded-lg" onchange="ProyectosModule.setTaskPageSize(this.value)">
                         <option value="10" ${taskPageSize==10?'selected':''}>10</option>
                         <option value="25" ${taskPageSize==25?'selected':''}>25</option>
                         <option value="50" ${taskPageSize==50?'selected':''}>50</option>
                     </select>
                 </div>
-                <div class="text-on-surface-variant">${(taskPage-1)*taskPageSize+1}-${Math.min(taskPage*taskPageSize,total)} / ${total}</div>
-                <div class="flex gap-1">
-                    <button class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.prevTaskPage()" ${taskPage<=1?'disabled':''}>&lt;</button>
-                    <button class="sq-btn sq-btn-secondary sq-btn-sm" onclick="ProyectosModule.nextTaskPage()" ${taskPage>=pages?'disabled':''}>&gt;</button>
+                <div class="text-xs text-on-surface-variant">
+                    Mostrando ${(taskPage-1)*taskPageSize + (total>0?1:0)} – ${Math.min(taskPage*taskPageSize, total)} de <span class="font-bold text-on-surface">${total}</span> tareas ${hasActiveFilters ? `(filtradas de ${totalOriginal})` : ''}
+                </div>
+                <div class="flex gap-1.5">
+                    <button class="sq-btn sq-btn-secondary sq-btn-sm !py-1 px-3 rounded-lg" onclick="ProyectosModule.prevTaskPage()" ${taskPage<=1?'disabled':''}>Anterior</button>
+                    <span class="px-2 py-1 text-xs text-on-surface-variant font-medium flex items-center">Pág. ${taskPage} de ${pages}</span>
+                    <button class="sq-btn sq-btn-secondary sq-btn-sm !py-1 px-3 rounded-lg" onclick="ProyectosModule.nextTaskPage()" ${taskPage>=pages?'disabled':''}>Siguiente</button>
                 </div>
             </div>
         </div>`;
@@ -1411,7 +1585,7 @@ window.ProyectosModule = (function () {
     function prevTaskPage(){ if(taskPage>1){taskPage--;renderDetalle();} }
     function nextTaskPage(){ const total=flattenTasks().length; const pages=Math.max(1,Math.ceil(total/taskPageSize)); if(taskPage<pages){taskPage++;renderDetalle();} }
 
-    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
+    return { init, openNuevaInstalacion, onCotizacionChange, crearInstalacion, openDetalle: (id)=>window.location.hash='#proyectos/'+id, setTab, agregarPaso, renamePaso, deletePaso, agregarTarea, editTarea, deleteTarea, openTaskModal, agregarSubtarea, editSubtarea, deleteSubtarea, toggleTarea, updateTareaField, agregarTareaRapida, sortTasks, setTaskPageSize, prevTaskPage, nextTaskPage, setTaskFilter, toggleTaskFilter, resetTaskFilters, toggleBom, updateBomQty, updateBomPrecio, updateBomNombre, addBomItem, removeBomItem, addBomFromInventario, onBomCatChange, addBomFiltered, agregarBitacora, deleteBitacora, editBitacora, createTag, deleteTag, guardarCostosReales, recalcCostos, eliminar };
 })();
 
 window.renderProyectos = function(id) { ProyectosModule.init(id); };
