@@ -572,7 +572,7 @@ window.ProyectosModule = (function () {
             const prog = overlay.querySelector('#tm-check-progress');
             if (prog) prog.textContent = `(${done}/${checklist.length})`;
             el.innerHTML = checklist.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <input type="checkbox" ${c.completed?'checked':''} onchange="checklist[${i}].completed=this.checked; renderChecklist();">
+                <input type="checkbox" ${c.completed?'checked':''} onchange="window._tmToggleCheck(${i}, this.checked);">
                 <span style="flex:1;${c.completed?'text-decoration:line-through;opacity:.6;':''}">${escapeHtml(c.text)}</span>
                 <button onclick="window._tmRemoveCheck(${i});" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
             </div>`).join('') || '<div style="color:#888;font-size:12px;">Sin ítems</div>';
