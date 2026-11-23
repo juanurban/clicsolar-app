@@ -238,7 +238,7 @@ window.ProyectosModule = (function () {
         (current.pasos||[]).forEach(p=>{
             (p.tareas||[]).forEach(t=>{
                 const cl=t.checklist||[]; const done=cl.filter(c=>c.completed).length; const prog=cl.length?Math.round(done/cl.length*100):(t.completada?100:0);
-                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.completada?'Completado':'Hacer', tags:[], progress:prog});
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), tags:[], progress:prog});
             });
         });
         return out;
@@ -517,7 +517,7 @@ window.ProyectosModule = (function () {
     async function agregarPaso(){ const nombre=prompt('Nombre de la nueva etapa:'); if(!nombre?.trim())return; current.pasos=current.pasos||[]; current.pasos.push({id:genId(),nombre:nombre.trim(),orden:current.pasos.length+1,completado:false,tareas:[]}); await saveCurrent(['pasos']); renderDetalle(); }
     async function renamePaso(pid){ const p=findPaso(pid); if(!p)return; const n=prompt('Nuevo nombre de la etapa:',p.nombre); if(n===null||!n.trim())return; p.nombre=n.trim(); await saveCurrent(['pasos']); renderDetalle(); }
     async function deletePaso(pid){ if(!confirm('¿Eliminar esta etapa y sus tareas?'))return; current.pasos=(current.pasos||[]).filter(p=>p.id!==pid); await saveCurrent(['pasos']); renderDetalle(); }
-    async function agregarTarea(pid){ const titulo=prompt('Título de la tarea:'); if(!titulo?.trim())return; const p=findPaso(pid); if(!p)return; p.tareas=p.tareas||[]; p.tareas.push({id:genId(),titulo:titulo.trim(),completada:false,fecha_limite:null,responsable:'',subtareas:[]}); recompute(p); await saveCurrent(['pasos']); renderDetalle(); }
+    async function agregarTarea(pid){ const titulo=prompt('Título de la tarea:'); if(!titulo?.trim())return; const p=findPaso(pid); if(!p)return; p.tareas=p.tareas||[]; p.tareas.push({id:genId(),titulo:titulo.trim(),completada:false,status:'Hacer',fecha_limite:null,responsable:'',subtareas:[]}); recompute(p); await saveCurrent(['pasos']); renderDetalle(); }
     function openTaskModal(pid,tid){
         const t=findTarea(pid,tid);
         if(!t) return;
@@ -639,7 +639,8 @@ window.ProyectosModule = (function () {
         overlay.querySelector('#tm-save').onclick = async () => {
             t.titulo = overlay.querySelector('#tm-title').value;
             t.descripcion = overlay.querySelector('#tm-desc').value;
-            t.completada = overlay.querySelector('#tm-status').value==='Completado';
+            t.status = overlay.querySelector('#tm-status').value;
+            t.completada = (t.status==='Completado');
             let fi = overlay.querySelector('#tm-start').value || null;
             let fl = overlay.querySelector('#tm-due').value || null;
             if (fi && fl && fi > fl) { const tmp=fi; fi=fl; fl=tmp; }
@@ -861,7 +862,7 @@ window.ProyectosModule = (function () {
         let p=current.pasos[0];
         if(!p){ p={id:genId(),nombre:'General',orden:1,completado:false,tareas:[]}; current.pasos.push(p); }
         p.tareas=p.tareas||[];
-        p.tareas.push({id:genId(),titulo:titulo.trim(),completada:false,fecha_limite:null,responsable:'',subtareas:[]});
+        p.tareas.push({id:genId(),titulo:titulo.trim(),completada:false,status:'Hacer',fecha_limite:null,responsable:'',subtareas:[]});
         recompute(p);
         await saveCurrent(['pasos']);
         renderDetalle();

@@ -49,6 +49,7 @@ function normalizeTarea(t, i) {
     fecha_inicio: t?.fecha_inicio || null,
     fecha_limite: t?.fecha_limite || t?.fecha || null,
     responsable: String(t?.responsable ?? '').trim(),
+    status: String(t?.status || (t?.completada ? 'Completado' : 'Hacer')).trim(),
     checklist: Array.isArray(t?.checklist) ? t.checklist : [],
     comments: Array.isArray(t?.comments) ? t.comments : [],
     subtareas
