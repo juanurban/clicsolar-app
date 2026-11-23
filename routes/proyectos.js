@@ -57,7 +57,7 @@ function normalizeTarea(t, i) {
 function normalizePaso(p, i) {
   const tareas = Array.isArray(p?.tareas) ? p.tareas.map(normalizeTarea) : [];
   const completado = tareas.length > 0 ? tareas.every(t => t.completada) : !!p?.completado;
-  return { id: String(p?.id || uid() + 'p' + i), nombre: String(p?.nombre ?? p?.titulo ?? `Etapa ${i + 1}`).trim() || `Etapa ${i + 1}`, orden: i + 1, completado, tareas };
+  return { id: String(p?.id || uid() + 'p' + i), nombre: String(p?.nombre ?? p?.titulo ?? `Etapa ${i + 1}`).trim() || `Etapa ${i + 1}`, orden: i + 1, completado, tareas, titulo: p?.titulo, descripcion: p?.descripcion };
 }
 function parsePasos(row) {
   let pasos = [];
