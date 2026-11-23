@@ -564,6 +564,8 @@ window.ProyectosModule = (function () {
         document.body.appendChild(overlay);
         const checklist = t.checklist || (t.checklist=[]);
         const comments = t.comments || (t.comments=[]);
+        window._tmToggleCheck = (i, val) => { checklist[i].completed = val; const allDone = checklist.length>0 && checklist.every(c=>c.completed); if (allDone) t.completada = true; renderChecklist(); };
+        window._tmRemoveCheck = (i) => { checklist.splice(i,1); renderChecklist(); };
         const renderChecklist = () => {
             const el = overlay.querySelector('#tm-checklist');
             const done = checklist.filter(c=>c.completed).length;
@@ -572,7 +574,7 @@ window.ProyectosModule = (function () {
             el.innerHTML = checklist.map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                 <input type="checkbox" ${c.completed?'checked':''} onchange="checklist[${i}].completed=this.checked; renderChecklist();">
                 <span style="flex:1;${c.completed?'text-decoration:line-through;opacity:.6;':''}">${escapeHtml(c.text)}</span>
-                <button onclick="checklist.splice(${i},1); renderChecklist();" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
+                <button onclick="window._tmRemoveCheck(${i});" style="color:#f4bf00;"><span class="material-symbols-outlined text-[16px]">close</span></button>
             </div>`).join('') || '<div style="color:#888;font-size:12px;">Sin ítems</div>';
         };
         let replyTo = null;
@@ -648,6 +650,7 @@ window.ProyectosModule = (function () {
             t.comments = comments;
             await saveCurrent(['pasos']);
             showToast('Tarea guardada','success');
+            delete window._tmToggleCheck; delete window._tmRemoveCheck;
             overlay.remove();
             renderDetalle();
         };
