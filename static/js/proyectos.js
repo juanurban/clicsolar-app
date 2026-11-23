@@ -533,6 +533,7 @@ window.ProyectosModule = (function () {
             <textarea id="tm-desc" class="sq-input w-full mt-2" rows="3" placeholder="Descripción..." class="sq-input">${escapeHtml(t.descripcion||'')}</textarea>
             <div style="margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;">
                 <label class="text-xs">Estado: <select id="tm-status" class="sq-input text-sm" ><option ${t.completada?'':'selected'} value="Hacer">Hacer</option><option value="En progreso">En progreso</option><option value="Completado" ${t.completada?'selected':''}>Completado</option></select></label>
+                <label class="text-xs">Inicio: <input id="tm-start" type="date" class="sq-input text-sm" value="${t.fecha_inicio||''}" class="sq-input"></label>
                 <label class="text-xs">Límite: <input id="tm-due" type="date" class="sq-input text-sm" value="${t.fecha_limite||''}" class="sq-input"></label>
                 <label class="text-xs">Responsable: <select id="tm-resp" class="sq-input text-sm"><option value="">Sin asignar</option></select></label>
             </div>
@@ -620,6 +621,7 @@ window.ProyectosModule = (function () {
             t.checklist = checklist;
             t.comments = comments;
             await saveCurrent(['pasos']);
+            showToast('Tarea guardada','success');
             overlay.remove();
             renderDetalle();
         };
