@@ -238,7 +238,8 @@ window.ProyectosModule = (function () {
         (current.pasos||[]).forEach(p=>{
             (p.tareas||[]).forEach(t=>{
                 const cl=t.checklist||[]; const done=cl.filter(c=>c.completed).length; const prog=cl.length?Math.round(done/cl.length*100):(t.completada?100:0);
-                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), tags:[], progress:prog});
+                const adj = (current.bitacora||[]).filter(b=>(b.etiquetas||[]).includes('tarea:'+t.id)).length;
+                out.push({id:++idx, realId:t.id, pasoId:p.id, pasoNombre:p.nombre, title:t.titulo, isCompleted:!!t.completada, startDate:t.fecha_inicio||null, dueDate:t.fecha_limite||null, milestone:p.nombre, assignee:t.responsable||'', status:t.status||(t.completada?'Completado':'Hacer'), tags:[], progress:prog, adjuntos:adj});
             });
         });
         return out;
@@ -270,6 +271,7 @@ window.ProyectosModule = (function () {
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.milestone)}</td>
                 <td class="px-4 py-3 text-xs text-on-surface-variant">${escapeHtml(t.assignee||'-')}</td>
                 <td class="px-4 py-3"><div class="w-24 h-2 bg-surface-container-high rounded"><div class="h-2 bg-primary rounded" style="width:${t.progress}%"></div></div><div class="text-[10px] text-on-surface-variant">${t.progress}%</div></td>
+                <td class="px-4 py-3 text-center">${t.adjuntos||0}</td>
                 <td class="px-4 py-3"><span class="text-[11px] px-2 py-0.5 rounded-full ${t.status==='Completado'?'bg-primary/20 text-primary':'bg-surface-container-high text-on-surface-variant'}">${t.status}</span></td>
                 <td class="px-4 py-3 text-center"><button onclick="ProyectosModule.deleteTarea('${t.pasoId}','${t.realId}')" class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">close</span></button></td>
             </tr>`;
@@ -291,10 +293,11 @@ window.ProyectosModule = (function () {
                         <th class="px-4 py-3">Hito</th>
                         <th class="px-4 py-3">Asignado</th>
                         <th class="px-4 py-3">Progreso</th>
+                        <th class="px-4 py-3">Adjuntos</th>
                         <th class="px-4 py-3 cursor-pointer" onclick="ProyectosModule.sortTasks('status')">Estado ${sortIcon('status')}</th>
                         <th class="px-4 py-3">Acciones</th>
                     </tr></thead>
-                    <tbody>${rows||'<tr><td colspan="10" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
+                    <tbody>${rows||'<tr><td colspan="11" class="text-center py-8 text-on-surface-variant">Sin tareas</td></tr>'}</tbody>
                 </table>
             </div>
             <div class="flex items-center justify-between text-sm">
